@@ -1,0 +1,41 @@
+name: Issue Area Labeler
+
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  label:
+    name: Auto-Label Issue Areas
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+
+    steps:
+      - name: Parse and Label Issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          LABELS=()
+          # Parse checkboxes using bash case-insensitive matching
+          if echo "$ISSUE_BODY" | grep -qi -E '-\s*\[x\]\s*Frontend'; then LABELS+=("frontend"); fi
+          if echo "$ISSUE_BODY" | grep -qi -E '-\s*\[x\]\s*Backend'; then LABELS+=("backend"); fi
+          if echo "$ISSUE_BODY" | grep -qi -E '-\s*\[x\]\s*Database'; then LABELS+=("database"); fi
+          if echo "$ISSUE_BODY" | grep -qi -E '-\s*\[x\]\s*AI'; then LABELS+=("ai"); fi
+          if echo "$ISSUE_BODY" | grep -qi -E '-\s*\[x\]\s*Authentication'; then LABELS+=("authentication"); fi
+          if echo "$ISSUE_BODY" | grep -qi -E '-\s*\[x\]\s*PYQ Analysis'; then LABELS+=("pyq-analysis"); fi
+          if echo "$ISSUE_BODY" | grep -qi -E '-\s*\[x\]\s*Study Planner'; then LABELS+=("study-planner"); fi
+          if echo "$ISSUE_BODY" | grep -qi -E '-\s*\[x\]\s*Dashboard'; then LABELS+=("dashboard"); fi
+          if echo "$ISSUE_BODY" | grep -qi -E '-\s*\[x\]\s*UI/UX'; then LABELS+=("ui/ux"); fi
+
+          if [ ${#LABELS[@]} -gt 0 ]; then
+            # Join array by comma
+            LABEL_STR=$(IFS=,; echo "${LABELS[*]}")
+            echo "Applying labels: $LABEL_STR"
+            gh issue edit "$ISSUE_NUMBER" --repo "$REPOSITORY" --add-label "$LABEL_STR"
+          else
+            echo "No area checkboxes selected."
+          fi
