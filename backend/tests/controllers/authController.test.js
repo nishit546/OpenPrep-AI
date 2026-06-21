@@ -5,6 +5,8 @@ const authRoutes = require('../../routes/authRoutes');
 const errorHandler = require('../../middleware/error');
 const User = require('../../models/User');
 
+process.env.JWT_SECRET = 'test_jwt_secret_for_auth';
+
 const app = express();
 app.use(express.json());
 app.use('/api/auth', authRoutes);
@@ -161,7 +163,7 @@ describe('Auth Controller - Integration Tests', () => {
 
       expect(res.status).toBe(400);
       expect(res.body.success).toBe(false);
-      expect(res.body.error).toBe('Please provide email and password');
+      expect(res.body.error).toBe('Please provide a valid email');
     });
 
     it('should return 400 when password is not provided', async () => {
@@ -173,7 +175,7 @@ describe('Auth Controller - Integration Tests', () => {
 
       expect(res.status).toBe(400);
       expect(res.body.success).toBe(false);
-      expect(res.body.error).toBe('Please provide email and password');
+      expect(res.body.error).toBe('Please provide a password');
     });
   });
 

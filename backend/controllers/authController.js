@@ -3,7 +3,7 @@ const jwt = require('jsonwebtoken');
 
 // Helper to generate token
 const generateToken = (id) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET || 'supersecret_openprep_key', {
+  return jwt.sign({ id }, process.env.JWT_SECRET, {
     expiresIn: '30d',
   });
 };
@@ -54,10 +54,6 @@ exports.register = async (req, res, next) => {
 exports.login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
-
-    if (!email || !password) {
-      return res.status(400).json({ success: false, error: 'Please provide email and password' });
-    }
 
     // Check for user
     const user = await User.findOne({ email }).select('+password');

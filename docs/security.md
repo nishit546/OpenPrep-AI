@@ -28,7 +28,36 @@ This document outlines the security architecture, data validation flows, and pol
 
 ## 🛡️ Input Sanitization & Threat Protection
 
-### 1. NoSQL Injection Prevention
+### 1. JWT Secret Validation
+* The server validates `JWT_SECRET` on startup. If the environment variable is not set, the server exits with a clear error message.
+* No hardcoded fallback secrets exist in the source code. All token signing and verification uses `process.env.JWT_SECRET` exclusively.
+
+### 2. Rate Limiting
+* Authentication endpoints (`/api/auth/login`, `/api/auth/register`, `/api/auth/forgot-password`) are protected with `express-rate-limit`.
+* **Login**: 5 attempts per 15 minutes per IP.
+* **Register**: 3 attempts per hour per IP.
+* **Forgot Password**: 3 attempts per hour per IP.
+* Rate limiting is automatically disabled in test environments.
+
+### 3. Security Headers (Helmet)
+* The Express server uses the `helmet` middleware to set critical HTTP security headers including:
+  * Content Security Policy (CSP)
+  * X-Frame-Options (clickjacking protection)
+  * X-Content-Type-Options (MIME sniffing prevention)
+  * Strict-Transport-Security (HSTS)
+  * X-XSS-Protection
+
+### 4. CORS Configuration
+* CORS is restricted to a single allowed origin via the `CORS_ORIGIN` environment variable (defaults to `http://localhost:5173` for development).
+
+### 5. Request Body Size Limiting
+* Both `express.json()` and `express.urlencoded()` limit request bodies to **10KB** to prevent memory exhaustion attacks.
+
+### 6. Input Validation
+* Authentication routes use **express-validator** middleware for centralized, consistent input validation before reaching controllers.
+* Validation errors return uniform `400` responses with comma-separated error messages.
+
+### 7. NoSQL Injection Prevention
 * All user inputs are parameterized via **Mongoose Schemas**.
 * Input payloads are validated to block NoSQL query operator injection (e.g., preventing inputs containing `{ "$gt": "" }`).
 

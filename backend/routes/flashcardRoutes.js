@@ -7,13 +7,18 @@ const {
   deleteFlashcard,
 } = require('../controllers/flashcardController');
 const { protect } = require('../middleware/auth');
+const {
+  validateGenerateAIFlashcards,
+  validateCreateFlashcard,
+  validateReviewFlashcard,
+} = require('../middleware/validators');
 
 const router = express.Router();
 
-router.post('/generate-ai', protect, generateAIFlashcards);
-router.post('/', protect, createFlashcard);
+router.post('/generate-ai', protect, validateGenerateAIFlashcards, generateAIFlashcards);
+router.post('/', protect, validateCreateFlashcard, createFlashcard);
 router.get('/', protect, getFlashcards);
-router.put('/:id/review', protect, reviewFlashcard);
+router.put('/:id/review', protect, validateReviewFlashcard, reviewFlashcard);
 router.delete('/:id', protect, deleteFlashcard);
 
 module.exports = router;

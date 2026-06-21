@@ -12,10 +12,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Spaced Repetition engine logic for Flashcards (`SuperMemo SM-2` adaptation).
 - Redux slices for global user auth state and request handling.
 - PDF and text processing pipelines in Express backend.
+- Security headers via `helmet` middleware (CSP, X-Frame-Options, HSTS, etc.).
+- Rate limiting on auth endpoints (login 5/15min, register 3/hr, forgot-password 3/hr).
+- Input validation middleware via `express-validator` for auth routes.
+- Startup validation: server exits if `JWT_SECRET` is not defined.
+- Request body size limiting to 10KB.
+- Restricted CORS origin via `CORS_ORIGIN` environment variable.
 
 ### Fixed
 - Intermittent CORS issues when connecting Vite local server to Node.js backend.
 - Token expiration handling inside the Redux Thunk loader.
+- **Security**: Removed hardcoded JWT fallback secret `supersecret_openprep_key` from `middleware/auth.js` and `controllers/authController.js`. JWT secret must now come exclusively from the `JWT_SECRET` environment variable.
 
 ---
 

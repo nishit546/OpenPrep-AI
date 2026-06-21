@@ -110,19 +110,20 @@ describe('Auth Middleware - protect', () => {
     expect(req.user.email).toBe('test@example.com');
   });
 
-  it('should use fallback secret if JWT_SECRET is not set', async () => {
+  it('should reject tokens when JWT_SECRET is not configured', async () => {
     delete process.env.JWT_SECRET;
     const fakeId = new mongoose.Types.ObjectId();
-    const token = jwt.sign({ id: fakeId.toString() }, 'supersecret_openprep_key');
+    const token = jwt.sign({ id: fakeId.toString() }, 'some_unknown_secret');
     const { req, res, next } = createMockReqRes();
     req.headers.authorization = `Bearer ${token}`;
 
     await protect(req, res, next);
 
+    // jwt.verify fails because JWT_SECRET is undefined → catch block returns 401
     expect(res.statusCode).toBe(401);
     expect(res.body).toEqual({
       success: false,
-      error: 'User not found',
+      error: 'Not authorized to access this route',
     });
   });
 });

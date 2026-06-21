@@ -7,10 +7,6 @@ exports.submitFeedback = async (req, res, next) => {
   try {
     const { title, description, type } = req.body;
 
-    if (!title || !description || !type) {
-      return res.status(400).json({ success: false, error: 'Provide title, description and type' });
-    }
-
     const feedback = await Feedback.create({
       title,
       description,
