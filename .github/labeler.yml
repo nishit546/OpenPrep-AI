@@ -15,35 +15,33 @@ database:
 authentication:
   - changed-files:
       - any-glob-to-any-file:
-          - 'backend/controllers/auth/**/*'
-          - 'backend/middleware/auth/**/*'
+          - 'backend/controllers/authController.js'
+          - 'backend/middleware/auth.js'
+          - 'backend/routes/authRoutes.js'
 
 ai:
   - changed-files:
       - any-glob-to-any-file:
-          - 'backend/services/ai/**/*'
-          - 'backend/services/gemini/**/*'
+          - 'backend/services/geminiService.js'
 
 ui/ux:
   - changed-files:
       - any-glob-to-any-file:
           - 'frontend/src/components/**/*'
-          - 'frontend/src/pages/**/*'
 
 pyq-analysis:
   - changed-files:
       - any-glob-to-any-file:
-          - 'backend/modules/pyq/**/*'
-          - 'frontend/src/features/pyq/**/*'
+          - 'backend/controllers/pyqController.js'
+          - 'backend/routes/pyqRoutes.js'
+          - 'backend/models/PYQ.js'
 
 study-planner:
   - changed-files:
       - any-glob-to-any-file:
-          - 'backend/modules/study-planner/**/*'
-          - 'frontend/src/features/study-planner/**/*'
+          - 'backend/controllers/studyPlanController.js'
+          - 'backend/routes/studyPlanRoutes.js'
+          - 'backend/models/StudyPlan.js'
 
-dashboard:
-  - changed-files:
-      - any-glob-to-any-file:
-          - 'frontend/src/pages/Dashboard/**/*'
-          - 'frontend/src/features/dashboard/**/*'
+# dashboard: No auto-labeling yet — no dashboard-specific files exist in the current codebase.
+# The label can still be applied via issue template checkboxes (see issue-labeler.yml).
