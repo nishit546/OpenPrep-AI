@@ -1,9 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap');
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
+@import "tailwindcss";
 @layer base {
   body {
     font-family: 'Inter', sans-serif;
@@ -11,8 +8,16 @@
   }
   
   h1, h2, h3, h4, h5, h6 {
-    font-family: 'Outfit', sans-serif;
+    font-family: 'Playfair Display', serif;
   }
+}
+
+.font-playfair {
+  font-family: 'Playfair Display', serif;
+}
+
+.font-inter {
+  font-family: 'Inter', sans-serif;
 }
 
 /* Custom Scrollbar */
@@ -79,4 +84,99 @@
   -webkit-backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.05);
   box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.25);
+}
+
+/* Notebook Theme Utilities */
+.notebook-lines {
+  background-color: #fdfbf7;
+  background-image: linear-gradient(transparent 95%, #cbd5e1 95%);
+  background-size: 100% 2rem;
+  line-height: 2rem;
+}
+
+.dark .notebook-lines {
+  background-color: #1e293b;
+  background-image: linear-gradient(transparent 95%, #334155 95%);
+  background-size: 100% 2rem;
+}
+
+.notebook-margin-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 4.5rem;
+  width: 2px;
+  background-color: rgba(239, 68, 68, 0.4);
+  z-index: 10;
+}
+
+.notebook-margin-line::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 6px;
+  width: 2px;
+  background-color: rgba(239, 68, 68, 0.4);
+}
+
+.dark .notebook-margin-line,
+.dark .notebook-margin-line::after {
+  background-color: rgba(239, 68, 68, 0.2);
+}
+
+.sticky-note {
+  box-shadow: 2px 4px 10px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0,0,0,0.08);
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease;
+}
+
+.sticky-note:hover {
+  transform: scale(1.03) rotate(0deg) !important;
+  box-shadow: 4px 12px 20px rgba(0, 0, 0, 0.15);
+  z-index: 20;
+}
+
+
+/* Luxury Vintage Notebook Themes */
+.bg-leather {
+  background-color: #3E2723;
+  background-image: url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100' height='100' filter='url(%23noise)' opacity='0.15'/%3E%3C/svg%3E");
+}
+
+.bg-vintage-paper {
+  background-color: #F5E6CA;
+  background-image: url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.05' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100' height='100' filter='url(%23noise)' opacity='0.08'/%3E%3C/svg%3E");
+  box-shadow: inset 0 0 60px rgba(139, 69, 19, 0.1);
+}
+
+.bg-wood-desk {
+  background-color: #2c1e16;
+  background-image: repeating-linear-gradient(90deg, transparent, transparent 50px, rgba(0,0,0,0.05) 50px, rgba(0,0,0,0.05) 53px),
+                    url("data:image/svg+xml,%3Csvg width='200' height='200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='wood'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.01 0.5' numOctaves='3' result='noise'/%3E%3CfeColorMatrix type='matrix' values='1 0 0 0 0.2  0 1 0 0 0.1  0 0 1 0 0.05  0 0 0 0.3 0' in='noise' result='coloredNoise'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23wood)'/%3E%3C/svg%3E");
+}
+
+.border-stitched {
+  border: 2px dashed rgba(212, 175, 55, 0.4);
+  outline: 1px solid rgba(212, 175, 55, 0.2);
+  outline-offset: -6px;
+}
+
+.text-gold-foil {
+  background: linear-gradient(to right, #BF953F, #FCF6BA, #B38728, #FBF5B7, #AA771C);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: 0px 2px 4px rgba(0,0,0,0.2);
+}
+
+.bg-gold-foil {
+  background: linear-gradient(135deg, #BF953F, #FCF6BA, #B38728, #FBF5B7, #AA771C);
+}
+
+.shadow-leather {
+  box-shadow: 0 20px 40px -10px rgba(0,0,0,0.7), inset 0 2px 5px rgba(255,255,255,0.1);
+}
+
+.shadow-paper {
+  box-shadow: 2px 4px 12px rgba(0,0,0,0.15), inset 0 0 20px rgba(139, 69, 19, 0.05);
 }
