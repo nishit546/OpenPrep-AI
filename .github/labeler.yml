@@ -1,0 +1,40 @@
+# Configuration for GitHub Labeler Action
+
+frontend:
+  - changed-files:
+      - any-glob-to-any-file: 'frontend/**/*'
+
+backend:
+  - changed-files:
+      - any-glob-to-any-file: 'backend/**/*'
+
+database:
+  - changed-files:
+      - any-glob-to-any-file: 'backend/models/**/*'
+
+documentation:
+  - changed-files:
+      - any-glob-to-any-file: '**/*.md'
+
+ui/ux:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'frontend/src/components/**/*'
+          - 'frontend/src/pages/**/*'
+
+ai:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'backend/services/geminiService.js'
+          - 'backend/controllers/pyqController.js'
+          - 'backend/controllers/studyPlanController.js'
+          - 'backend/controllers/quizController.js'
+
+authentication:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'backend/middleware/auth.js'
+          - 'backend/models/User.js'
+          - 'backend/controllers/authController.js'
+          - 'backend/routes/authRoutes.js'
+          - 'frontend/src/store/slices/authSlice.js'
