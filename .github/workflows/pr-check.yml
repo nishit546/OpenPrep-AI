@@ -1,64 +1,48 @@
-name: Pull Request Check
+name: PR Validation
 
 on:
-  pull_request:
+  pull_request_target:
     types: [opened, edited, reopened, synchronize]
 
 jobs:
   validate:
-    name: Validate PR Metadata
     runs-on: ubuntu-latest
     permissions:
-      contents: read
       pull-requests: write
-
     steps:
-      - name: Verify Title, Description, and Linked Issue
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          PR_TITLE: ${{ github.event.pull_request.title }}
-          PR_BODY: ${{ github.event.pull_request.body }}
-          REPOSITORY: ${{ github.repository }}
-        run: |
-          MISSING_ITEMS=()
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const missing = [];
 
-          # 1. Verify PR Title exists
-          if [ -z "$PR_TITLE" ] || [[ "$PR_TITLE" =~ ^[[:space:]]*$ ]]; then
-            MISSING_ITEMS+=("PR Title must be specified (not empty).")
-          fi
+            const title = (pr.title || '').trim();
+            if (!title) {
+              missing.push('**PR Title** is missing or empty.');
+            }
 
-          # 2. Verify PR Description / Body exists and is non-empty
-          # Strip spaces and newlines to check for true length
-          CLEANED_BODY=$(echo "$PR_BODY" | tr -d '\r' | tr -d ' ' | tr -d '\n')
-          if [ -z "$CLEANED_BODY" ] || [ ${#CLEANED_BODY} -lt 10 ]; then
-            MISSING_ITEMS+=("PR Description must be provided (minimum 10 characters).")
-          fi
+            const body = (pr.body || '').trim();
+            const stripped = body.replace(/[\s\r\n]+/g, '');
+            if (stripped.length < 10) {
+              missing.push('**PR Description** is missing or too short (minimum 10 characters).');
+            }
 
-          # 3. Verify Related Issue Link exists
-          # Matches: Closes #123, Fixes #123, Related to #123, Resolves #123, etc.
-          if ! echo "$PR_BODY" | grep -qi -E '(closes|fixes|related to|resolves)\s*#\s*[0-9]+'; then
-            MISSING_ITEMS+=("A related issue must be linked in the description (e.g. 'Closes #123' or 'Related to #123').")
-          fi
+            const issueRefs = [
+              /(?:close|fix|resolve|related\s+to|ref|implement|address)\s*#\s*\d+/i,
+              /(?:closes|fixes|resolves|implements|addresses)\s*#\s*\d+/i,
+              /issue\s*[#:]\s*\d+/i
+            ];
+            const hasRef = issueRefs.some(r => r.test(body));
+            if (!hasRef) {
+              missing.push('**Related Issue** is not referenced. Use `Fixes #123`, `Closes #123`, or `Related to #123` in the description.');
+            }
 
-          # 4. Handle Validation Outcomes
-          if [ ${#MISSING_ITEMS[@]} -gt 0 ]; then
-            # Construct comment payload
-            COMMENT="### ⚠️ Pull Request Checklist Failed
-
-Please address the following missing metadata items before this PR can be reviewed:
-
-"
-            for item in "${MISSING_ITEMS[@]}"; do
-              COMMENT="$COMMENT
-* $item"
-            done
-
-            # Post comment to PR
-            echo "$COMMENT" | gh pr comment "$PR_NUMBER" --repo "$REPOSITORY" --body-file -
-            
-            echo "Validation failed: Some metadata checks were missing."
-            exit 1
-          else
-            echo "All metadata validation checks passed successfully!"
-          fi
+            if (missing.length > 0) {
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: '## \u26A0\uFE0F PR Checklist Incomplete\n\nThank you for your contribution! Please update your PR to include:\n\n' +
+                  missing.map(m => '- ' + m).join('\n')
+              });
+            }

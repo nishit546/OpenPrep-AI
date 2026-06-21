@@ -1,4 +1,4 @@
-name: "Pull Request Labeler"
+name: Pull Request Labeler
 
 on:
   pull_request_target:
@@ -6,25 +6,20 @@ on:
 
 jobs:
   label:
-    name: Auto-Label PR
     runs-on: ubuntu-latest
     permissions:
       contents: read
       pull-requests: write
-
     steps:
-      - name: Apply Path Labels
-        uses: actions/labeler@v5
+      - uses: actions/labeler@v5
         with:
-          repo-token: "${{ secrets.GITHUB_TOKEN }}"
-          configuration-path: ".github/labeler.yml"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          configuration-path: .github/labeler.yml
           sync-labels: true
 
-      - name: Add Ready-For-Review Label
-        if: github.event.action == 'opened'
+      - if: github.event.action == 'opened'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           REPOSITORY: ${{ github.repository }}
-        run: |
-          gh pr edit "$PR_NUMBER" --repo "$REPOSITORY" --add-label "ready-for-review"
+        run: gh pr edit "$PR_NUMBER" --repo "$REPOSITORY" --add-label "ready-for-review"

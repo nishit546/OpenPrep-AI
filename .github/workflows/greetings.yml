@@ -1,4 +1,4 @@
-name: Contributor Greetings
+name: Greetings
 
 on:
   issues:
@@ -12,38 +12,69 @@ jobs:
     permissions:
       issues: write
       pull-requests: write
-
     steps:
-      - name: First Interaction Greeting
-        uses: actions/first-interaction@v1.3.0
+      - uses: actions/github-script@v7
         with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-          issue-message: |
-            🎉 Welcome to OpenPrep AI!
-            
-            Thank you for opening your first issue here. We appreciate your time and willingness to help improve the platform!
-            
-            To help us address this issue effectively:
-            1. Make sure you follow our [Code of Conduct](https://github.com/${{ github.repository }}/blob/main/CODE_OF_CONDUCT.md).
-            2. Read our [Contribution Guidelines](https://github.com/${{ github.repository }}/blob/main/CONTRIBUTING.md) to understand the workflow.
-            
-            A maintainer will review your issue and respond shortly. If you want to work on a fix, please request assignment in the comments!
-          pr-message: |
-            🎉 Welcome to OpenPrep AI!
-            
-            Thank you for opening your first pull request. We are excited to have you contribute to the project!
-            
-            ### 🔍 PR Review Process
-            Our core maintainers will review your changes shortly. During this time:
-            1. **CI Tests**: Ensure that all automated checks and lint tests pass.
-            2. **Feedback**: Maintainers might suggest changes or ask clarifying questions. Please respond to them in this PR thread.
-            
-            ### 📝 Requirements Check
-            * **Documentation**: Ensure any new features are documented (e.g. in `docs/` or updating `README.md`).
-            * **Testing**: Make sure you have tested your changes locally. See [docs/setup-guide.md](https://github.com/${{ github.repository }}/blob/main/docs/setup-guide.md) to launch the full stack.
-            
-            ### 📚 Useful Links
-            * [Contribution Guide](https://github.com/${{ github.repository }}/blob/main/CONTRIBUTING.md)
-            * [Code of Conduct](https://github.com/${{ github.repository }}/blob/main/CODE_OF_CONDUCT.md)
-            
-            Thanks again for your contribution!
+          script: |
+            const isIssue = !!context.payload.issue;
+            const item = isIssue ? context.payload.issue : context.payload.pull_request;
+            const author = item.user.login;
+
+            const { data: allItems } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              creator: author,
+              state: 'all',
+              per_page: 100
+            });
+
+            const sameType = allItems.filter(i =>
+              isIssue ? !i.pull_request : !!i.pull_request
+            );
+
+            if (sameType.length !== 1) return;
+
+            if (isIssue) {
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: [
+                  '🎉 **Welcome to OpenPrep AI!**',
+                  '',
+                  'Thank you for opening your first issue! Your contribution helps make this project better.',
+                  '',
+                  '**Quick Links:**',
+                  '- [Contribution Guidelines](https://github.com/' + context.repo.owner + '/' + context.repo.repo + '/blob/main/CONTRIBUTING.md)',
+                  '- [Code of Conduct](https://github.com/' + context.repo.owner + '/' + context.repo.repo + '/blob/main/CODE_OF_CONDUCT.md)',
+                  '',
+                  'A maintainer will review this shortly. If you would like to work on a fix, let us know in the comments!'
+                ].join('\n')
+              });
+            } else {
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: [
+                  '🎉 **Welcome to OpenPrep AI!**',
+                  '',
+                  'Thank you for your first contribution!',
+                  '',
+                  '**Useful Links:**',
+                  '- [Contribution Guidelines](https://github.com/' + context.repo.owner + '/' + context.repo.repo + '/blob/main/CONTRIBUTING.md)',
+                  '- [Code of Conduct](https://github.com/' + context.repo.owner + '/' + context.repo.repo + '/blob/main/CODE_OF_CONDUCT.md)',
+                  '- [Setup Guide](https://github.com/' + context.repo.owner + '/' + context.repo.repo + '/blob/main/docs/setup-guide.md)',
+                  '',
+                  '**Review Process:**',
+                  '1. Automated CI checks will run on your PR',
+                  '2. Maintainers will review your changes and may request adjustments',
+                  '3. Once approved, your PR will be merged',
+                  '',
+                  '**Requirements:**',
+                  '- Update documentation if your changes introduce new features',
+                  '- Add or update tests for your changes',
+                  '- Ensure all CI checks pass before requesting review'
+                ].join('\n')
+              });
+            }
