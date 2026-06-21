@@ -1,5 +1,11 @@
 blank_issues_enabled: false
 contact_links:
-  - name: GitHub Discussions
+  - name: 💬 GitHub Discussions
     url: https://github.com/nishit546/OpenPrep-AI/discussions
-    about: Please ask questions and coordinate ideas in our Discussions board!
+    about: Ask questions, get help from the community, and share ideas.
+  - name: 📖 Documentation Hub
+    url: https://github.com/nishit546/OpenPrep-AI/tree/main/docs
+    about: Read the architecture docs, setup guide, and workflow reference.
+  - name: 🤝 Contributing Guide
+    url: https://github.com/nishit546/OpenPrep-AI/blob/main/CONTRIBUTING.md
+    about: Learn how to contribute, branch naming, commit format, and the PR pipeline.

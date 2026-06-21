@@ -1,8 +1,12 @@
 name: Pull Request Labeler
 
+concurrency:
+  group: pr-labeler-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
 on:
   pull_request_target:
-    types: [opened, synchronize, reopened]
+    types: [opened]
 
 jobs:
   label:
@@ -17,9 +21,12 @@ jobs:
           configuration-path: .github/labeler.yml
           sync-labels: true
 
-      - if: github.event.action == 'opened'
-        env:
+      - env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           REPOSITORY: ${{ github.repository }}
-        run: gh pr edit "$PR_NUMBER" --repo "$REPOSITORY" --add-label "ready-for-review"
+        run: |
+          EXISTING=$(gh pr view "$PR_NUMBER" --repo "$REPOSITORY" --json labels --jq '.labels[].name')
+          if ! echo "$EXISTING" | grep -qx "ready-for-review"; then
+            gh pr edit "$PR_NUMBER" --repo "$REPOSITORY" --add-label "ready-for-review"
+          fi

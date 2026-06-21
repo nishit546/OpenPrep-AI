@@ -1,0 +1,63 @@
+name: Priority Labeler
+
+on:
+  issues:
+    types: [opened]
+  pull_request_target:
+    types: [opened]
+
+concurrency:
+  group: priority-label-${{ github.event.issue.number || github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  apply-priority:
+    if: ${{ !endsWith(github.event.issue.user.login || github.event.pull_request.user.login, '[bot]') }}
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const isIssue = context.eventName === 'issues';
+            const item = isIssue ? context.payload.issue : context.payload.pull_request;
+            const num = item.number;
+            const text = ((item.title || '') + ' ' + (item.body || '')).toLowerCase();
+
+            const HIGH_KEYWORDS   = ['crash', 'broken', 'security', 'urgent', 'critical', 'vulnerability',
+                                     'data loss', 'breach', 'exploit', 'emergency', 'outage', 'hotfix',
+                                     'p0', 'p1', 'blocker', 'production'];
+            const MEDIUM_KEYWORDS = ['bug', 'fix', 'error', 'broken link', 'incorrect', 'wrong',
+                                     'failing', 'regression', 'defect', 'issue', 'p2'];
+
+            let priority = 'low-priority';
+            if (HIGH_KEYWORDS.some(k => text.includes(k)))        priority = 'high-priority';
+            else if (MEDIUM_KEYWORDS.some(k => text.includes(k))) priority = 'medium-priority';
+
+            const defs = [
+              { name: 'high-priority',   color: 'e11d48', description: 'High priority — urgent attention needed' },
+              { name: 'medium-priority', color: 'f97316', description: 'Medium priority — should be addressed soon' },
+              { name: 'low-priority',    color: '22c55e', description: 'Low priority — nice to have' },
+            ];
+
+            for (const d of defs) {
+              try { await github.rest.issues.getLabel({ owner, repo, name: d.name }); }
+              catch (e) { if (e.status === 404) await github.rest.issues.createLabel({ owner, repo, ...d }); }
+            }
+
+            const { data: current } = await github.rest.issues.listLabelsOnIssue({ owner, repo, issue_number: num });
+
+            const hasPriority = current.find(l => l.name.endsWith('-priority'));
+
+            if (hasPriority) {
+              if (hasPriority.name === priority) {
+                console.log('Priority already set to ' + priority + ' — skipping');
+                return;
+              }
+              await github.rest.issues.removeLabel({ owner, repo, issue_number: num, name: hasPriority.name });
+            }
+
+            await github.rest.issues.addLabels({ owner, repo, issue_number: num, labels: [priority] });

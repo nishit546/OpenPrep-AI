@@ -1,0 +1,122 @@
+name: Duplicate Issue Detection
+
+on:
+  issues:
+    types: [opened]
+
+concurrency:
+  group: duplicate-issue-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  detect-duplicate:
+    if: ${{ !endsWith(github.event.issue.user.login, '[bot]') }}
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const issue = context.payload.issue;
+            const num = issue.number;
+            const title = (issue.title || '').toLowerCase().trim();
+            const body = (issue.body || '').toLowerCase();
+
+            const { data: comments } = await github.rest.issues.listComments({ owner, repo, issue_number: num, per_page: 50 });
+            if (comments.some(c => c.user.login === 'github-actions[bot]' && c.body.includes('Possible Duplicate Detected'))) {
+              console.log('Already flagged — skipping');
+              return;
+            }
+
+            const STOP_WORDS = new Set([
+              'a','an','the','is','it','in','on','at','to','for','of','and','or','but','not',
+              'be','this','that','was','are','with','as','by','from','have','has','do','will',
+              'can','we','you','he','she','they','my','your','our','its','been','being','had',
+              'did','does','if','so','no','up','out','about','get','got','just','also','very',
+              'too','much','many','some','any','all','each','every','own','same','such','more'
+            ]);
+
+            const CODE_WORDS = new Set([
+              'bug','fix','error','issue','feature','request','add','update','change','remove',
+              'delete','implement','support','improve','refactor','test','doc','docs','frontend',
+              'backend','api','db','database','config','setup','install','run','build','dev',
+              'prod','local','new','old','current','previous','existing','missing','broken'
+            ]);
+
+            function tokenize(text) {
+              return text.toLowerCase()
+                .replace(/[^a-z0-9\s]/g, ' ')
+                .split(/\s+/)
+                .filter(w => w.length > 3 && !STOP_WORDS.has(w) && !CODE_WORDS.has(w));
+            }
+
+            const titleTokens = tokenize(title);
+            const bodyTokens = tokenize(body.substring(0, 500));
+            const combined = [...new Set([...titleTokens, ...bodyTokens])];
+
+            if (combined.length < 4) {
+              console.log('Too few meaningful tokens — skipping');
+              return;
+            }
+
+            try {
+              await github.rest.issues.getLabel({ owner, repo, name: 'possible-duplicate' });
+            } catch (e) {
+              if (e.status === 404) {
+                await github.rest.issues.createLabel({
+                  owner, repo, name: 'possible-duplicate', color: 'cfd3d7',
+                  description: 'Possibly a duplicate of an existing issue',
+                });
+              }
+            }
+
+            const { data: existing } = await github.rest.issues.listForRepo({
+              owner, repo, state: 'open', per_page: 100,
+            });
+
+            const duplicates = [];
+
+            for (const ex of existing) {
+              if (ex.number === num || ex.pull_request) continue;
+
+              const t = (ex.title || '').toLowerCase();
+              const exTokens = tokenize(t);
+              if (exTokens.length < 3) continue;
+
+              const exSet = new Set(exTokens);
+              let overlap = 0;
+              for (const w of combined) { if (exSet.has(w)) overlap++; }
+
+              const jaccard = overlap / (combined.length + exTokens.length - overlap);
+              const score = jaccard * 100;
+
+              if (score >= 80) {
+                duplicates.push({ number: ex.number, title: ex.title, score: Math.round(score) });
+              }
+            }
+
+            if (duplicates.length === 0) {
+              console.log('No duplicates found for #' + num);
+              return;
+            }
+
+            const { data: existingLabels } = await github.rest.issues.listLabelsOnIssue({ owner, repo, issue_number: num });
+            if (!existingLabels.some(l => l.name === 'possible-duplicate')) {
+              await github.rest.issues.addLabels({ owner, repo, issue_number: num, labels: ['possible-duplicate'] });
+            }
+
+            const list = duplicates
+              .sort((a, b) => b.score - a.score)
+              .slice(0, 3)
+              .map(d => '- #' + d.number + ': **' + d.title + '** (' + d.score + '% similarity)')
+              .join('\n');
+
+            await github.rest.issues.createComment({
+              owner, repo, issue_number: num,
+              body: '## 🔍 Possible Duplicate Detected\n\nHey @' + issue.user.login +
+                '! This issue may be similar to existing ones:\n\n' + list +
+                '\n\nPlease check these before proceeding. If this is a duplicate, close and continue in the original. ' +
+                'If not, a maintainer will remove the `possible-duplicate` label.',
+            });

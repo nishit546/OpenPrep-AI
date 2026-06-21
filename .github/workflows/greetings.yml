@@ -1,5 +1,9 @@
 name: Greetings
 
+concurrency:
+  group: greetings-${{ github.event.issue.number || github.event.pull_request.number }}
+  cancel-in-progress: false
+
 on:
   issues:
     types: [opened]
@@ -8,6 +12,7 @@ on:
 
 jobs:
   greeting:
+    if: ${{ !endsWith(github.event.issue.user.login || github.event.pull_request.user.login, '[bot]') }}
     runs-on: ubuntu-latest
     permissions:
       issues: write
@@ -19,6 +24,18 @@ jobs:
             const isIssue = !!context.payload.issue;
             const item = isIssue ? context.payload.issue : context.payload.pull_request;
             const author = item.user.login;
+            const num = item.number;
+
+            const { data: existing } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: num,
+              per_page: 50
+            });
+            if (existing.some(c => c.user.login == 'github-actions[bot]' && c.body.includes('Welcome to OpenPrep AI'))) {
+              console.log('Greeting already posted — skipping');
+              return;
+            }
 
             const { data: allItems } = await github.rest.issues.listForRepo({
               owner: context.repo.owner,
@@ -36,7 +53,7 @@ jobs:
 
             if (isIssue) {
               await github.rest.issues.createComment({
-                issue_number: context.issue.number,
+                issue_number: num,
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 body: [
@@ -53,7 +70,7 @@ jobs:
               });
             } else {
               await github.rest.issues.createComment({
-                issue_number: context.issue.number,
+                issue_number: num,
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 body: [

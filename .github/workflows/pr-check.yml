@@ -1,8 +1,12 @@
 name: PR Validation
 
+concurrency:
+  group: pr-check-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 on:
   pull_request_target:
-    types: [opened, edited, reopened, synchronize]
+    types: [opened, edited]
 
 jobs:
   validate:
@@ -14,6 +18,7 @@ jobs:
         with:
           script: |
             const pr = context.payload.pull_request;
+            const num = context.issue.number;
             const missing = [];
 
             const title = (pr.title || '').trim();
@@ -37,12 +42,42 @@ jobs:
               missing.push('**Related Issue** is not referenced. Use `Fixes #123`, `Closes #123`, or `Related to #123` in the description.');
             }
 
-            if (missing.length > 0) {
-              await github.rest.issues.createComment({
-                issue_number: context.issue.number,
+            const bodyText = '## \u26A0\uFE0F PR Checklist Incomplete\n\nThank you for your contribution! Please update your PR to include:\n\n' +
+              missing.map(m => '- ' + m).join('\n');
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: num,
+              per_page: 50
+            });
+
+            const bot = 'github-actions[bot]';
+            const existing = comments.find(c => c.user.login === bot && c.body.includes('PR Checklist Incomplete'));
+
+            if (missing.length === 0) {
+              if (existing) {
+                await github.rest.issues.deleteComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: existing.id
+                });
+              }
+              return;
+            }
+
+            if (existing) {
+              await github.rest.issues.updateComment({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                body: '## \u26A0\uFE0F PR Checklist Incomplete\n\nThank you for your contribution! Please update your PR to include:\n\n' +
-                  missing.map(m => '- ' + m).join('\n')
+                comment_id: existing.id,
+                body: bodyText
+              });
+            } else {
+              await github.rest.issues.createComment({
+                issue_number: num,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: bodyText
               });
             }

@@ -1,5 +1,9 @@
 name: Issue Auto Labeler
 
+concurrency:
+  group: issue-labeler-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
 on:
   issues:
     types: [opened]
@@ -15,6 +19,7 @@ jobs:
           script: |
             const body = context.payload.issue.body || '';
             const title = context.payload.issue.title || '';
+            const num = context.issue.number;
             const labels = [];
 
             const upper = title.toUpperCase();
@@ -43,11 +48,21 @@ jobs:
               if (re.test(body)) labels.push(label);
             }
 
-            if (labels.length > 0) {
-              await github.rest.issues.addLabels({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: context.issue.number,
-                labels: [...new Set(labels)]
-              });
-            }
+            const deduped = [...new Set(labels)];
+            if (deduped.length === 0) return;
+
+            const { data: existing } = await github.rest.issues.listLabelsOnIssue({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: num
+            });
+            const have = new Set(existing.map(l => l.name));
+            const needed = deduped.filter(l => !have.has(l));
+            if (needed.length === 0) return;
+
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: num,
+              labels: needed
+            });
