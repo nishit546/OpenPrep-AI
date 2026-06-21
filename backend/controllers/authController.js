@@ -2,8 +2,8 @@ const User = require('../models/User');
 const jwt = require('jsonwebtoken');
 
 // Helper to generate token
-const generateToken = (id) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET || 'supersecret_openprep_key', {
+const generateToken = (id, role) => {
+  return jwt.sign({ id, role }, process.env.JWT_SECRET || 'supersecret_openprep_key', {
     expiresIn: '30d',
   });
 };
@@ -29,7 +29,7 @@ exports.register = async (req, res, next) => {
       role: role || 'student',
     });
 
-    const token = generateToken(user._id);
+    const token = generateToken(user._id, user.role);
 
     res.status(201).json({
       success: true,
@@ -88,7 +88,7 @@ exports.login = async (req, res, next) => {
     user.streak.lastActive = Date.now();
     await user.save();
 
-    const token = generateToken(user._id);
+    const token = generateToken(user._id, user.role);
 
     res.status(200).json({
       success: true,

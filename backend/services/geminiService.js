@@ -1,4 +1,5 @@
 const { GoogleGenerativeAI } = require('@google/generative-ai');
+const NodeCache = require('node-cache');
 
 // Initialize Gemini API client
 const apiKey = process.env.GEMINI_API_KEY;
@@ -6,6 +7,9 @@ let genAI = null;
 if (apiKey && apiKey !== 'your_gemini_api_key_here') {
   genAI = new GoogleGenerativeAI(apiKey);
 }
+
+// Response cache to avoid redundant Gemini API calls
+const responseCache = new NodeCache({ stdTTL: 1800, checkperiod: 300 });
 
 // Helper to clean JSON string from markdown formatting
 const cleanJSON = (text) => {
@@ -60,6 +64,10 @@ exports.analyzePYQText = async (rawText, subjectName = 'the subject') => {
     return getMockPYQAnalysis(subjectName);
   }
 
+  const cacheKey = `analyzePYQ:${subjectName}:${rawText.substring(0, 200)}`;
+  const cached = responseCache.get(cacheKey);
+  if (cached) return cached;
+
   try {
     const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
     const prompt = `
@@ -89,7 +97,9 @@ exports.analyzePYQText = async (rawText, subjectName = 'the subject') => {
     `;
 
     const result = await model.generateContent(prompt);
-    return cleanJSON(result.response.text());
+    const parsed = cleanJSON(result.response.text());
+    responseCache.set(cacheKey, parsed);
+    return parsed;
   } catch (error) {
     console.error('Gemini PYQ analysis failed:', error);
     return getMockPYQAnalysis(subjectName);
@@ -104,6 +114,10 @@ exports.generateStudyPlan = async (examName, subjectsAndTopics, startDate, endDa
     console.log('Gemini API key not configured. Using Mock Data for Study Plan.');
     return getMockStudyPlan(examName, subjectsAndTopics, startDate, endDate);
   }
+
+  const cacheKey = `studyPlan:${examName}:${startDate}:${endDate}:${studyHoursPerDay}`;
+  const cached = responseCache.get(cacheKey);
+  if (cached) return cached;
 
   try {
     const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
@@ -130,7 +144,9 @@ exports.generateStudyPlan = async (examName, subjectsAndTopics, startDate, endDa
     `;
 
     const result = await model.generateContent(prompt);
-    return cleanJSON(result.response.text());
+    const parsed = cleanJSON(result.response.text());
+    responseCache.set(cacheKey, parsed);
+    return parsed;
   } catch (error) {
     console.error('Gemini Study Plan generation failed:', error);
     return getMockStudyPlan(examName, subjectsAndTopics, startDate, endDate);
@@ -145,6 +161,10 @@ exports.generateQuiz = async (subjectName, topicName, notesText = '', count = 5)
     console.log('Gemini API key not configured. Using Mock Data for Quiz.');
     return getMockQuiz(subjectName, topicName, count);
   }
+
+  const cacheKey = `quiz:${subjectName}:${topicName}:${count}`;
+  const cached = responseCache.get(cacheKey);
+  if (cached) return cached;
 
   try {
     const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
@@ -174,7 +194,9 @@ exports.generateQuiz = async (subjectName, topicName, notesText = '', count = 5)
     `;
 
     const result = await model.generateContent(prompt);
-    return cleanJSON(result.response.text());
+    const parsed = cleanJSON(result.response.text());
+    responseCache.set(cacheKey, parsed);
+    return parsed;
   } catch (error) {
     console.error('Gemini Quiz generation failed:', error);
     return getMockQuiz(subjectName, topicName, count);
@@ -189,6 +211,10 @@ exports.generateFlashcards = async (subjectName, topicName, notesText = '', coun
     console.log('Gemini API key not configured. Using Mock Data for Flashcards.');
     return getMockFlashcards(subjectName, topicName, count);
   }
+
+  const cacheKey = `flashcards:${subjectName}:${topicName}:${count}`;
+  const cached = responseCache.get(cacheKey);
+  if (cached) return cached;
 
   try {
     const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
@@ -206,7 +232,9 @@ exports.generateFlashcards = async (subjectName, topicName, notesText = '', coun
     `;
 
     const result = await model.generateContent(prompt);
-    return cleanJSON(result.response.text());
+    const parsed = cleanJSON(result.response.text());
+    responseCache.set(cacheKey, parsed);
+    return parsed;
   } catch (error) {
     console.error('Gemini Flashcards generation failed:', error);
     return getMockFlashcards(subjectName, topicName, count);
@@ -221,6 +249,10 @@ exports.analyzePerformanceAndRecommend = async (attemptsSummary) => {
     console.log('Gemini API key not configured. Using Mock Recommendations.');
     return getMockRecommendations();
   }
+
+  const cacheKey = `performance:${JSON.stringify(attemptsSummary)}`;
+  const cached = responseCache.get(cacheKey);
+  if (cached) return cached;
 
   try {
     const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
@@ -240,7 +272,9 @@ exports.analyzePerformanceAndRecommend = async (attemptsSummary) => {
     `;
 
     const result = await model.generateContent(prompt);
-    return cleanJSON(result.response.text());
+    const parsed = cleanJSON(result.response.text());
+    responseCache.set(cacheKey, parsed);
+    return parsed;
   } catch (error) {
     console.error('Gemini performance analysis failed:', error);
     return getMockRecommendations();
