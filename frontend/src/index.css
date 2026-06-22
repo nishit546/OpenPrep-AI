@@ -1,6 +1,17 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap');
 
 @import "tailwindcss";
+
+/* ── Theme Configuration (Tailwind v4) ── */
+@theme {
+  --color-dark-bg: #0F172A;
+  --color-dark-card: #1E293B;
+  --color-dark-border: #334155;
+}
+
+/* Class-based dark mode (replaces v3 darkMode: 'class') */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @layer base {
   body {
     font-family: 'Inter', sans-serif;
