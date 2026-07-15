@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: openprep-backend
+    env: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: PORT
+        value: 5000
+      - key: NODE_ENV
+        value: production
+      - key: MONGO_URI
+        sync: false
+        description: "MongoDB connection URI (e.g. MongoDB Atlas cluster)"
+      - key: JWT_SECRET
+        sync: false
+        description: "Secret key for JWT generation/validation"
+      - key: GEMINI_API_KEY
+        sync: false
+        description: "Google Gemini API Key"
