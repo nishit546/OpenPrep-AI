@@ -12,11 +12,9 @@ services:
       - key: NODE_ENV
         value: production
       - key: MONGO_URI
-        sync: false
-        description: "MongoDB connection URI (e.g. MongoDB Atlas cluster)"
+        value: "mongodb+srv://Nishit:@nISHIT12345@cluster0.rzzsvlr.mongodb.net/"
       - key: JWT_SECRET
-        sync: false
-        description: "Secret key for JWT generation/validation"
+        value: "supersecret_openprep_key"
       - key: GEMINI_API_KEY
         sync: false
         description: "Google Gemini API Key"
