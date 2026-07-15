@@ -1,4 +1,5 @@
 import { Routes, Route } from 'react-router-dom';
+import Landing from './pages/Landing';
 import Dashboard from './pages/Dashboard';
 import Register from './pages/Register';
 import Login from './pages/Login';
@@ -11,7 +12,8 @@ import './App.css';
 function App() {
   return (
     <Routes>
-      {/* Public auth routes */}
+      {/* Public routes */}
+      <Route path="/" element={<Landing />} />
       <Route path="/register" element={<Register />} />
       <Route path="/login" element={<Login />} />
       <Route path="/verify-email/:token" element={<VerifyEmail />} />
@@ -19,14 +21,6 @@ function App() {
       <Route path="/reset-password/:token" element={<ResetPassword />} />
 
       {/* Protected routes */}
-      <Route
-        path="/"
-        element={
-          <ProtectedRoute>
-            <Dashboard />
-          </ProtectedRoute>
-        }
-      />
       <Route
         path="/dashboard"
         element={
