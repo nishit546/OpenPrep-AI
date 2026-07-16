@@ -96,7 +96,9 @@ The React frontend will be available at `http://localhost:5173` and the Express 
    ```bash
    cd backend
    npm install
-   # Create a .env file based on .env.example
+   # Copy the environment template to create your own configuration
+   cp .env.example .env  # Or "copy .env.example .env" on Windows CMD
+   # Open the new .env file and set your own MONGO_URI, JWT_SECRET, etc.
    npm run dev
    ```
 3. **Setup Frontend**:
