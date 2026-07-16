@@ -93,7 +93,7 @@ exports.submitQuizAttempt = async (req, res, next) => {
   try {
     const { answers, timeSpent } = req.body; // answers is array of: { questionId, selectedAnswer }
     
-    const quiz = await Quiz.findById(req.params.id);
+    const quiz = await Quiz.findOne({ _id: req.params.id, createdBy: req.user.id });
     if (!quiz) {
       return res.status(404).json({ success: false, error: 'Quiz not found' });
     }

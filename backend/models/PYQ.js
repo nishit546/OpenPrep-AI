@@ -61,4 +61,7 @@ const PYQSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// Compound index to optimize user-scoped queries (prevents IDOR via fast ownership lookup)
+PYQSchema.index({ user: 1, _id: 1 });
+
 module.exports = mongoose.model('PYQ', PYQSchema);
