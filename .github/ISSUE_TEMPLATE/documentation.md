@@ -2,7 +2,7 @@
 name: Documentation Request
 about: Suggest improvements or report errors in the documentation
 title: '[DOCS]: '
-labels: 'documentation'
+labels: 'documentation, ECSoC26'
 assignees: ''
 ---
 
