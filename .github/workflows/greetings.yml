@@ -52,6 +52,17 @@ jobs:
             if (sameType.length !== 1) return;
 
             if (isIssue) {
+              try {
+                await github.rest.issues.addLabels({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: num,
+                  labels: ['good first issue']
+                });
+              } catch (e) {
+                console.log('Failed to add good first issue label:', e.message);
+              }
+
               await github.rest.issues.createComment({
                 issue_number: num,
                 owner: context.repo.owner,
