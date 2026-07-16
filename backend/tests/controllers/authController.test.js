@@ -72,6 +72,25 @@ describe('Auth Controller - Integration Tests', () => {
         });
 
       expect(res.body.success).toBe(true);
+
+      const user = await User.findOne({ email: 'student@example.com' });
+      expect(user.role).toBe('student');
+    });
+
+    it('should ignore role field and default to student when role is sent', async () => {
+      const res = await request(app)
+        .post('/api/auth/register')
+        .send({
+          name: 'Admin Wannabe',
+          email: 'wannabe@example.com',
+          password: 'StrongPass1!',
+          role: 'admin',
+        });
+
+      expect(res.body.success).toBe(true);
+
+      const user = await User.findOne({ email: 'wannabe@example.com' });
+      expect(user.role).toBe('student');
     });
 
     it('should return 400 when name is missing', async () => {
