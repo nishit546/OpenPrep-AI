@@ -12,9 +12,9 @@ services:
       - key: NODE_ENV
         value: production
       - key: MONGO_URI
-        value: "mongodb+srv://Nishit:%40nISHIT12345@cluster0.rzzsvlr.mongodb.net/"
+        sync: false
       - key: JWT_SECRET
-        value: "supersecret_openprep_key"
+        sync: false
       - key: GEMINI_API_KEY
         sync: false
         description: "Google Gemini API Key"
