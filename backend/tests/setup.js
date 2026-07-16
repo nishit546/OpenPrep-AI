@@ -1,23 +1,14 @@
-const { MongoMemoryServer } = require('mongodb-memory-server');
-const mongoose = require('mongoose');
-
 process.env.NODE_ENV = 'test';
+process.env.DATABASE_URL =
+  process.env.DATABASE_URL_TEST || 'postgres://postgres:postgres@localhost:5432/openprep_test';
 
-let mongoServer;
+const { sequelize } = require('../models');
 
 beforeAll(async () => {
-  mongoServer = await MongoMemoryServer.create();
-  const uri = mongoServer.getUri();
-  await mongoose.connect(uri);
+  // Clear and recreate all tables for clean test execution
+  await sequelize.sync({ force: true });
 });
 
 afterAll(async () => {
-  await mongoose.disconnect();
-  await mongoServer.stop();
+  await sequelize.close();
 });
-
-// Global afterEach was removed intentionally.
-// Individual test files manage their own cleanup.
-// The previous afterEach here deleted ALL collections after every test,
-// which broke integration tests that need data to persist across tests
-// (e.g., controller tests creating a user in beforeAll).

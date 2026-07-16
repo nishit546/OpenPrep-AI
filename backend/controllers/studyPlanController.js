@@ -1,8 +1,11 @@
+const { Op } = require('sequelize');
+const { v4: uuidv4 } = require('uuid');
 const StudyPlan = require('../models/StudyPlan');
 const Exam = require('../models/Exam');
 const Subject = require('../models/Subject');
 const Topic = require('../models/Topic');
 const ActivityLog = require('../models/ActivityLog');
+const User = require('../models/User');
 const geminiService = require('../services/geminiService');
 
 // @desc    Generate AI Study Plan
@@ -12,17 +15,17 @@ exports.generateAIPlan = async (req, res, next) => {
   try {
     const { examId, startDate, endDate, studyHoursPerDay } = req.body;
 
-    const exam = await Exam.findById(examId);
+    const exam = await Exam.findByPk(examId);
     if (!exam) {
       return res.status(404).json({ success: false, error: 'Exam not found' });
     }
 
     // Retrieve subjects and topics to construct syllabus payload
-    const subjects = await Subject.find({ exam: examId, user: req.user.id });
+    const subjects = await Subject.findAll({ where: { exam: examId, user: req.user.id } });
     const syllabus = [];
 
     for (const sub of subjects) {
-      const topics = await Topic.find({ subject: sub._id, user: req.user.id });
+      const topics = await Topic.findAll({ where: { subject: sub.id, user: req.user.id } });
       syllabus.push({
         subjectName: sub.name,
         topics: topics.map((t) => t.name),
@@ -45,22 +48,25 @@ exports.generateAIPlan = async (req, res, next) => {
       studyHoursPerDay || 3
     );
 
-    // Format goals for Mongoose insertion (resolve Topic ObjectIds if names match)
+    // Format goals for database insertion (resolve Topic UUIDs if names match)
     const formattedGoals = [];
     for (const day of generatedGoals) {
       const tasks = [];
       for (const t of day.tasks) {
-        // Try finding matching Topic ObjectId
+        // Try finding matching Topic using case-insensitive PostgreSQL iLike matching
         const matchedTopic = await Topic.findOne({
-          name: { $regex: new RegExp(`^${t.topicName.trim()}$`, 'i') },
-          user: req.user.id,
+          where: {
+            name: { [Op.iLike]: t.topicName.trim() },
+            user: req.user.id,
+          },
         });
 
         tasks.push({
+          _id: uuidv4(), // Assign a stable UUID virtual _id to mimic Mongoose subdocument id
           title: t.title,
           duration: t.duration || 60,
           completed: false,
-          topic: matchedTopic ? matchedTopic._id : null,
+          topic: matchedTopic ? matchedTopic.id : null,
         });
       }
       formattedGoals.push({
@@ -70,9 +76,9 @@ exports.generateAIPlan = async (req, res, next) => {
     }
 
     // Archive previous active plans
-    await StudyPlan.updateMany(
-      { user: req.user.id, exam: examId, status: 'active' },
-      { status: 'archived' }
+    await StudyPlan.update(
+      { status: 'archived' },
+      { where: { user: req.user.id, exam: examId, status: 'active' } }
     );
 
     const studyPlan = await StudyPlan.create({
@@ -109,15 +115,35 @@ exports.getActivePlan = async (req, res, next) => {
     const filter = { user: req.user.id, status: 'active' };
     if (examId) filter.exam = examId;
 
-    const plan = await StudyPlan.findOne(filter)
-      .populate('exam')
-      .populate('dailyGoals.tasks.topic');
+    const plan = await StudyPlan.findOne({
+      where: filter,
+      include: [{ model: Exam, as: 'examRef' }],
+    });
 
     if (!plan) {
       return res.status(200).json({ success: true, data: null });
     }
 
-    res.status(200).json({ success: true, data: plan });
+    // Perform in-memory join for topic references inside JSONB dailyGoals
+    const topics = await Topic.findAll({ where: { user: req.user.id } });
+    const topicMap = {};
+    topics.forEach((t) => {
+      topicMap[t.id] = t;
+    });
+
+    const resolvedGoals = plan.dailyGoals.map((goal) => ({
+      ...goal,
+      tasks: goal.tasks.map((task) => ({
+        ...task,
+        topic: task.topic ? topicMap[task.topic] || null : null,
+      })),
+    }));
+
+    const planJson = plan.toJSON();
+    planJson.exam = planJson.examRef; // populate parity
+    planJson.dailyGoals = resolvedGoals;
+
+    res.status(200).json({ success: true, data: planJson });
   } catch (error) {
     next(error);
   }
@@ -129,17 +155,18 @@ exports.getActivePlan = async (req, res, next) => {
 exports.toggleTaskCompletion = async (req, res, next) => {
   try {
     const { planId, taskId } = req.params;
-    const { completed, studyTimeMinutes } = req.body; // option to track study hours completed
+    const { completed, studyTimeMinutes } = req.body;
 
-    const plan = await StudyPlan.findOne({ _id: planId, user: req.user.id });
+    const plan = await StudyPlan.findOne({ where: { id: planId, user: req.user.id } });
     if (!plan) {
       return res.status(404).json({ success: false, error: 'Study plan not found' });
     }
 
-    // Find and update task
+    // Find and update task inside JSONB dailyGoals
     let taskFound = false;
-    for (const goal of plan.dailyGoals) {
-      const task = goal.tasks.id(taskId);
+    const dailyGoals = JSON.parse(JSON.stringify(plan.dailyGoals));
+    for (const goal of dailyGoals) {
+      const task = goal.tasks.find((t) => t._id === taskId || t.id === taskId);
       if (task) {
         task.completed = completed;
         taskFound = true;
@@ -151,14 +178,17 @@ exports.toggleTaskCompletion = async (req, res, next) => {
       return res.status(404).json({ success: false, error: 'Task not found in plan' });
     }
 
+    plan.dailyGoals = dailyGoals;
     await plan.save();
 
     // If task was completed, add study hours to User profile
     if (completed && studyTimeMinutes) {
       const hours = studyTimeMinutes / 60;
-      await req.user.constructor.findByIdAndUpdate(req.user.id, {
-        $inc: { studyHours: Number(hours.toFixed(2)) },
-      });
+      const user = await User.findByPk(req.user.id);
+      if (user) {
+        user.studyHours = Number((user.studyHours + hours).toFixed(2));
+        await user.save();
+      }
     }
 
     res.status(200).json({ success: true, data: plan });

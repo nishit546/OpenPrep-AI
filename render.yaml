@@ -11,7 +11,7 @@ services:
         value: 5000
       - key: NODE_ENV
         value: production
-      - key: MONGO_URI
+      - key: DATABASE_URL
         sync: false
       - key: JWT_SECRET
         sync: false

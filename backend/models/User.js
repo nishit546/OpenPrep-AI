@@ -1,89 +1,115 @@
-const mongoose = require('mongoose');
+const { DataTypes } = require('sequelize');
+const { sequelize } = require('../config/db');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 
-const UserSchema = new mongoose.Schema(
+const User = sequelize.define(
+  'User',
   {
+    id: {
+      type: DataTypes.UUID,
+      defaultValue: DataTypes.UUIDV4,
+      primaryKey: true,
+    },
     name: {
-      type: String,
-      required: [true, 'Please add a name'],
+      type: DataTypes.STRING,
+      allowNull: false,
+      validate: {
+        notEmpty: { msg: 'Please add a name' },
+      },
     },
     email: {
-      type: String,
-      required: [true, 'Please add an email'],
-      unique: true,
-      match: [
-        /^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/,
-        'Please add a valid email',
-      ],
+      type: DataTypes.STRING,
+      allowNull: false,
+      unique: { msg: 'Email already exists' },
+      validate: {
+        isEmail: { msg: 'Please add a valid email' },
+      },
     },
     password: {
-      type: String,
-      required: [true, 'Please add a password'],
-      minlength: 8,
-      select: false,
+      type: DataTypes.STRING,
+      allowNull: false,
+      validate: {
+        len: {
+          args: [8],
+          msg: 'Password must be at least 8 characters long',
+        },
+      },
     },
     role: {
-      type: String,
-      enum: ['student', 'contributor', 'admin'],
-      default: 'student',
+      type: DataTypes.ENUM('student', 'contributor', 'admin'),
+      defaultValue: 'student',
     },
-    streak: {
-      count: { type: Number, default: 0 },
-      lastActive: { type: Date, default: Date.now },
+    streakCount: {
+      type: DataTypes.INTEGER,
+      defaultValue: 0,
+    },
+    streakLastActive: {
+      type: DataTypes.DATE,
+      defaultValue: DataTypes.NOW,
     },
     studyHours: {
-      type: Number,
-      default: 0,
+      type: DataTypes.FLOAT,
+      defaultValue: 0,
     },
     avatar: {
-      type: String,
-      default: '',
+      type: DataTypes.STRING,
+      defaultValue: '',
     },
-    // Email verification
     isEmailVerified: {
-      type: Boolean,
-      default: false,
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
     },
-    emailVerificationToken: String,
-    emailVerificationExpire: Date,
-    // Password reset
-    resetPasswordToken: String,
-    resetPasswordExpire: Date,
-    // Refresh tokens (hashed)
-    refreshTokens: [String],
-    refreshTokenExpire: Date,
+    emailVerificationToken: {
+      type: DataTypes.STRING,
+    },
+    emailVerificationExpire: {
+      type: DataTypes.DATE,
+    },
+    resetPasswordToken: {
+      type: DataTypes.STRING,
+    },
+    resetPasswordExpire: {
+      type: DataTypes.DATE,
+    },
+    refreshTokens: {
+      type: DataTypes.ARRAY(DataTypes.STRING),
+      defaultValue: [],
+    },
+    refreshTokenExpire: {
+      type: DataTypes.DATE,
+    },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+    hooks: {
+      beforeSave: async (user) => {
+        if (user.changed('password')) {
+          const salt = await bcrypt.genSalt(10);
+          user.password = await bcrypt.hash(user.password, salt);
+        }
+      },
+    },
+  }
 );
 
-// Encrypt password using bcrypt
-UserSchema.pre('save', async function (next) {
-  if (!this.isModified('password')) {
-    return next();
-  }
-  const salt = await bcrypt.genSalt(10);
-  this.password = await bcrypt.hash(this.password, salt);
-  next();
-});
-
 // Match user entered password to hashed password in database
-UserSchema.methods.matchPassword = async function (enteredPassword) {
+User.prototype.matchPassword = async function (enteredPassword) {
   return await bcrypt.compare(enteredPassword, this.password);
 };
 
 // Generate and hash reset/verification tokens
-UserSchema.methods.generateToken = function (field) {
+User.prototype.generateToken = function (field) {
   const token = crypto.randomBytes(32).toString('hex');
   const hashed = crypto.createHash('sha256').update(token).digest('hex');
   if (field === 'resetPassword') {
     this.resetPasswordToken = hashed;
-    this.resetPasswordExpire = Date.now() + 60 * 60 * 1000; // 1 hour
+    this.resetPasswordExpire = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
   } else if (field === 'emailVerification') {
     this.emailVerificationToken = hashed;
-    this.emailVerificationExpire = Date.now() + 24 * 60 * 60 * 1000; // 24 hours
+    this.emailVerificationExpire = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
   }
   return token;
 };
 
-module.exports = mongoose.model('User', UserSchema);
+module.exports = User;

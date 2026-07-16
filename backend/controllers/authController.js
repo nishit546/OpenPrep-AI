@@ -1,4 +1,5 @@
 const crypto = require('crypto');
+const { Op } = require('sequelize');
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
 const sendEmail = require('../services/emailService');
@@ -19,11 +20,13 @@ const generateRefreshToken = async (userId) => {
   const rawToken = crypto.randomBytes(40).toString('hex');
   const hashed = crypto.createHash('sha256').update(rawToken).digest('hex');
 
-  const user = await User.findById(userId);
+  const user = await User.findByPk(userId);
   if (!user) throw new Error('User not found');
 
-  user.refreshTokens.push(hashed);
-  user.refreshTokenExpire = Date.now() + 7 * 24 * 60 * 60 * 1000; // 7 days
+  const tokens = [...(user.refreshTokens || [])];
+  tokens.push(hashed);
+  user.refreshTokens = tokens;
+  user.refreshTokenExpire = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
   await user.save();
 
   return rawToken;
@@ -34,7 +37,7 @@ const generateRefreshToken = async (userId) => {
 // ---------------------------------------------------------------------------
 const sendVerificationEmail = async (user, req) => {
   const verificationToken = user.generateToken('emailVerification');
-  await user.save({ validateBeforeSave: false });
+  await user.save();
 
   const verifyUrl = `${req.protocol}://${req.get('host')}/api/auth/verify-email/${verificationToken}`;
 
@@ -50,7 +53,7 @@ const sendVerificationEmail = async (user, req) => {
 // ---------------------------------------------------------------------------
 const sendPasswordResetEmail = async (user, req) => {
   const resetToken = user.generateToken('resetPassword');
-  await user.save({ validateBeforeSave: false });
+  await user.save();
 
   const resetUrl = `${req.protocol}://${req.get('host')}/api/auth/reset-password/${resetToken}`;
 
@@ -70,7 +73,7 @@ exports.register = async (req, res, next) => {
   try {
     const { name, email, password } = req.body;
 
-    const userExists = await User.findOne({ email });
+    const userExists = await User.findOne({ where: { email } });
     if (userExists) {
       return res.status(400).json({ success: false, error: 'User already exists' });
     }
@@ -100,20 +103,24 @@ exports.verifyEmail = async (req, res, next) => {
     const hashedToken = crypto.createHash('sha256').update(req.params.token).digest('hex');
 
     const user = await User.findOne({
-      emailVerificationToken: hashedToken,
-      emailVerificationExpire: { $gt: Date.now() },
+      where: {
+        emailVerificationToken: hashedToken,
+        emailVerificationExpire: { [Op.gt]: new Date() },
+      },
     });
 
     if (!user) {
-      return res.status(400).json({ success: false, error: 'Invalid or expired verification token' });
+      return res
+        .status(400)
+        .json({ success: false, error: 'Invalid or expired verification token' });
     }
 
     user.isEmailVerified = true;
-    user.emailVerificationToken = undefined;
-    user.emailVerificationExpire = undefined;
+    user.emailVerificationToken = null;
+    user.emailVerificationExpire = null;
     await user.save();
 
-    const accessToken = generateAccessToken(user._id);
+    const accessToken = generateAccessToken(user.id);
 
     res.status(200).json({
       success: true,
@@ -134,7 +141,7 @@ exports.login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
 
-    const user = await User.findOne({ email }).select('+password');
+    const user = await User.findOne({ where: { email } });
     if (!user) {
       return res.status(401).json({ success: false, error: 'Invalid credentials' });
     }
@@ -143,7 +150,8 @@ exports.login = async (req, res, next) => {
     if (!user.isEmailVerified) {
       return res.status(403).json({
         success: false,
-        error: 'Please verify your email before logging in. Check your inbox for the verification link.',
+        error:
+          'Please verify your email before logging in. Check your inbox for the verification link.',
       });
     }
 
@@ -155,33 +163,36 @@ exports.login = async (req, res, next) => {
     // Update daily streak
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const lastActive = new Date(user.streak.lastActive);
+    const lastActive = new Date(user.streakLastActive);
     lastActive.setHours(0, 0, 0, 0);
 
     const diffTime = Math.abs(today - lastActive);
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
     if (diffDays === 1) {
-      user.streak.count += 1;
+      user.streakCount += 1;
     } else if (diffDays > 1) {
-      user.streak.count = 1;
+      user.streakCount = 1;
     }
-    user.streak.lastActive = Date.now();
+    user.streakLastActive = new Date();
     await user.save();
 
-    const accessToken = generateAccessToken(user._id);
-    const refreshToken = await generateRefreshToken(user._id);
+    const accessToken = generateAccessToken(user.id);
+    const refreshToken = await generateRefreshToken(user.id);
 
     res.status(200).json({
       success: true,
       token: accessToken,
       refreshToken,
       user: {
-        id: user._id,
+        id: user.id,
         name: user.name,
         email: user.email,
         role: user.role,
-        streak: user.streak,
+        streak: {
+          count: user.streakCount,
+          lastActive: user.streakLastActive,
+        },
         studyHours: user.studyHours,
         isEmailVerified: user.isEmailVerified,
       },
@@ -198,15 +209,18 @@ exports.login = async (req, res, next) => {
 // ---------------------------------------------------------------------------
 exports.getMe = async (req, res, next) => {
   try {
-    const user = await User.findById(req.user.id);
+    const user = await User.findByPk(req.user.id);
     res.status(200).json({
       success: true,
       user: {
-        id: user._id,
+        id: user.id,
         name: user.name,
         email: user.email,
         role: user.role,
-        streak: user.streak,
+        streak: {
+          count: user.streakCount,
+          lastActive: user.streakLastActive,
+        },
         studyHours: user.studyHours,
         isEmailVerified: user.isEmailVerified,
       },
@@ -224,7 +238,7 @@ exports.getMe = async (req, res, next) => {
 exports.forgotPassword = async (req, res, next) => {
   try {
     const { email } = req.body;
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ where: { email } });
 
     if (!user) {
       return res.status(404).json({ success: false, error: 'User not found with this email' });
@@ -238,11 +252,11 @@ exports.forgotPassword = async (req, res, next) => {
     });
   } catch (error) {
     // If email sending failed, clear the token from DB
-    const user = await User.findOne({ email: req.body.email });
+    const user = await User.findOne({ where: { email: req.body.email } });
     if (user) {
-      user.resetPasswordToken = undefined;
-      user.resetPasswordExpire = undefined;
-      await user.save({ validateBeforeSave: false });
+      user.resetPasswordToken = null;
+      user.resetPasswordExpire = null;
+      await user.save();
     }
     next(error);
   }
@@ -258,8 +272,10 @@ exports.resetPassword = async (req, res, next) => {
     const hashedToken = crypto.createHash('sha256').update(req.params.token).digest('hex');
 
     const user = await User.findOne({
-      resetPasswordToken: hashedToken,
-      resetPasswordExpire: { $gt: Date.now() },
+      where: {
+        resetPasswordToken: hashedToken,
+        resetPasswordExpire: { [Op.gt]: new Date() },
+      },
     });
 
     if (!user) {
@@ -268,13 +284,13 @@ exports.resetPassword = async (req, res, next) => {
 
     // Set new password
     user.password = req.body.password;
-    user.resetPasswordToken = undefined;
-    user.resetPasswordExpire = undefined;
+    user.resetPasswordToken = null;
+    user.resetPasswordExpire = null;
     // Invalidate all existing refresh tokens on password reset
     user.refreshTokens = [];
     await user.save();
 
-    const accessToken = generateAccessToken(user._id);
+    const accessToken = generateAccessToken(user.id);
 
     res.status(200).json({
       success: true,
@@ -298,8 +314,12 @@ exports.refreshToken = async (req, res, next) => {
 
     // Find user who has this hashed refresh token
     const user = await User.findOne({
-      refreshTokens: hashed,
-      refreshTokenExpire: { $gt: Date.now() },
+      where: {
+        refreshTokens: {
+          [Op.contains]: [hashed],
+        },
+        refreshTokenExpire: { [Op.gt]: new Date() },
+      },
     });
 
     if (!user) {
@@ -310,8 +330,8 @@ exports.refreshToken = async (req, res, next) => {
     user.refreshTokens = user.refreshTokens.filter((t) => t !== hashed);
 
     // Generate new pair
-    const accessToken = generateAccessToken(user._id);
-    const newRefreshToken = await generateRefreshToken(user._id);
+    const accessToken = generateAccessToken(user.id);
+    const newRefreshToken = await generateRefreshToken(user.id);
 
     res.status(200).json({
       success: true,

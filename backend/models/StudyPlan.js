@@ -1,45 +1,48 @@
-const mongoose = require('mongoose');
+const { DataTypes } = require('sequelize');
+const { sequelize } = require('../config/db');
 
-const TaskSchema = new mongoose.Schema({
-  title: { type: String, required: true },
-  completed: { type: Boolean, default: false },
-  topic: { type: mongoose.Schema.Types.ObjectId, ref: 'Topic' },
-  duration: { type: Number, default: 60 }, // duration in minutes
-});
-
-const DailyGoalSchema = new mongoose.Schema({
-  date: { type: Date, required: true },
-  tasks: [TaskSchema],
-});
-
-const StudyPlanSchema = new mongoose.Schema(
+const StudyPlan = sequelize.define(
+  'StudyPlan',
   {
+    id: {
+      type: DataTypes.UUID,
+      defaultValue: DataTypes.UUIDV4,
+      primaryKey: true,
+    },
+    _id: {
+      type: DataTypes.VIRTUAL,
+      get() {
+        return this.id;
+      },
+    },
     exam: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Exam',
-      required: true,
+      type: DataTypes.UUID,
+      allowNull: false,
     },
     user: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-      required: true,
+      type: DataTypes.UUID,
+      allowNull: false,
     },
     startDate: {
-      type: Date,
-      required: true,
+      type: DataTypes.DATE,
+      allowNull: false,
     },
     endDate: {
-      type: Date,
-      required: true,
+      type: DataTypes.DATE,
+      allowNull: false,
     },
-    dailyGoals: [DailyGoalSchema],
+    dailyGoals: {
+      type: DataTypes.JSONB,
+      defaultValue: [],
+    },
     status: {
-      type: String,
-      enum: ['active', 'completed', 'archived'],
-      default: 'active',
+      type: DataTypes.ENUM('active', 'completed', 'archived'),
+      defaultValue: 'active',
     },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+  }
 );
 
-module.exports = mongoose.model('StudyPlan', StudyPlanSchema);
+module.exports = StudyPlan;

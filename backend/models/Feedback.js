@@ -1,39 +1,61 @@
-const mongoose = require('mongoose');
+const { DataTypes } = require('sequelize');
+const { sequelize } = require('../config/db');
 
-const FeedbackSchema = new mongoose.Schema(
+const Feedback = sequelize.define(
+  'Feedback',
   {
+    id: {
+      type: DataTypes.UUID,
+      defaultValue: DataTypes.UUIDV4,
+      primaryKey: true,
+    },
+    _id: {
+      type: DataTypes.VIRTUAL,
+      get() {
+        return this.id;
+      },
+    },
     title: {
-      type: String,
-      required: [true, 'Please add a title'],
-      trim: true,
+      type: DataTypes.STRING,
+      allowNull: false,
+      validate: {
+        notEmpty: { msg: 'Please add a title' },
+      },
     },
     description: {
-      type: String,
-      required: [true, 'Please add a description'],
+      type: DataTypes.TEXT,
+      allowNull: false,
+      validate: {
+        notEmpty: { msg: 'Please add a description' },
+      },
     },
     type: {
-      type: String,
-      enum: ['bug', 'feature_request'],
-      required: true,
+      type: DataTypes.ENUM('bug', 'feature_request'),
+      allowNull: false,
     },
     status: {
-      type: String,
-      enum: ['open', 'under_review', 'planned', 'in_development', 'completed', 'closed'],
-      default: 'open',
+      type: DataTypes.ENUM(
+        'open',
+        'under_review',
+        'planned',
+        'in_development',
+        'completed',
+        'closed'
+      ),
+      defaultValue: 'open',
     },
-    upvotes: [
-      {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User',
-      }
-    ],
+    upvotes: {
+      type: DataTypes.ARRAY(DataTypes.UUID),
+      defaultValue: [],
+    },
     user: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-      required: true,
+      type: DataTypes.UUID,
+      allowNull: false,
     },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+  }
 );
 
-module.exports = mongoose.model('Feedback', FeedbackSchema);
+module.exports = Feedback;

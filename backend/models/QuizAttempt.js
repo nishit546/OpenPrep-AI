@@ -1,50 +1,56 @@
-const mongoose = require('mongoose');
+const { DataTypes } = require('sequelize');
+const { sequelize } = require('../config/db');
 
-const QuizAttemptSchema = new mongoose.Schema(
+const QuizAttempt = sequelize.define(
+  'QuizAttempt',
   {
+    id: {
+      type: DataTypes.UUID,
+      defaultValue: DataTypes.UUIDV4,
+      primaryKey: true,
+    },
+    _id: {
+      type: DataTypes.VIRTUAL,
+      get() {
+        return this.id;
+      },
+    },
     user: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-      required: true,
+      type: DataTypes.UUID,
+      allowNull: false,
     },
     quiz: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Quiz',
-      required: true,
+      type: DataTypes.UUID,
+      allowNull: false,
     },
     score: {
-      type: Number,
-      required: true,
+      type: DataTypes.FLOAT,
+      allowNull: false,
     },
     totalQuestions: {
-      type: Number,
-      required: true,
+      type: DataTypes.INTEGER,
+      allowNull: false,
     },
-    answers: [
-      {
-        questionId: mongoose.Schema.Types.ObjectId,
-        selectedAnswer: Number, // Index of user answer (0-3)
-        isCorrect: Boolean,
-      },
-    ],
+    answers: {
+      type: DataTypes.JSONB,
+      defaultValue: [],
+    },
     timeSpent: {
-      type: Number, // in seconds
-      default: 0,
+      type: DataTypes.INTEGER,
+      defaultValue: 0,
     },
-    weakTopics: [
-      {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Topic',
-      },
-    ],
-    strongTopics: [
-      {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Topic',
-      },
-    ],
+    weakTopics: {
+      type: DataTypes.ARRAY(DataTypes.UUID),
+      defaultValue: [],
+    },
+    strongTopics: {
+      type: DataTypes.ARRAY(DataTypes.UUID),
+      defaultValue: [],
+    },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+  }
 );
 
-module.exports = mongoose.model('QuizAttempt', QuizAttemptSchema);
+module.exports = QuizAttempt;

@@ -1,6 +1,6 @@
 const request = require('supertest');
 const express = require('express');
-const mongoose = require('mongoose');
+const { v4: uuidv4 } = require('uuid');
 const jwt = require('jsonwebtoken');
 const academicRoutes = require('../../routes/academicRoutes');
 const errorHandler = require('../../middleware/error');
@@ -140,12 +140,12 @@ describe('Academic Controller - Integration Tests', () => {
         expect(res.body.success).toBe(true);
 
         // Verify cascade delete
-        const subjectsLeft = await Subject.find({ exam: exam._id });
+        const subjectsLeft = await Subject.findAll({ where: { exam: exam.id } });
         expect(subjectsLeft.length).toBe(0);
       });
 
       it('should return 404 for non-existent exam', async () => {
-        const fakeId = new mongoose.Types.ObjectId();
+        const fakeId = uuidv4();
         const res = await request(app)
           .delete(`/api/academic/exams/${fakeId}`)
           .set('Authorization', `Bearer ${authToken}`);
@@ -186,7 +186,7 @@ describe('Academic Controller - Integration Tests', () => {
       });
 
       it('should return 404 for non-existent examId', async () => {
-        const fakeId = new mongoose.Types.ObjectId();
+        const fakeId = uuidv4();
         const res = await request(app)
           .post('/api/academic/subjects')
           .set('Authorization', `Bearer ${authToken}`)
@@ -235,7 +235,7 @@ describe('Academic Controller - Integration Tests', () => {
 
         expect(res.status).toBe(200);
 
-        const topicsLeft = await Topic.find({ subject: subject._id });
+        const topicsLeft = await Topic.findAll({ where: { subject: subject.id } });
         expect(topicsLeft.length).toBe(0);
       });
     });
@@ -295,7 +295,7 @@ describe('Academic Controller - Integration Tests', () => {
       });
 
       it('should return 404 for non-existent subject', async () => {
-        const fakeId = new mongoose.Types.ObjectId();
+        const fakeId = uuidv4();
         const res = await request(app)
           .post('/api/academic/topics')
           .set('Authorization', `Bearer ${authToken}`)
@@ -352,7 +352,7 @@ describe('Academic Controller - Integration Tests', () => {
       });
 
       it('should return 404 for non-existent topic', async () => {
-        const fakeId = new mongoose.Types.ObjectId();
+        const fakeId = uuidv4();
         const res = await request(app)
           .put(`/api/academic/topics/${fakeId}`)
           .set('Authorization', `Bearer ${authToken}`)
@@ -378,7 +378,7 @@ describe('Academic Controller - Integration Tests', () => {
       });
 
       it('should return 404 for non-existent topic', async () => {
-        const fakeId = new mongoose.Types.ObjectId();
+        const fakeId = uuidv4();
         const res = await request(app)
           .delete(`/api/academic/topics/${fakeId}`)
           .set('Authorization', `Bearer ${authToken}`);

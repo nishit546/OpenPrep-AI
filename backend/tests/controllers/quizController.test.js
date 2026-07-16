@@ -1,6 +1,6 @@
 const request = require('supertest');
 const express = require('express');
-const mongoose = require('mongoose');
+const { v4: uuidv4 } = require('uuid');
 const jwt = require('jsonwebtoken');
 const quizRoutes = require('../../routes/quizRoutes');
 const errorHandler = require('../../middleware/error');
@@ -45,7 +45,7 @@ describe('Quiz Controller - Integration Tests', () => {
     testSubject = await Subject.create({
       name: 'Test Subject',
       description: 'A subject for testing',
-      exam: new mongoose.Types.ObjectId(),
+      exam: uuidv4(),
       user: testUser._id,
     });
 
@@ -122,7 +122,7 @@ describe('Quiz Controller - Integration Tests', () => {
 
   describe('GET /api/quizzes/:id', () => {
     it('should return 404 for non-existent quiz', async () => {
-      const fakeId = new mongoose.Types.ObjectId();
+      const fakeId = uuidv4();
       const res = await request(app)
         .get(`/api/quizzes/${fakeId}`)
         .set('Authorization', `Bearer ${authToken}`);
@@ -142,7 +142,7 @@ describe('Quiz Controller - Integration Tests', () => {
       expect(res.body.error).toBe('Resource not found');
     });
 
-    it('should return 404 when another user tries to view someone else\'s quiz (IDOR protection)', async () => {
+    it("should return 404 when another user tries to view someone else's quiz (IDOR protection)", async () => {
       const res = await request(app)
         .get(`/api/quizzes/${testQuiz._id}`)
         .set('Authorization', `Bearer ${otherAuthToken}`);
@@ -165,11 +165,9 @@ describe('Quiz Controller - Integration Tests', () => {
   });
 
   describe('POST /api/quizzes/:id/submit — IDOR Protection', () => {
-    const validAnswers = [
-      { questionId: '000000000000000000000001', selectedAnswer: 0 },
-    ];
+    const validAnswers = [{ questionId: '000000000000000000000001', selectedAnswer: 0 }];
 
-    it('should return 404 when another user tries to submit on someone else\'s quiz (IDOR protection)', async () => {
+    it("should return 404 when another user tries to submit on someone else's quiz (IDOR protection)", async () => {
       const res = await request(app)
         .post(`/api/quizzes/${testQuiz._id}/submit`)
         .set('Authorization', `Bearer ${otherAuthToken}`)
@@ -200,7 +198,7 @@ describe('Quiz Controller - Integration Tests', () => {
 
     afterEach(async () => {
       // Clean up attempts created during these tests
-      await QuizAttempt.deleteMany({});
+      await QuizAttempt.destroy({ where: {} });
     });
   });
 });

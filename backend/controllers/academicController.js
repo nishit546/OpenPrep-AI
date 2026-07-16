@@ -1,3 +1,4 @@
+const { Op } = require('sequelize');
 const Exam = require('../models/Exam');
 const Subject = require('../models/Subject');
 const Topic = require('../models/Topic');
@@ -23,7 +24,10 @@ exports.createExam = async (req, res, next) => {
 
 exports.getExams = async (req, res, next) => {
   try {
-    const exams = await Exam.find({ user: req.user.id }).sort({ date: 1 });
+    const exams = await Exam.findAll({
+      where: { user: req.user.id },
+      order: [['date', 'ASC']],
+    });
     res.status(200).json({ success: true, count: exams.length, data: exams });
   } catch (error) {
     next(error);
@@ -32,15 +36,21 @@ exports.getExams = async (req, res, next) => {
 
 exports.deleteExam = async (req, res, next) => {
   try {
-    const exam = await Exam.findOneAndDelete({ _id: req.params.id, user: req.user.id });
+    const exam = await Exam.findOne({
+      where: { id: req.params.id, user: req.user.id },
+    });
+
     if (!exam) {
       return res.status(404).json({ success: false, error: 'Exam not found' });
     }
+
     // Cascade delete subjects and topics
-    const subjects = await Subject.find({ exam: exam._id });
-    const subjectIds = subjects.map((sub) => sub._id);
-    await Subject.deleteMany({ exam: exam._id });
-    await Topic.deleteMany({ subject: { $in: subjectIds } });
+    const subjects = await Subject.findAll({ where: { exam: exam.id } });
+    const subjectIds = subjects.map((sub) => sub.id);
+
+    await Subject.destroy({ where: { exam: exam.id } });
+    await Topic.destroy({ where: { subject: { [Op.in]: subjectIds } } });
+    await exam.destroy();
 
     res.status(200).json({ success: true, data: {} });
   } catch (error) {
@@ -55,7 +65,9 @@ exports.deleteExam = async (req, res, next) => {
 exports.createSubject = async (req, res, next) => {
   try {
     const { name, description, examId } = req.body;
-    const examExists = await Exam.findOne({ _id: examId, user: req.user.id });
+    const examExists = await Exam.findOne({
+      where: { id: examId, user: req.user.id },
+    });
     if (!examExists) {
       return res.status(404).json({ success: false, error: 'Exam not found' });
     }
@@ -78,7 +90,7 @@ exports.getSubjects = async (req, res, next) => {
     const filter = { user: req.user.id };
     if (examId) filter.exam = examId;
 
-    const subjects = await Subject.find(filter);
+    const subjects = await Subject.findAll({ where: filter });
     res.status(200).json({ success: true, count: subjects.length, data: subjects });
   } catch (error) {
     next(error);
@@ -87,11 +99,17 @@ exports.getSubjects = async (req, res, next) => {
 
 exports.deleteSubject = async (req, res, next) => {
   try {
-    const subject = await Subject.findOneAndDelete({ _id: req.params.id, user: req.user.id });
+    const subject = await Subject.findOne({
+      where: { id: req.params.id, user: req.user.id },
+    });
+
     if (!subject) {
       return res.status(404).json({ success: false, error: 'Subject not found' });
     }
-    await Topic.deleteMany({ subject: subject._id });
+
+    await Topic.destroy({ where: { subject: subject.id } });
+    await subject.destroy();
+
     res.status(200).json({ success: true, data: {} });
   } catch (error) {
     next(error);
@@ -105,7 +123,9 @@ exports.deleteSubject = async (req, res, next) => {
 exports.createTopic = async (req, res, next) => {
   try {
     const { name, description, subjectId, status, weightage } = req.body;
-    const subjectExists = await Subject.findOne({ _id: subjectId, user: req.user.id });
+    const subjectExists = await Subject.findOne({
+      where: { id: subjectId, user: req.user.id },
+    });
     if (!subjectExists) {
       return res.status(404).json({ success: false, error: 'Subject not found' });
     }
@@ -130,7 +150,10 @@ exports.getTopics = async (req, res, next) => {
     const filter = { user: req.user.id };
     if (subjectId) filter.subject = subjectId;
 
-    const topics = await Topic.find(filter).sort({ weightage: -1 });
+    const topics = await Topic.findAll({
+      where: filter,
+      order: [['weightage', 'DESC']],
+    });
     res.status(200).json({ success: true, count: topics.length, data: topics });
   } catch (error) {
     next(error);
@@ -140,8 +163,10 @@ exports.getTopics = async (req, res, next) => {
 exports.updateTopic = async (req, res, next) => {
   try {
     const { status, weightage, name, description } = req.body;
-    let topic = await Topic.findOne({ _id: req.params.id, user: req.user.id });
-    
+    let topic = await Topic.findOne({
+      where: { id: req.params.id, user: req.user.id },
+    });
+
     if (!topic) {
       return res.status(404).json({ success: false, error: 'Topic not found' });
     }
@@ -160,10 +185,15 @@ exports.updateTopic = async (req, res, next) => {
 
 exports.deleteTopic = async (req, res, next) => {
   try {
-    const topic = await Topic.findOneAndDelete({ _id: req.params.id, user: req.user.id });
+    const topic = await Topic.findOne({
+      where: { id: req.params.id, user: req.user.id },
+    });
+
     if (!topic) {
       return res.status(404).json({ success: false, error: 'Topic not found' });
     }
+
+    await topic.destroy();
     res.status(200).json({ success: true, data: {} });
   } catch (error) {
     next(error);

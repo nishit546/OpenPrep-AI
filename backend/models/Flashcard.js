@@ -1,48 +1,65 @@
-const mongoose = require('mongoose');
+const { DataTypes } = require('sequelize');
+const { sequelize } = require('../config/db');
 
-const FlashcardSchema = new mongoose.Schema(
+const Flashcard = sequelize.define(
+  'Flashcard',
   {
+    id: {
+      type: DataTypes.UUID,
+      defaultValue: DataTypes.UUIDV4,
+      primaryKey: true,
+    },
+    _id: {
+      type: DataTypes.VIRTUAL,
+      get() {
+        return this.id;
+      },
+    },
     user: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-      required: true,
+      type: DataTypes.UUID,
+      allowNull: false,
     },
     subject: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Subject',
-      required: true,
+      type: DataTypes.UUID,
+      allowNull: false,
     },
     topic: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Topic',
+      type: DataTypes.UUID,
     },
     front: {
-      type: String,
-      required: [true, 'Please add a question or term for the front'],
+      type: DataTypes.TEXT,
+      allowNull: false,
+      validate: {
+        notEmpty: { msg: 'Please add a question or term for the front' },
+      },
     },
     back: {
-      type: String,
-      required: [true, 'Please add an answer or definition for the back'],
+      type: DataTypes.TEXT,
+      allowNull: false,
+      validate: {
+        notEmpty: { msg: 'Please add an answer or definition for the back' },
+      },
     },
-    // Spaced Repetition details (SuperMemo SM-2 adaptation)
     interval: {
-      type: Number,
-      default: 1, // in days
+      type: DataTypes.INTEGER,
+      defaultValue: 1,
     },
     repetitions: {
-      type: Number,
-      default: 0,
+      type: DataTypes.INTEGER,
+      defaultValue: 0,
     },
     efactor: {
-      type: Number,
-      default: 2.5,
+      type: DataTypes.FLOAT,
+      defaultValue: 2.5,
     },
     nextReviewDate: {
-      type: Date,
-      default: Date.now,
+      type: DataTypes.DATE,
+      defaultValue: DataTypes.NOW,
     },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+  }
 );
 
-module.exports = mongoose.model('Flashcard', FlashcardSchema);
+module.exports = Flashcard;

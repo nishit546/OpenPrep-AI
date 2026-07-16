@@ -1,3 +1,4 @@
+const { Op } = require('sequelize');
 const Flashcard = require('../models/Flashcard');
 const Subject = require('../models/Subject');
 const Topic = require('../models/Topic');
@@ -13,26 +14,34 @@ exports.generateAIFlashcards = async (req, res, next) => {
   try {
     const { subjectId, topicId, count } = req.body;
 
-    const subject = await Subject.findById(subjectId);
+    const subject = await Subject.findByPk(subjectId);
     if (!subject) {
       return res.status(404).json({ success: false, error: 'Subject not found' });
     }
 
     let topicName = 'General overview';
     if (topicId) {
-      const topicObj = await Topic.findById(topicId);
+      const topicObj = await Topic.findByPk(topicId);
       if (topicObj) topicName = topicObj.name;
     }
 
     // Load notes for context
-    const notes = await Note.find({ subject: subjectId, user: req.user.id });
+    const notes = await Note.findAll({ where: { subject: subjectId, user: req.user.id } });
     let notesText = '';
     if (notes && notes.length > 0) {
-      notesText = notes.map((n) => n.content || '').join('\n').substring(0, 5000);
+      notesText = notes
+        .map((n) => n.content || '')
+        .join('\n')
+        .substring(0, 5000);
     }
 
     // Call Gemini
-    const cardsList = await geminiService.generateFlashcards(subject.name, topicName, notesText, count || 6);
+    const cardsList = await geminiService.generateFlashcards(
+      subject.name,
+      topicName,
+      notesText,
+      count || 6
+    );
 
     const createdCards = [];
     for (const card of cardsList) {
@@ -85,14 +94,28 @@ exports.getFlashcards = async (req, res, next) => {
   try {
     const { subjectId, dueOnly } = req.query;
     const filter = { user: req.user.id };
-    
+
     if (subjectId) filter.subject = subjectId;
     if (dueOnly === 'true') {
-      filter.nextReviewDate = { $lte: new Date() };
+      filter.nextReviewDate = { [Op.lte]: new Date() };
     }
 
-    const cards = await Flashcard.find(filter).populate('subject').populate('topic');
-    res.status(200).json({ success: true, count: cards.length, data: cards });
+    const cards = await Flashcard.findAll({
+      where: filter,
+      include: [
+        { model: Subject, as: 'subjectRef' },
+        { model: Topic, as: 'topicRef' },
+      ],
+    });
+
+    const populatedCards = cards.map((c) => {
+      const json = c.toJSON();
+      json.subject = json.subjectRef;
+      json.topic = json.topicRef;
+      return json;
+    });
+
+    res.status(200).json({ success: true, count: populatedCards.length, data: populatedCards });
   } catch (error) {
     next(error);
   }
@@ -105,10 +128,12 @@ exports.reviewFlashcard = async (req, res, next) => {
   try {
     const { quality } = req.body; // quality rating: 0 to 5
     if (quality === undefined || quality < 0 || quality > 5) {
-      return res.status(400).json({ success: false, error: 'Provide a quality score between 0 and 5' });
+      return res
+        .status(400)
+        .json({ success: false, error: 'Provide a quality score between 0 and 5' });
     }
 
-    const card = await Flashcard.findOne({ _id: req.params.id, user: req.user.id });
+    const card = await Flashcard.findOne({ where: { id: req.params.id, user: req.user.id } });
     if (!card) {
       return res.status(404).json({ success: false, error: 'Flashcard not found' });
     }
@@ -137,17 +162,19 @@ exports.reviewFlashcard = async (req, res, next) => {
     card.interval = interval;
     card.repetitions = repetitions;
     card.efactor = efactor;
-    
-    // Set next review date in millseconds from now
+
+    // Set next review date from now
     card.nextReviewDate = new Date(Date.now() + interval * 24 * 60 * 60 * 1000);
     await card.save();
 
     // If card is mastered (quality >= 4), increment mastered count in progress
     if (quality >= 4 && card.topic) {
       const progress = await Progress.findOne({
-        user: req.user.id,
-        subject: card.subject,
-        topic: card.topic,
+        where: {
+          user: req.user.id,
+          subject: card.subject,
+          topic: card.topic,
+        },
       });
       if (progress) {
         progress.flashcardsMastered += 1;
@@ -166,10 +193,11 @@ exports.reviewFlashcard = async (req, res, next) => {
 // @access  Private
 exports.deleteFlashcard = async (req, res, next) => {
   try {
-    const card = await Flashcard.findOneAndDelete({ _id: req.params.id, user: req.user.id });
+    const card = await Flashcard.findOne({ where: { id: req.params.id, user: req.user.id } });
     if (!card) {
       return res.status(404).json({ success: false, error: 'Flashcard not found' });
     }
+    await card.destroy();
     res.status(200).json({ success: true, data: {} });
   } catch (error) {
     next(error);

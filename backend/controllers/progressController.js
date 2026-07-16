@@ -1,7 +1,9 @@
+const { Op } = require('sequelize');
 const Progress = require('../models/Progress');
 const Topic = require('../models/Topic');
 const ActivityLog = require('../models/ActivityLog');
 const QuizAttempt = require('../models/QuizAttempt');
+const Subject = require('../models/Subject');
 
 // @desc    Get dashboard metrics & activity feed
 // @route   GET /api/progress/dashboard
@@ -11,11 +13,11 @@ exports.getDashboardStats = async (req, res, next) => {
     const userId = req.user.id;
 
     // 1. User profile stats (streak & study hours)
-    const streak = req.user.streak ? req.user.streak.count : 0;
+    const streak = req.user.streakCount || 0;
     const totalStudyHours = req.user.studyHours || 0;
 
     // 2. Topic statistics breakdown (Strong, Medium, Weak counts)
-    const topics = await Topic.find({ user: userId });
+    const topics = await Topic.findAll({ where: { user: userId } });
     const totalTopicsCount = topics.length;
 
     let strongCount = 0;
@@ -29,20 +31,23 @@ exports.getDashboardStats = async (req, res, next) => {
     });
 
     // Calculate syllabus progress percentage
-    const progressRecords = await Progress.find({ user: userId });
+    const progressRecords = await Progress.findAll({ where: { user: userId } });
     let totalCompletionSum = 0;
     progressRecords.forEach((p) => {
       totalCompletionSum += p.completionPercentage || 0;
     });
-    const syllabusProgress = totalTopicsCount > 0 
-      ? Math.round(totalCompletionSum / totalTopicsCount) 
-      : 0;
+    const syllabusProgress =
+      totalTopicsCount > 0 ? Math.round(totalCompletionSum / totalTopicsCount) : 0;
 
     // 3. Quiz attempts summaries
-    const attemptsCount = await QuizAttempt.countDocuments({ user: userId });
+    const attemptsCount = await QuizAttempt.count({ where: { user: userId } });
 
     // 4. Study Hours Chart Data (weekly mock progression based on real records)
-    const progressHistory = await Progress.find({ user: userId }).sort({ updatedAt: -1 }).limit(7);
+    const progressHistory = await Progress.findAll({
+      where: { user: userId },
+      order: [['updatedAt', 'DESC']],
+      limit: 7,
+    });
     const weeklyChartData = progressHistory.map((p, idx) => ({
       day: `Topic ${idx + 1}`,
       hours: p.studyHours || Math.round(Math.random() * 3 + 1),
@@ -50,9 +55,11 @@ exports.getDashboardStats = async (req, res, next) => {
     }));
 
     // 5. Recent activity logs
-    const activities = await ActivityLog.find({ user: userId })
-      .sort({ createdAt: -1 })
-      .limit(10);
+    const activities = await ActivityLog.findAll({
+      where: { user: userId },
+      order: [['createdAt', 'DESC']],
+      limit: 10,
+    });
 
     res.status(200).json({
       success: true,
@@ -67,15 +74,18 @@ exports.getDashboardStats = async (req, res, next) => {
           weak: weakCount,
         },
         attemptsCount,
-        weeklyChartData: weeklyChartData.length > 0 ? weeklyChartData : [
-          { day: 'Mon', hours: 1, completion: 20 },
-          { day: 'Tue', hours: 2, completion: 40 },
-          { day: 'Wed', hours: 1.5, completion: 45 },
-          { day: 'Thu', hours: 3, completion: 60 },
-          { day: 'Fri', hours: 2.5, completion: 75 },
-          { day: 'Sat', hours: 4, completion: 90 },
-          { day: 'Sun', hours: 2, completion: 100 },
-        ],
+        weeklyChartData:
+          weeklyChartData.length > 0
+            ? weeklyChartData
+            : [
+                { day: 'Mon', hours: 1, completion: 20 },
+                { day: 'Tue', hours: 2, completion: 40 },
+                { day: 'Wed', hours: 1.5, completion: 45 },
+                { day: 'Thu', hours: 3, completion: 60 },
+                { day: 'Fri', hours: 2.5, completion: 75 },
+                { day: 'Sat', hours: 4, completion: 90 },
+                { day: 'Sun', hours: 2, completion: 100 },
+              ],
         recentActivity: activities,
       },
     });
@@ -89,19 +99,25 @@ exports.getDashboardStats = async (req, res, next) => {
 // @access  Private
 exports.getSubjectBreakdown = async (req, res, next) => {
   try {
-    const progressList = await Progress.find({ user: req.user.id })
-      .populate('subject')
-      .populate('topic');
+    const progressList = await Progress.findAll({
+      where: { user: req.user.id },
+      include: [
+        { model: Subject, as: 'subjectRef' },
+        { model: Topic, as: 'topicRef' },
+      ],
+    });
 
     // Group progress by subject
     const subjectStats = {};
 
     progressList.forEach((p) => {
-      if (!p.subject) return;
-      const subId = p.subject._id.toString();
+      const json = p.toJSON();
+      const subject = json.subjectRef;
+      if (!subject) return;
+      const subId = subject.id;
       if (!subjectStats[subId]) {
         subjectStats[subId] = {
-          subjectName: p.subject.name,
+          subjectName: subject.name,
           topicsCount: 0,
           totalCompletion: 0,
           totalHours: 0,
@@ -109,9 +125,9 @@ exports.getSubjectBreakdown = async (req, res, next) => {
         };
       }
       subjectStats[subId].topicsCount += 1;
-      subjectStats[subId].totalCompletion += p.completionPercentage || 0;
-      subjectStats[subId].totalHours += p.studyHours || 0;
-      subjectStats[subId].flashcardsMastered += p.flashcardsMastered || 0;
+      subjectStats[subId].totalCompletion += json.completionPercentage || 0;
+      subjectStats[subId].totalHours += json.studyHours || 0;
+      subjectStats[subId].flashcardsMastered += json.flashcardsMastered || 0;
     });
 
     const breakdown = Object.values(subjectStats).map((s) => ({
