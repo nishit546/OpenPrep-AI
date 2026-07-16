@@ -14,14 +14,6 @@ const labels = [
   { name: 'esoc-l2', color: 'fbca04', description: 'Level 2 (Medium / Intermediate) ESOC task' },
   { name: 'esoc-l3', color: 'b60205', description: 'Level 3 (Hard / Advanced) ESOC task' },
 
-  // GSSoC & NSoC
-  { name: 'gssoc', color: 'FF9900', description: 'GirlScript Summer of Code contributions' },
-  { name: 'gssoc26', color: 'FF9900', description: 'GirlScript Summer of Code 2026' },
-  { name: 'gssoc-approved', color: 'A2553B', description: 'GSSoC Approved issue' },
-  { name: 'nsoc', color: 'FF007F', description: 'NSoC contributions' },
-  { name: "NSoC'26", color: 'FF007F', description: 'NSoC 2026 contributions' },
-  { name: 'nsoc-approved', color: 'FF007F', description: 'NSoC Approved issue' },
-
   // Hacktoberfest
   { name: 'hacktoberfest', color: 'FF5500', description: 'Hacktoberfest contributions' },
   { name: 'hacktoberfest-accepted', color: 'FF5500', description: 'Approved Hacktoberfest PR' },

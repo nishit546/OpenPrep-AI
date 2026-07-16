@@ -38,9 +38,7 @@ jobs:
               'PYQ Analysis': 'pyq-analysis',
               'Study Planner': 'study-planner',
               'Dashboard': 'dashboard',
-              'Elite Summer of Code (esoc)': 'esoc',
-              'GirlScript Summer of Code (gssoc)': 'gssoc',
-              'NSoC (nsoc)': 'nsoc'
+              'Elite Summer of Code (esoc)': 'esoc'
             };
 
             for (const [area, label] of Object.entries(areaMap)) {
