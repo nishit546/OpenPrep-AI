@@ -46,7 +46,7 @@ jobs:
                     issue_number: issueNum
                   });
                   
-                  const targetLabels = ['esoc', 'esoc-l1', 'esoc-l2', 'esoc-l3', 'esoc-approved', 'good first issue', 'beginner friendly'];
+                  const targetLabels = ['ECSoC26', 'ECSoC26-L1', 'ECSoC26-L2', 'ECSoC26-L3', 'ECSoC26-Approved', 'good first issue', 'beginner friendly'];
                   for (const label of issue.labels) {
                     const labelName = typeof label === 'string' ? label : label.name;
                     if (targetLabels.includes(labelName)) {
@@ -61,7 +61,7 @@ jobs:
               console.log('No linked issues found in PR body.');
             }
 
-            // Auto-fallback: if PR only changes documentation, mark as esoc-l1 and esoc
+            // Auto-fallback: if PR only changes documentation, mark as ECSoC26-L1 and ECSoC26
             if (prLabels.length === 0) {
               try {
                 const { data: files } = await github.rest.pulls.listFiles({
@@ -78,8 +78,8 @@ jobs:
                 );
                 
                 if (docsOnly && files.length > 0) {
-                  console.log('PR contains only documentation files. Auto-applying esoc-l1.');
-                  prLabels.push('esoc', 'esoc-l1');
+                  console.log('PR contains only documentation files. Auto-applying ECSoC26-L1.');
+                  prLabels.push('ECSoC26', 'ECSoC26-L1');
                 }
               } catch (e) {
                 console.log('Failed to check PR changed files:', e.message);

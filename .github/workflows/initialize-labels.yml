@@ -19,13 +19,12 @@ jobs:
         with:
           script: |
             const labels = [
-              // ESOC (Elite Summer of Code)
-              { name: 'esoc', color: 'F9D0C4', description: 'Elite Summer of Code contributions' },
-              { name: 'esoc-2026', color: 'D640C6', description: 'Issues/PRs related to Elite Summer of Code 2026' },
-              { name: 'esoc-approved', color: '80553B', description: 'Approved for Elite Summer of Code' },
-              { name: 'esoc-l1', color: 'EDEDED', description: 'Level 1 (Easy / Beginner-friendly) ESOC task' },
-              { name: 'esoc-l2', color: 'fbca04', description: 'Level 2 (Medium / Intermediate) ESOC task' },
-              { name: 'esoc-l3', color: 'b60205', description: 'Level 3 (Hard / Advanced) ESOC task' },
+              // ECSoC26 (Elite Summer of Code 2026)
+              { name: 'ECSoC26', color: 'F9D0C4', description: 'Elite Summer of Code 2026 contributions' },
+              { name: 'ECSoC26-Approved', color: '80553B', description: 'Approved for Elite Summer of Code 2026' },
+              { name: 'ECSoC26-L1', color: 'EDEDED', description: 'Level 1 (Easy / Beginner-friendly) ECSoC26 task' },
+              { name: 'ECSoC26-L2', color: 'D640C6', description: 'Level 2 (Medium / Intermediate) ECSoC26 task' },
+              { name: 'ECSoC26-L3', color: 'b60205', description: 'Level 3 (Hard / Advanced) ECSoC26 task' },
 
 
 

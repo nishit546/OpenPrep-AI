@@ -90,15 +90,15 @@ So that [benefit]
 
 Select if this issue is part of an open-source program:
 
-- [ ] Elite Summer of Code (esoc)
+- [ ] Elite Summer of Code (ECSoC26)
 
-## Difficulty Level (ESOC)
+## Difficulty Level (ECSoC26)
 
 Select the difficulty level for this issue:
 
-- [ ] Level 1 (Easy / Beginner-friendly) (esoc-l1)
-- [ ] Level 2 (Medium / Intermediate) (esoc-l2)
-- [ ] Level 3 (Hard / Advanced) (esoc-l3)
+- [ ] Level 1 (Easy / Beginner-friendly) (ECSoC26-L1)
+- [ ] Level 2 (Medium / Intermediate) (ECSoC26-L2)
+- [ ] Level 3 (Hard / Advanced) (ECSoC26-L3)
 
 ## Definition of Done
 

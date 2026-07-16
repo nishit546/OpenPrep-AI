@@ -38,10 +38,10 @@ jobs:
               'PYQ Analysis': 'pyq-analysis',
               'Study Planner': 'study-planner',
               'Dashboard': 'dashboard',
-              'Elite Summer of Code (esoc)': 'esoc',
-              'Level 1 (Easy / Beginner-friendly) (esoc-l1)': 'esoc-l1',
-              'Level 2 (Medium / Intermediate) (esoc-l2)': 'esoc-l2',
-              'Level 3 (Hard / Advanced) (esoc-l3)': 'esoc-l3'
+              'Elite Summer of Code (esoc)': 'ECSoC26',
+              'Level 1 (Easy / Beginner-friendly) (esoc-l1)': 'ECSoC26-L1',
+              'Level 2 (Medium / Intermediate) (esoc-l2)': 'ECSoC26-L2',
+              'Level 3 (Hard / Advanced) (esoc-l3)': 'ECSoC26-L3'
             };
 
             for (const [area, label] of Object.entries(areaMap)) {
