@@ -45,7 +45,8 @@ exports.generateAIPlan = async (req, res, next) => {
       syllabus,
       startDate,
       endDate,
-      studyHoursPerDay || 3
+      studyHoursPerDay || 3,
+      req.query.refresh === 'true'
     );
 
     // Format goals for database insertion (resolve Topic UUIDs if names match)

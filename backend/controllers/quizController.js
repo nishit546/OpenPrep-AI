@@ -39,7 +39,7 @@ exports.generateAIQuiz = async (req, res, next) => {
     }
 
     // Call Gemini Service
-    const aiQuiz = await geminiService.generateQuiz(subject.name, topicName, notesText, count || 5);
+    const aiQuiz = await geminiService.generateQuiz(subject.name, topicName, notesText, count || 5, req.query.refresh === 'true');
 
     // Assign unique question IDs (similar to Mongoose subdocument ids)
     const questionsWithIds = aiQuiz.questions.map((q) => ({

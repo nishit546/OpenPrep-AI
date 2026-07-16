@@ -8,8 +8,121 @@ if (apiKey && apiKey !== 'your_gemini_api_key_here') {
   genAI = new GoogleGenerativeAI(apiKey);
 }
 
-// Response cache to avoid redundant Gemini API calls
-const responseCache = new NodeCache({ stdTTL: 1800, checkperiod: 300 });
+// Response cache with configurable TTL and max keys via env vars
+const responseCache = new NodeCache({
+  stdTTL: parseInt(process.env.CACHE_TTL) || 3600,
+  checkperiod: 300,
+  maxKeys: parseInt(process.env.CACHE_MAX_KEYS) || 1000
+});
+
+// ==========================================
+// HELPER UTILITIES
+// ==========================================
+
+/**
+ * Deterministic hash for cache keys — non-crypto djb2 variant.
+ * Produces a compact base-36 key from a prefix + input string.
+ */
+const hashKey = (prefix, str) => {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash |= 0;
+  }
+  return `${prefix}:${Math.abs(hash).toString(36)}`;
+};
+
+/**
+ * Timeout wrapper using Promise.race (safe for SDK versions that lack AbortSignal support).
+ * @google/generative-ai ^0.11.4 does NOT support AbortSignal via requestOptions.
+ */
+async function callWithTimeout(model, prompt, timeoutMs = 30000) {
+  const result = await Promise.race([
+    model.generateContent(prompt),
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Gemini request timed out')), timeoutMs)
+    )
+  ]);
+  return result;
+}
+
+/**
+ * Retry wrapper with exponential backoff.
+ * Retries on 429 (rate limit) and 5xx (server) errors.
+ * Each attempt uses callWithTimeout for per-request timeout.
+ */
+async function generateWithRetry(model, prompt, retries = 3) {
+  for (let attempt = 0; attempt < retries; attempt++) {
+    try {
+      const result = await callWithTimeout(model, prompt);
+      return result;
+    } catch (err) {
+      const isRetryable = err.status === 429 || (err.status >= 500 && err.status < 600) || err.message === 'Gemini request timed out';
+      if (isRetryable && attempt < retries - 1) {
+        const delay = 1000 * Math.pow(2, attempt); // 1s, 2s, 4s
+        await new Promise(r => setTimeout(r, delay));
+        continue;
+      }
+      throw err; // Non-retryable or exhausted
+    }
+  }
+}
+
+// ==========================================
+// RESPONSE VALIDATION
+// ==========================================
+
+const RESPONSE_SCHEMAS = {
+  pyqAnalysis: {
+    chapterWeightage: 'array',
+    importantTopics: 'array',
+    repeatedQuestions: 'array',
+    trendAnalysis: 'string'
+  },
+  studyPlan: {
+    // Array of objects with date, tasks
+    _type: 'array',
+    _itemSchema: { date: 'string', tasks: 'array' }
+  },
+  quiz: {
+    title: 'string',
+    questions: 'array'
+  },
+  flashcard: {
+    _type: 'array',
+    _itemSchema: { front: 'string', back: 'string' }
+  },
+  performance: {
+    weakSubjects: 'array',
+    recommendations: 'array'
+  }
+};
+
+/**
+ * Validate a parsed response against a schema definition.
+ * Returns true if the data matches the expected shape, false otherwise.
+ */
+function validateResponse(data, schema) {
+  if (!data) return false;
+  if (schema._type === 'array') {
+    if (!Array.isArray(data) || data.length === 0) return false;
+    if (schema._itemSchema) {
+      for (const item of data) {
+        for (const [key, type] of Object.entries(schema._itemSchema)) {
+          if (typeof item[key] !== type) return false;
+        }
+      }
+    }
+    return true;
+  }
+  for (const [key, type] of Object.entries(schema)) {
+    if (key.startsWith('_')) continue;
+    if (type === 'array' && (!Array.isArray(data[key]) || data[key].length === 0)) return false;
+    if (type !== 'array' && typeof data[key] !== type) return false;
+  }
+  return true;
+}
 
 // Helper to clean JSON string from markdown formatting
 const cleanJSON = (text) => {
@@ -58,15 +171,19 @@ const cleanJSON = (text) => {
 /**
  * 1. Analyze Previous Year Question Paper (PYQ)
  */
-exports.analyzePYQText = async (rawText, subjectName = 'the subject') => {
+exports.analyzePYQText = async (rawText, subjectName = 'the subject', forceRefresh = false) => {
   if (!genAI) {
     console.log('Gemini API key not configured. Using Mock Data for PYQ Analysis.');
     return getMockPYQAnalysis(subjectName);
   }
 
-  const cacheKey = `analyzePYQ:${subjectName}:${rawText.substring(0, 200)}`;
-  const cached = responseCache.get(cacheKey);
-  if (cached) return cached;
+  const cacheKey = hashKey('analyzePYQ', rawText.substring(0, 200) + subjectName);
+
+  // Check cache (skip if forceRefresh)
+  if (!forceRefresh) {
+    const cached = responseCache.get(cacheKey);
+    if (cached) return cached;
+  }
 
   try {
     const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
@@ -96,8 +213,15 @@ exports.analyzePYQText = async (rawText, subjectName = 'the subject') => {
       ${rawText.substring(0, 15000)} // truncate to fit limits
     `;
 
-    const result = await model.generateContent(prompt);
+    const result = await generateWithRetry(model, prompt);
     const parsed = cleanJSON(result.response.text());
+
+    // Validate response structure
+    if (!validateResponse(parsed, RESPONSE_SCHEMAS.pyqAnalysis)) {
+      console.error('PYQ analysis response validation failed');
+      return getMockPYQAnalysis(subjectName);
+    }
+
     responseCache.set(cacheKey, parsed);
     return parsed;
   } catch (error) {
@@ -109,15 +233,19 @@ exports.analyzePYQText = async (rawText, subjectName = 'the subject') => {
 /**
  * 2. Generate AI Study Plan
  */
-exports.generateStudyPlan = async (examName, subjectsAndTopics, startDate, endDate, studyHoursPerDay = 3) => {
+exports.generateStudyPlan = async (examName, subjectsAndTopics, startDate, endDate, studyHoursPerDay = 3, forceRefresh = false) => {
   if (!genAI) {
     console.log('Gemini API key not configured. Using Mock Data for Study Plan.');
     return getMockStudyPlan(examName, subjectsAndTopics, startDate, endDate);
   }
 
-  const cacheKey = `studyPlan:${examName}:${startDate}:${endDate}:${studyHoursPerDay}`;
-  const cached = responseCache.get(cacheKey);
-  if (cached) return cached;
+  const cacheKey = hashKey('studyPlan', `${examName}:${startDate}:${endDate}:${studyHoursPerDay}`);
+
+  // Check cache (skip if forceRefresh)
+  if (!forceRefresh) {
+    const cached = responseCache.get(cacheKey);
+    if (cached) return cached;
+  }
 
   try {
     const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
@@ -143,8 +271,15 @@ exports.generateStudyPlan = async (examName, subjectsAndTopics, startDate, endDa
       ]
     `;
 
-    const result = await model.generateContent(prompt);
+    const result = await generateWithRetry(model, prompt);
     const parsed = cleanJSON(result.response.text());
+
+    // Validate response structure
+    if (!validateResponse(parsed, RESPONSE_SCHEMAS.studyPlan)) {
+      console.error('Study plan response validation failed');
+      return getMockStudyPlan(examName, subjectsAndTopics, startDate, endDate);
+    }
+
     responseCache.set(cacheKey, parsed);
     return parsed;
   } catch (error) {
@@ -156,15 +291,19 @@ exports.generateStudyPlan = async (examName, subjectsAndTopics, startDate, endDa
 /**
  * 3. Generate AI Quiz
  */
-exports.generateQuiz = async (subjectName, topicName, notesText = '', count = 5) => {
+exports.generateQuiz = async (subjectName, topicName, notesText = '', count = 5, forceRefresh = false) => {
   if (!genAI) {
     console.log('Gemini API key not configured. Using Mock Data for Quiz.');
     return getMockQuiz(subjectName, topicName, count);
   }
 
-  const cacheKey = `quiz:${subjectName}:${topicName}:${count}`;
-  const cached = responseCache.get(cacheKey);
-  if (cached) return cached;
+  const cacheKey = hashKey('quiz', `${subjectName}:${topicName}:${count}`);
+
+  // Check cache (skip if forceRefresh)
+  if (!forceRefresh) {
+    const cached = responseCache.get(cacheKey);
+    if (cached) return cached;
+  }
 
   try {
     const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
@@ -193,8 +332,15 @@ exports.generateQuiz = async (subjectName, topicName, notesText = '', count = 5)
       }
     `;
 
-    const result = await model.generateContent(prompt);
+    const result = await generateWithRetry(model, prompt);
     const parsed = cleanJSON(result.response.text());
+
+    // Validate response structure
+    if (!validateResponse(parsed, RESPONSE_SCHEMAS.quiz)) {
+      console.error('Quiz response validation failed');
+      return getMockQuiz(subjectName, topicName, count);
+    }
+
     responseCache.set(cacheKey, parsed);
     return parsed;
   } catch (error) {
@@ -206,15 +352,19 @@ exports.generateQuiz = async (subjectName, topicName, notesText = '', count = 5)
 /**
  * 4. Generate AI Flashcards
  */
-exports.generateFlashcards = async (subjectName, topicName, notesText = '', count = 6) => {
+exports.generateFlashcards = async (subjectName, topicName, notesText = '', count = 6, forceRefresh = false) => {
   if (!genAI) {
     console.log('Gemini API key not configured. Using Mock Data for Flashcards.');
     return getMockFlashcards(subjectName, topicName, count);
   }
 
-  const cacheKey = `flashcards:${subjectName}:${topicName}:${count}`;
-  const cached = responseCache.get(cacheKey);
-  if (cached) return cached;
+  const cacheKey = hashKey('flashcards', `${subjectName}:${topicName}:${count}`);
+
+  // Check cache (skip if forceRefresh)
+  if (!forceRefresh) {
+    const cached = responseCache.get(cacheKey);
+    if (cached) return cached;
+  }
 
   try {
     const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
@@ -231,8 +381,15 @@ exports.generateFlashcards = async (subjectName, topicName, notesText = '', coun
       ]
     `;
 
-    const result = await model.generateContent(prompt);
+    const result = await generateWithRetry(model, prompt);
     const parsed = cleanJSON(result.response.text());
+
+    // Validate response structure
+    if (!validateResponse(parsed, RESPONSE_SCHEMAS.flashcard)) {
+      console.error('Flashcard response validation failed');
+      return getMockFlashcards(subjectName, topicName, count);
+    }
+
     responseCache.set(cacheKey, parsed);
     return parsed;
   } catch (error) {
@@ -244,15 +401,19 @@ exports.generateFlashcards = async (subjectName, topicName, notesText = '', coun
 /**
  * 5. Analyze Performance & Detect Weaknesses
  */
-exports.analyzePerformanceAndRecommend = async (attemptsSummary) => {
+exports.analyzePerformanceAndRecommend = async (attemptsSummary, forceRefresh = false) => {
   if (!genAI) {
     console.log('Gemini API key not configured. Using Mock Recommendations.');
     return getMockRecommendations();
   }
 
-  const cacheKey = `performance:${JSON.stringify(attemptsSummary)}`;
-  const cached = responseCache.get(cacheKey);
-  if (cached) return cached;
+  const cacheKey = hashKey('performance', JSON.stringify(attemptsSummary));
+
+  // Check cache (skip if forceRefresh)
+  if (!forceRefresh) {
+    const cached = responseCache.get(cacheKey);
+    if (cached) return cached;
+  }
 
   try {
     const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
@@ -271,8 +432,15 @@ exports.analyzePerformanceAndRecommend = async (attemptsSummary) => {
       }
     `;
 
-    const result = await model.generateContent(prompt);
+    const result = await generateWithRetry(model, prompt);
     const parsed = cleanJSON(result.response.text());
+
+    // Validate response structure
+    if (!validateResponse(parsed, RESPONSE_SCHEMAS.performance)) {
+      console.error('Performance analysis response validation failed');
+      return getMockRecommendations();
+    }
+
     responseCache.set(cacheKey, parsed);
     return parsed;
   } catch (error) {
