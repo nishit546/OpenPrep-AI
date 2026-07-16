@@ -1,43 +1,56 @@
-const mongoose = require('mongoose');
+const { DataTypes } = require('sequelize');
+const { sequelize } = require('../config/db');
 
-const QuestionSchema = new mongoose.Schema({
-  questionText: { type: String, required: true },
-  options: [{ type: String, required: true }],
-  correctAnswer: { type: Number, required: true }, // Index of correct option (0-3)
-  explanation: { type: String },
-});
-
-const QuizSchema = new mongoose.Schema(
+const Quiz = sequelize.define(
+  'Quiz',
   {
+    id: {
+      type: DataTypes.UUID,
+      defaultValue: DataTypes.UUIDV4,
+      primaryKey: true,
+    },
+    _id: {
+      type: DataTypes.VIRTUAL,
+      get() {
+        return this.id;
+      },
+    },
     title: {
-      type: String,
-      required: [true, 'Please add a quiz title'],
+      type: DataTypes.STRING,
+      allowNull: false,
+      validate: {
+        notEmpty: { msg: 'Please add a quiz title' },
+      },
     },
     subject: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Subject',
-      required: true,
+      type: DataTypes.UUID,
+      allowNull: false,
     },
     topic: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Topic',
+      type: DataTypes.UUID,
     },
-    questions: [QuestionSchema],
+    questions: {
+      type: DataTypes.JSONB,
+      defaultValue: [],
+    },
     type: {
-      type: String,
-      enum: ['AI_Generated', 'Manual'],
-      default: 'AI_Generated',
+      type: DataTypes.ENUM('AI_Generated', 'Manual'),
+      defaultValue: 'AI_Generated',
     },
     createdBy: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-      required: true,
+      type: DataTypes.UUID,
+      allowNull: false,
     },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+    indexes: [
+      {
+        unique: false,
+        fields: ['createdBy', 'id'],
+      },
+    ],
+  }
 );
 
-// Compound index to optimize user-scoped queries (prevents IDOR via fast ownership lookup)
-QuizSchema.index({ createdBy: 1, _id: 1 });
-
-module.exports = mongoose.model('Quiz', QuizSchema);
+module.exports = Quiz;

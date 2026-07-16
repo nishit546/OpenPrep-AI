@@ -1,45 +1,56 @@
-const mongoose = require('mongoose');
+const { DataTypes } = require('sequelize');
+const { sequelize } = require('../config/db');
 
-const ProgressSchema = new mongoose.Schema(
+const Progress = sequelize.define(
+  'Progress',
   {
+    id: {
+      type: DataTypes.UUID,
+      defaultValue: DataTypes.UUIDV4,
+      primaryKey: true,
+    },
+    _id: {
+      type: DataTypes.VIRTUAL,
+      get() {
+        return this.id;
+      },
+    },
     user: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-      required: true,
+      type: DataTypes.UUID,
+      allowNull: false,
     },
     subject: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Subject',
-      required: true,
+      type: DataTypes.UUID,
+      allowNull: false,
     },
     topic: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Topic',
-      required: true,
+      type: DataTypes.UUID,
+      allowNull: false,
     },
     completionPercentage: {
-      type: Number,
-      default: 0,
-      min: 0,
-      max: 100,
+      type: DataTypes.FLOAT,
+      defaultValue: 0,
+      validate: {
+        min: 0,
+        max: 100,
+      },
     },
     studyHours: {
-      type: Number,
-      default: 0,
+      type: DataTypes.FLOAT,
+      defaultValue: 0,
     },
-    quizScores: [
-      {
-        attempt: { type: mongoose.Schema.Types.ObjectId, ref: 'QuizAttempt' },
-        score: Number,
-        date: { type: Date, default: Date.now },
-      },
-    ],
+    quizScores: {
+      type: DataTypes.JSONB,
+      defaultValue: [],
+    },
     flashcardsMastered: {
-      type: Number,
-      default: 0,
+      type: DataTypes.INTEGER,
+      defaultValue: 0,
     },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+  }
 );
 
-module.exports = mongoose.model('Progress', ProgressSchema);
+module.exports = Progress;

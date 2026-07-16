@@ -1,5 +1,6 @@
 const fs = require('fs');
 const pdfParse = require('pdf-parse');
+const { Op } = require('sequelize');
 const PYQ = require('../models/PYQ');
 const Subject = require('../models/Subject');
 const Topic = require('../models/Topic');
@@ -17,7 +18,7 @@ exports.uploadAndAnalyzePYQ = async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'Please upload a question paper PDF' });
     }
 
-    const subject = await Subject.findById(subjectId);
+    const subject = await Subject.findByPk(subjectId);
     if (!subject) {
       return res.status(404).json({ success: false, error: 'Subject not found' });
     }
@@ -48,18 +49,20 @@ exports.uploadAndAnalyzePYQ = async (req, res, next) => {
       user: req.user.id,
     });
 
-    // Elegant touch: Automatically register/update detected topics in Database
+    // Automatically register/update detected topics in Database
     if (analysis && analysis.importantTopics) {
       for (const t of analysis.importantTopics) {
-        // Look for existing topic
+        // Look for existing topic using PostgreSQL case-insensitive iLike matching
         let existingTopic = await Topic.findOne({
-          name: { $regex: new RegExp(`^${t.topicName.trim()}$`, 'i') },
-          subject: subjectId,
-          user: req.user.id,
+          where: {
+            name: { [Op.iLike]: t.topicName.trim() },
+            subject: subjectId,
+            user: req.user.id,
+          },
         });
 
-        const statusMap = { High: 'Strong', Medium: 'Medium', Low: 'Weak' }; // map relevance or keep default
-        const calculatedStatus = t.importance === 'High' ? 'Medium' : t.importance === 'Medium' ? 'Medium' : 'Weak';
+        const calculatedStatus =
+          t.importance === 'High' ? 'Medium' : t.importance === 'Medium' ? 'Medium' : 'Weak';
 
         if (existingTopic) {
           existingTopic.weightage = t.frequency || 5;
@@ -102,7 +105,10 @@ exports.getPYQs = async (req, res, next) => {
     const filter = { user: req.user.id };
     if (subjectId) filter.subject = subjectId;
 
-    const pyqs = await PYQ.find(filter).sort({ year: -1 });
+    const pyqs = await PYQ.findAll({
+      where: filter,
+      order: [['year', 'DESC']],
+    });
     res.status(200).json({ success: true, count: pyqs.length, data: pyqs });
   } catch (error) {
     next(error);
@@ -114,7 +120,9 @@ exports.getPYQs = async (req, res, next) => {
 // @access  Private
 exports.getPYQDetails = async (req, res, next) => {
   try {
-    const pyq = await PYQ.findOne({ _id: req.params.id, user: req.user.id });
+    const pyq = await PYQ.findOne({
+      where: { id: req.params.id, user: req.user.id },
+    });
     if (!pyq) {
       return res.status(404).json({ success: false, error: 'Question paper analysis not found' });
     }

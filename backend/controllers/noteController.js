@@ -1,7 +1,9 @@
+const { Op } = require('sequelize');
 const Note = require('../models/Note');
 const Subject = require('../models/Subject');
 const Topic = require('../models/Topic');
 const ActivityLog = require('../models/ActivityLog');
+const User = require('../models/User');
 
 // @desc    Upload Note
 // @route   POST /api/notes
@@ -10,7 +12,7 @@ exports.uploadNote = async (req, res, next) => {
   try {
     const { title, content, subjectId, topicId, isPublic, category } = req.body;
 
-    const subject = await Subject.findById(subjectId);
+    const subject = await Subject.findByPk(subjectId);
     if (!subject) {
       return res.status(404).json({ success: false, error: 'Subject not found' });
     }
@@ -21,7 +23,7 @@ exports.uploadNote = async (req, res, next) => {
     if (req.file) {
       fileUrl = `/uploads/${req.file.filename}`;
       const ext = req.file.filename.split('.').pop().toLowerCase();
-      fileType = ext === 'pdf' ? 'pdf' : (['jpg', 'jpeg', 'png'].includes(ext) ? 'image' : 'docx');
+      fileType = ext === 'pdf' ? 'pdf' : ['jpg', 'jpeg', 'png'].includes(ext) ? 'image' : 'docx';
     }
 
     const note = await Note.create({
@@ -56,41 +58,62 @@ exports.getNotes = async (req, res, next) => {
   try {
     const { subjectId, category, search, publicOnly } = req.query;
 
-    const query = {};
-    
+    const where = {};
+
     // Privacy filter
     if (publicOnly === 'true') {
-      query.isPublic = true;
+      where.isPublic = true;
     } else {
       // By default show user's own notes, OR public notes
-      query.$or = [{ user: req.user.id }, { isPublic: true }];
+      where[Op.or] = [{ user: req.user.id }, { isPublic: true }];
     }
 
-    if (subjectId) query.subject = subjectId;
-    if (category) query.category = category;
+    if (subjectId) where.subject = subjectId;
+    if (category) where.category = category;
+
     if (search) {
-      query.$and = [
-        query.$or ? { $or: query.$or } : {},
-        {
-          $or: [
-            { title: { $regex: search, $options: 'i' } },
-            { content: { $regex: search, $options: 'i' } },
-          ]
-        }
-      ].filter(x => Object.keys(x).length > 0);
+      const searchCondition = {
+        [Op.or]: [
+          { title: { [Op.iLike]: `%${search}%` } },
+          { content: { [Op.iLike]: `%${search}%` } },
+        ],
+      };
+
+      if (where[Op.or]) {
+        const existingOr = where[Op.or];
+        delete where[Op.or];
+        where[Op.and] = [{ [Op.or]: existingOr }, searchCondition];
+      } else {
+        where[Op.and] = searchCondition;
+      }
     }
 
-    // Clean up query if $and/or are empty
-    if (query.$and && query.$and.length === 0) delete query.$and;
-    if (query.$or && query.$or.length === 0) delete query.$or;
+    const notes = await Note.findAll({
+      where,
+      include: [
+        { model: Subject, as: 'subjectRef' },
+        { model: Topic, as: 'topicRef' },
+        { model: User, as: 'userRef', attributes: ['id', 'name', 'email'] },
+      ],
+      order: [['createdAt', 'DESC']],
+    });
 
-    const notes = await Note.find(query)
-      .populate('subject')
-      .populate('topic')
-      .populate('user', 'name email')
-      .sort({ createdAt: -1 });
+    const populatedNotes = notes.map((n) => {
+      const json = n.toJSON();
+      json.subject = json.subjectRef;
+      json.topic = json.topicRef;
+      if (json.userRef) {
+        json.user = {
+          _id: json.userRef.id,
+          id: json.userRef.id,
+          name: json.userRef.name,
+          email: json.userRef.email,
+        };
+      }
+      return json;
+    });
 
-    res.status(200).json({ success: true, count: notes.length, data: notes });
+    res.status(200).json({ success: true, count: populatedNotes.length, data: populatedNotes });
   } catch (error) {
     next(error);
   }
@@ -101,7 +124,7 @@ exports.getNotes = async (req, res, next) => {
 // @access  Private
 exports.downloadNote = async (req, res, next) => {
   try {
-    const note = await Note.findById(req.params.id);
+    const note = await Note.findByPk(req.params.id);
     if (!note) {
       return res.status(404).json({ success: false, error: 'Note not found' });
     }
@@ -120,10 +143,11 @@ exports.downloadNote = async (req, res, next) => {
 // @access  Private
 exports.deleteNote = async (req, res, next) => {
   try {
-    const note = await Note.findOneAndDelete({ _id: req.params.id, user: req.user.id });
+    const note = await Note.findOne({ where: { id: req.params.id, user: req.user.id } });
     if (!note) {
       return res.status(404).json({ success: false, error: 'Note not found' });
     }
+    await note.destroy();
     res.status(200).json({ success: true, data: {} });
   } catch (error) {
     next(error);

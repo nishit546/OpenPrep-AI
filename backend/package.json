@@ -19,14 +19,15 @@
     "express-validator": "^7.3.2",
     "helmet": "^8.2.0",
     "jsonwebtoken": "^9.0.2",
-    "mongoose": "^8.3.1",
     "multer": "^2.2.0",
     "node-cache": "^5.1.2",
     "nodemailer": "^9.0.1",
-    "pdf-parse": "^1.1.1"
+    "pdf-parse": "^1.1.1",
+    "pg": "^8.22.0",
+    "pg-hstore": "^2.3.4",
+    "sequelize": "^6.37.8"
   },
   "devDependencies": {
-    "mongodb-memory-server": "^11.2.0",
     "nodemon": "^3.1.0",
     "supertest": "^7.2.2",
     "vitest": "^4.1.9"

@@ -2,7 +2,7 @@
 name: Question
 about: Ask a question about setting up or using OpenPrep AI
 title: '[QUESTION]: '
-labels: 'question'
+labels: 'question, ECSoC26'
 assignees: ''
 ---
 

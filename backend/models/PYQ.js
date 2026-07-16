@@ -1,67 +1,70 @@
-const mongoose = require('mongoose');
+const { DataTypes } = require('sequelize');
+const { sequelize } = require('../config/db');
 
-const PYQSchema = new mongoose.Schema(
+const PYQ = sequelize.define(
+  'PYQ',
   {
+    id: {
+      type: DataTypes.UUID,
+      defaultValue: DataTypes.UUIDV4,
+      primaryKey: true,
+    },
+    _id: {
+      type: DataTypes.VIRTUAL,
+      get() {
+        return this.id;
+      },
+    },
     title: {
-      type: String,
-      required: [true, 'Please add a paper title'],
+      type: DataTypes.STRING,
+      allowNull: false,
+      validate: {
+        notEmpty: { msg: 'Please add a paper title' },
+      },
     },
     exam: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Exam',
-      required: true,
+      type: DataTypes.UUID,
+      allowNull: false,
     },
     subject: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Subject',
-      required: true,
+      type: DataTypes.UUID,
+      allowNull: false,
     },
     year: {
-      type: Number,
-      required: true,
+      type: DataTypes.INTEGER,
+      allowNull: false,
     },
     fileUrl: {
-      type: String,
-      required: true,
+      type: DataTypes.STRING,
+      allowNull: false,
     },
     analyzed: {
-      type: Boolean,
-      default: false,
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
     },
     analysisResults: {
-      chapterWeightage: [
-        {
-          chapterName: String,
-          weightage: Number, // percentage or score
-        }
-      ],
-      importantTopics: [
-        {
-          topicName: String,
-          importance: String, // 'High', 'Medium', 'Low'
-          frequency: Number, // approximate appearances
-        }
-      ],
-      repeatedQuestions: [
-        {
-          questionText: String,
-          years: [Number],
-        }
-      ],
-      trendAnalysis: {
-        type: String, // Description of exam trend
+      type: DataTypes.JSONB,
+      defaultValue: {
+        chapterWeightage: [],
+        importantTopics: [],
+        repeatedQuestions: [],
+        trendAnalysis: '',
       },
     },
     user: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-      required: true,
+      type: DataTypes.UUID,
+      allowNull: false,
     },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+    indexes: [
+      {
+        unique: false,
+        fields: ['user', 'id'],
+      },
+    ],
+  }
 );
 
-// Compound index to optimize user-scoped queries (prevents IDOR via fast ownership lookup)
-PYQSchema.index({ user: 1, _id: 1 });
-
-module.exports = mongoose.model('PYQ', PYQSchema);
+module.exports = PYQ;

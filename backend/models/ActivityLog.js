@@ -1,27 +1,46 @@
-const mongoose = require('mongoose');
+const { DataTypes } = require('sequelize');
+const { sequelize } = require('../config/db');
 
-const ActivityLogSchema = new mongoose.Schema(
+const ActivityLog = sequelize.define(
+  'ActivityLog',
   {
+    id: {
+      type: DataTypes.UUID,
+      defaultValue: DataTypes.UUIDV4,
+      primaryKey: true,
+    },
+    _id: {
+      type: DataTypes.VIRTUAL,
+      get() {
+        return this.id;
+      },
+    },
     user: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-      required: true,
+      type: DataTypes.UUID,
+      allowNull: false,
     },
     activityType: {
-      type: String,
-      enum: ['quiz_attempt', 'pyq_upload', 'flashcard_review', 'study_plan_create', 'note_upload'],
-      required: true,
+      type: DataTypes.ENUM(
+        'quiz_attempt',
+        'pyq_upload',
+        'flashcard_review',
+        'study_plan_create',
+        'note_upload'
+      ),
+      allowNull: false,
     },
     description: {
-      type: String,
-      required: true,
+      type: DataTypes.STRING,
+      allowNull: false,
     },
     timestamp: {
-      type: Date,
-      default: Date.now,
+      type: DataTypes.DATE,
+      defaultValue: DataTypes.NOW,
     },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+  }
 );
 
-module.exports = mongoose.model('ActivityLog', ActivityLogSchema);
+module.exports = ActivityLog;

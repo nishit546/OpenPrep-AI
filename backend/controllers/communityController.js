@@ -1,4 +1,6 @@
+const { Op } = require('sequelize');
 const Feedback = require('../models/Feedback');
+const User = require('../models/User');
 
 // @desc    Submit Bug Report or Feature Request
 // @route   POST /api/community/feedback
@@ -30,11 +32,24 @@ exports.getFeedbackList = async (req, res, next) => {
     if (type) filter.type = type;
     if (status) filter.status = status;
 
-    const items = await Feedback.find(filter)
-      .populate('user', 'name email')
-      .sort({ upvotes: -1, createdAt: -1 });
+    const items = await Feedback.findAll({
+      where: filter,
+      include: [{ model: User, as: 'userRef', attributes: ['id', 'name', 'email'] }],
+      order: [['createdAt', 'DESC']],
+    });
 
-    res.status(200).json({ success: true, count: items.length, data: items });
+    const populatedItems = items.map((item) => {
+      const json = item.toJSON();
+      json.user = json.userRef;
+      return json;
+    });
+
+    // In-memory sorting based on upvotes count (descending)
+    populatedItems.sort(
+      (a, b) => (b.upvotes ? b.upvotes.length : 0) - (a.upvotes ? a.upvotes.length : 0)
+    );
+
+    res.status(200).json({ success: true, count: populatedItems.length, data: populatedItems });
   } catch (error) {
     next(error);
   }
@@ -45,20 +60,24 @@ exports.getFeedbackList = async (req, res, next) => {
 // @access  Private
 exports.upvoteFeedback = async (req, res, next) => {
   try {
-    const feedback = await Feedback.findById(req.params.id);
+    const feedback = await Feedback.findByPk(req.params.id);
     if (!feedback) {
       return res.status(404).json({ success: false, error: 'Feedback item not found' });
     }
 
-    // Toggle upvote
-    const upvoteIndex = feedback.upvotes.indexOf(req.user.id);
+    // Toggle upvote in PostgreSQL array
+    const upvotes = [...(feedback.upvotes || [])];
+    const upvoteIndex = upvotes.indexOf(req.user.id);
+
     if (upvoteIndex > -1) {
-      feedback.upvotes.splice(upvoteIndex, 1);
+      upvotes.splice(upvoteIndex, 1);
     } else {
-      feedback.upvotes.push(req.user.id);
+      upvotes.push(req.user.id);
     }
 
+    feedback.upvotes = upvotes;
     await feedback.save();
+
     res.status(200).json({ success: true, data: feedback });
   } catch (error) {
     next(error);
@@ -71,28 +90,36 @@ exports.upvoteFeedback = async (req, res, next) => {
 exports.getPublicRoadmap = async (req, res, next) => {
   try {
     // Dynamic roadmap showing planned features, what is in development, etc.
-    const feedbackRoadmap = await Feedback.find({
-      status: { $in: ['under_review', 'planned', 'in_development', 'completed'] },
-    }).sort({ status: 1 });
+    const feedbackRoadmap = await Feedback.findAll({
+      where: {
+        status: {
+          [Op.in]: ['under_review', 'planned', 'in_development', 'completed'],
+        },
+      },
+      order: [['status', 'ASC']],
+    });
 
     // Mock static milestone targets combined with dynamic submissions
     const milestones = [
       {
         id: 'v1',
         title: 'Release Version 1.0 (Core Engine)',
-        description: 'Vite app skeleton, JWT protected APIs, Multer uploading, and Gemini quiz builder.',
+        description:
+          'Vite app skeleton, JWT protected APIs, Multer uploading, and Gemini quiz builder.',
         status: 'completed',
       },
       {
         id: 'v2',
         title: 'Release Version 2.0 (Study Planner & Spaced Repetition)',
-        description: 'Auto Study calendars, SuperMemo SM-2 adaptation flashcards, and graph analytics.',
+        description:
+          'Auto Study calendars, SuperMemo SM-2 adaptation flashcards, and graph analytics.',
         status: 'in_development',
       },
       {
         id: 'v3',
         title: 'Release Version 3.0 (Social Collaborations & Gamification)',
-        description: 'Study Battles, shared public notes repository downloads, and leaderboard ranking.',
+        description:
+          'Study Battles, shared public notes repository downloads, and leaderboard ranking.',
         status: 'planned',
       },
     ];

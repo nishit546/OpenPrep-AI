@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken');
-const mongoose = require('mongoose');
+const { v4: uuidv4 } = require('uuid');
 const { protect, authorize } = require('../../middleware/auth');
 const User = require('../../models/User');
 
@@ -77,7 +77,7 @@ describe('Auth Middleware - protect', () => {
   });
 
   it('should return 401 if user does not exist in database', async () => {
-    const token = jwt.sign({ id: new mongoose.Types.ObjectId() }, process.env.JWT_SECRET);
+    const token = jwt.sign({ id: uuidv4() }, process.env.JWT_SECRET);
     const { req, res, next } = createMockReqRes();
     req.headers.authorization = `Bearer ${token}`;
 
@@ -112,7 +112,7 @@ describe('Auth Middleware - protect', () => {
 
   it('should reject tokens when JWT_SECRET is not configured', async () => {
     delete process.env.JWT_SECRET;
-    const fakeId = new mongoose.Types.ObjectId();
+    const fakeId = uuidv4();
     const token = jwt.sign({ id: fakeId.toString() }, 'some_unknown_secret');
     const { req, res, next } = createMockReqRes();
     req.headers.authorization = `Bearer ${token}`;

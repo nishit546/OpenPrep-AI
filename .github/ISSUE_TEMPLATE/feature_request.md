@@ -2,7 +2,7 @@
 name: Feature Request
 about: Suggest an idea for OpenPrep AI
 title: '[FEATURE]: '
-labels: 'enhancement'
+labels: 'enhancement, ECSoC26'
 assignees: ''
 ---
 

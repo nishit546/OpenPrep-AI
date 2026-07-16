@@ -1,50 +1,63 @@
-const mongoose = require('mongoose');
+const { DataTypes } = require('sequelize');
+const { sequelize } = require('../config/db');
 
-const NoteSchema = new mongoose.Schema(
+const Note = sequelize.define(
+  'Note',
   {
+    id: {
+      type: DataTypes.UUID,
+      defaultValue: DataTypes.UUIDV4,
+      primaryKey: true,
+    },
+    _id: {
+      type: DataTypes.VIRTUAL,
+      get() {
+        return this.id;
+      },
+    },
     title: {
-      type: String,
-      required: [true, 'Please add a note title'],
-      trim: true,
+      type: DataTypes.STRING,
+      allowNull: false,
+      validate: {
+        notEmpty: { msg: 'Please add a note title' },
+      },
     },
     content: {
-      type: String,
+      type: DataTypes.TEXT,
     },
     subject: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Subject',
-      required: true,
+      type: DataTypes.UUID,
+      allowNull: false,
     },
     topic: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Topic',
+      type: DataTypes.UUID,
     },
     fileUrl: {
-      type: String,
+      type: DataTypes.STRING,
     },
     fileType: {
-      type: String, // 'pdf', 'image', 'docx', 'text'
+      type: DataTypes.STRING,
     },
     isPublic: {
-      type: Boolean,
-      default: false,
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
     },
     category: {
-      type: String,
-      enum: ['Lecture Notes', 'Study Guide', 'Cheat Sheet', 'Summary', 'Other'],
-      default: 'Lecture Notes',
+      type: DataTypes.ENUM('Lecture Notes', 'Study Guide', 'Cheat Sheet', 'Summary', 'Other'),
+      defaultValue: 'Lecture Notes',
     },
     downloadsCount: {
-      type: Number,
-      default: 0,
+      type: DataTypes.INTEGER,
+      defaultValue: 0,
     },
     user: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-      required: true,
+      type: DataTypes.UUID,
+      allowNull: false,
     },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+  }
 );
 
-module.exports = mongoose.model('Note', NoteSchema);
+module.exports = Note;

@@ -7,12 +7,13 @@ import VerifyEmail from './pages/VerifyEmail';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import ProtectedRoute from './components/ProtectedRoute';
-import './App.css';
+import CustomCursor from './components/CustomCursor';import './App.css';
 
 function App() {
   return (
+  <>
+    <CustomCursor />
     <Routes>
-      {/* Public routes */}
       <Route path="/" element={<Landing />} />
       <Route path="/register" element={<Register />} />
       <Route path="/login" element={<Login />} />
@@ -20,7 +21,6 @@ function App() {
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password/:token" element={<ResetPassword />} />
 
-      {/* Protected routes */}
       <Route
         path="/dashboard"
         element={
@@ -30,7 +30,8 @@ function App() {
         }
       />
     </Routes>
-  );
+  </>
+);
 }
 
 export default App;

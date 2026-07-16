@@ -4,10 +4,44 @@ const { execSync } = require('child_process');
 const labels = [
   // ECSoC26 (Elite Summer of Code 2026)
   { name: 'ECSoC26', color: 'F9D0C4', description: 'Elite Summer of Code 2026 contributions' },
-  { name: 'ECSoC26-Approved', color: '80553B', description: 'Approved for Elite Summer of Code 2026' },
-  { name: 'ECSoC26-L1', color: 'EDEDED', description: 'Level 1 (Easy / Beginner-friendly) ECSoC26 task' },
-  { name: 'ECSoC26-L2', color: 'D640C6', description: 'Level 2 (Medium / Intermediate) ECSoC26 task' },
+  {
+    name: 'ECSoC26-Approved',
+    color: '80553B',
+    description: 'Approved for Elite Summer of Code 2026',
+  },
+  {
+    name: 'ECSoC26-L1',
+    color: 'EDEDED',
+    description: 'Level 1 (Easy / Beginner-friendly) ECSoC26 task',
+  },
+  {
+    name: 'ECSoC26-L2',
+    color: 'D640C6',
+    description: 'Level 2 (Medium / Intermediate) ECSoC26 task',
+  },
   { name: 'ECSoC26-L3', color: 'b60205', description: 'Level 3 (Hard / Advanced) ECSoC26 task' },
+
+  // Bonus XP (Project Admins only)
+  {
+    name: 'good-issue',
+    color: 'E5A100',
+    description: 'Project Admins only: +10 XP bonus for high-quality issues',
+  },
+  {
+    name: 'good-pr',
+    color: '1D76DB',
+    description: 'Project Admins only: +15 XP bonus for high-quality pull requests',
+  },
+  {
+    name: 'good-ui',
+    color: '0E8A16',
+    description: 'Project Admins only: +25 XP bonus for outstanding UI/UX contributions',
+  },
+  {
+    name: 'good-backend',
+    color: '6F42C1',
+    description: 'Project Admins only: +50 XP bonus for outstanding backend contributions',
+  },
 
   // Hacktoberfest
   { name: 'hacktoberfest', color: 'FF5500', description: 'Hacktoberfest contributions' },

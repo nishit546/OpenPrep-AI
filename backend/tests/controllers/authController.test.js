@@ -1,6 +1,5 @@
 const request = require('supertest');
 const express = require('express');
-const mongoose = require('mongoose');
 const crypto = require('crypto');
 const authRoutes = require('../../routes/authRoutes');
 const errorHandler = require('../../middleware/error');
@@ -30,13 +29,11 @@ describe('Auth Controller - Integration Tests', () => {
   // =========================================================================
   describe('POST /api/auth/register', () => {
     it('should register a new user and send verification email', async () => {
-      const res = await request(app)
-        .post('/api/auth/register')
-        .send({
-          name: 'John Doe',
-          email: 'john@example.com',
-          password: 'StrongPass1!',
-        });
+      const res = await request(app).post('/api/auth/register').send({
+        name: 'John Doe',
+        email: 'john@example.com',
+        password: 'StrongPass1!',
+      });
 
       expect(res.status).toBe(201);
       expect(res.body.success).toBe(true);
@@ -49,13 +46,11 @@ describe('Auth Controller - Integration Tests', () => {
     it('should return 400 when email already exists', async () => {
       await createVerifiedUser({ email: 'duplicate@example.com' });
 
-      const res = await request(app)
-        .post('/api/auth/register')
-        .send({
-          name: 'Another User',
-          email: 'duplicate@example.com',
-          password: 'StrongPass2!',
-        });
+      const res = await request(app).post('/api/auth/register').send({
+        name: 'Another User',
+        email: 'duplicate@example.com',
+        password: 'StrongPass2!',
+      });
 
       expect(res.status).toBe(400);
       expect(res.body.success).toBe(false);
@@ -63,54 +58,46 @@ describe('Auth Controller - Integration Tests', () => {
     });
 
     it('should default role to student when not provided', async () => {
-      const res = await request(app)
-        .post('/api/auth/register')
-        .send({
-          name: 'Student User',
-          email: 'student@example.com',
-          password: 'StrongPass1!',
-        });
+      const res = await request(app).post('/api/auth/register').send({
+        name: 'Student User',
+        email: 'student@example.com',
+        password: 'StrongPass1!',
+      });
 
       expect(res.body.success).toBe(true);
 
-      const user = await User.findOne({ email: 'student@example.com' });
+      const user = await User.findOne({ where: { email: 'student@example.com' } });
       expect(user.role).toBe('student');
     });
 
     it('should ignore role field and default to student when role is sent', async () => {
-      const res = await request(app)
-        .post('/api/auth/register')
-        .send({
-          name: 'Admin Wannabe',
-          email: 'wannabe@example.com',
-          password: 'StrongPass1!',
-          role: 'admin',
-        });
+      const res = await request(app).post('/api/auth/register').send({
+        name: 'Admin Wannabe',
+        email: 'wannabe@example.com',
+        password: 'StrongPass1!',
+        role: 'admin',
+      });
 
       expect(res.body.success).toBe(true);
 
-      const user = await User.findOne({ email: 'wannabe@example.com' });
+      const user = await User.findOne({ where: { email: 'wannabe@example.com' } });
       expect(user.role).toBe('student');
     });
 
     it('should return 400 when name is missing', async () => {
-      const res = await request(app)
-        .post('/api/auth/register')
-        .send({
-          email: 'missing@example.com',
-          password: 'StrongPass1!',
-        });
+      const res = await request(app).post('/api/auth/register').send({
+        email: 'missing@example.com',
+        password: 'StrongPass1!',
+      });
 
       expect(res.status).toBe(400);
     });
 
     it('should return 400 when email is missing', async () => {
-      const res = await request(app)
-        .post('/api/auth/register')
-        .send({
-          name: 'No Email',
-          password: 'StrongPass1!',
-        });
+      const res = await request(app).post('/api/auth/register').send({
+        name: 'No Email',
+        password: 'StrongPass1!',
+      });
 
       expect(res.status).toBe(400);
     });
@@ -175,22 +162,20 @@ describe('Auth Controller - Integration Tests', () => {
       user.emailVerificationExpire = Date.now() + 60 * 60 * 1000;
       await user.save();
 
-      const res = await request(app)
-        .post(`/api/auth/verify-email/${rawToken}`);
+      const res = await request(app).post(`/api/auth/verify-email/${rawToken}`);
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
       expect(res.body.token).toBeDefined();
 
       // Verify user was updated
-      const updated = await User.findById(user._id);
+      const updated = await User.findByPk(user.id);
       expect(updated.isEmailVerified).toBe(true);
       expect(updated.emailVerificationToken).toBeUndefined();
     });
 
     it('should return 400 with invalid token', async () => {
-      const res = await request(app)
-        .post('/api/auth/verify-email/invalidtoken123');
+      const res = await request(app).post('/api/auth/verify-email/invalidtoken123');
 
       expect(res.status).toBe(400);
       expect(res.body.success).toBe(false);
@@ -213,16 +198,14 @@ describe('Auth Controller - Integration Tests', () => {
     });
 
     afterEach(async () => {
-      await User.deleteMany({ email: 'login@example.com' });
+      await User.destroy({ where: { email: 'login@example.com' } });
     });
 
     it('should login with valid credentials and return tokens', async () => {
-      const res = await request(app)
-        .post('/api/auth/login')
-        .send({
-          email: 'login@example.com',
-          password: 'StrongPass1!',
-        });
+      const res = await request(app).post('/api/auth/login').send({
+        email: 'login@example.com',
+        password: 'StrongPass1!',
+      });
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
@@ -234,12 +217,10 @@ describe('Auth Controller - Integration Tests', () => {
     });
 
     it('should return 401 with wrong password', async () => {
-      const res = await request(app)
-        .post('/api/auth/login')
-        .send({
-          email: 'login@example.com',
-          password: 'WrongPass1!',
-        });
+      const res = await request(app).post('/api/auth/login').send({
+        email: 'login@example.com',
+        password: 'WrongPass1!',
+      });
 
       expect(res.status).toBe(401);
       expect(res.body.success).toBe(false);
@@ -247,12 +228,10 @@ describe('Auth Controller - Integration Tests', () => {
     });
 
     it('should return 401 with non-existent email', async () => {
-      const res = await request(app)
-        .post('/api/auth/login')
-        .send({
-          email: 'nonexistent@example.com',
-          password: 'StrongPass1!',
-        });
+      const res = await request(app).post('/api/auth/login').send({
+        email: 'nonexistent@example.com',
+        password: 'StrongPass1!',
+      });
 
       expect(res.status).toBe(401);
       expect(res.body.success).toBe(false);
@@ -260,9 +239,7 @@ describe('Auth Controller - Integration Tests', () => {
     });
 
     it('should return 400 when email is not provided', async () => {
-      const res = await request(app)
-        .post('/api/auth/login')
-        .send({ password: 'StrongPass1!' });
+      const res = await request(app).post('/api/auth/login').send({ password: 'StrongPass1!' });
 
       expect(res.status).toBe(400);
       expect(res.body.success).toBe(false);
@@ -270,9 +247,7 @@ describe('Auth Controller - Integration Tests', () => {
     });
 
     it('should return 400 when password is not provided', async () => {
-      const res = await request(app)
-        .post('/api/auth/login')
-        .send({ email: 'login@example.com' });
+      const res = await request(app).post('/api/auth/login').send({ email: 'login@example.com' });
 
       expect(res.status).toBe(400);
       expect(res.body.success).toBe(false);
@@ -288,12 +263,10 @@ describe('Auth Controller - Integration Tests', () => {
         isEmailVerified: false,
       });
 
-      const res = await request(app)
-        .post('/api/auth/login')
-        .send({
-          email: 'unverified@example.com',
-          password: 'StrongPass1!',
-        });
+      const res = await request(app).post('/api/auth/login').send({
+        email: 'unverified@example.com',
+        password: 'StrongPass1!',
+      });
 
       expect(res.status).toBe(403);
       expect(res.body.success).toBe(false);
@@ -315,9 +288,7 @@ describe('Auth Controller - Integration Tests', () => {
 
       const token = loginRes.body.token;
 
-      const res = await request(app)
-        .get('/api/auth/me')
-        .set('Authorization', `Bearer ${token}`);
+      const res = await request(app).get('/api/auth/me').set('Authorization', `Bearer ${token}`);
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
@@ -460,9 +431,7 @@ describe('Auth Controller - Integration Tests', () => {
     });
 
     it('should return 400 without refresh token', async () => {
-      const res = await request(app)
-        .post('/api/auth/refresh-token')
-        .send({});
+      const res = await request(app).post('/api/auth/refresh-token').send({});
 
       expect(res.status).toBe(400);
       expect(res.body.success).toBe(false);

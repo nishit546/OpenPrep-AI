@@ -1,6 +1,6 @@
 const request = require('supertest');
 const express = require('express');
-const mongoose = require('mongoose');
+const { v4: uuidv4 } = require('uuid');
 const jwt = require('jsonwebtoken');
 const flashcardRoutes = require('../../routes/flashcardRoutes');
 const errorHandler = require('../../middleware/error');
@@ -34,7 +34,7 @@ describe('Flashcard Controller - SM-2 Algorithm Tests', () => {
     testSubject = await Subject.create({
       name: 'Test Subject',
       description: 'Subject for flashcards',
-      exam: new mongoose.Types.ObjectId(),
+      exam: uuidv4(),
       user: testUser._id,
     });
 
@@ -88,7 +88,7 @@ describe('Flashcard Controller - SM-2 Algorithm Tests', () => {
 
   describe('GET /api/flashcards', () => {
     beforeEach(async () => {
-      await Flashcard.deleteMany({});
+      await Flashcard.destroy({ where: {} });
     });
 
     it('should return empty list when no flashcards exist', async () => {
@@ -249,7 +249,7 @@ describe('Flashcard Controller - SM-2 Algorithm Tests', () => {
     });
 
     it('should return 404 for non-existent flashcard', async () => {
-      const fakeId = new mongoose.Types.ObjectId();
+      const fakeId = uuidv4();
       const res = await request(app)
         .delete(`/api/flashcards/${fakeId}`)
         .set('Authorization', `Bearer ${authToken}`);

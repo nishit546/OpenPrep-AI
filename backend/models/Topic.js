@@ -1,36 +1,50 @@
-const mongoose = require('mongoose');
+const { DataTypes } = require('sequelize');
+const { sequelize } = require('../config/db');
 
-const TopicSchema = new mongoose.Schema(
+const Topic = sequelize.define(
+  'Topic',
   {
+    id: {
+      type: DataTypes.UUID,
+      defaultValue: DataTypes.UUIDV4,
+      primaryKey: true,
+    },
+    _id: {
+      type: DataTypes.VIRTUAL,
+      get() {
+        return this.id;
+      },
+    },
     name: {
-      type: String,
-      required: [true, 'Please add a topic name'],
-      trim: true,
+      type: DataTypes.STRING,
+      allowNull: false,
+      validate: {
+        notEmpty: { msg: 'Please add a topic name' },
+      },
     },
     description: {
-      type: String,
+      type: DataTypes.TEXT,
     },
     subject: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Subject',
-      required: true,
+      type: DataTypes.UUID,
+      allowNull: false,
     },
     status: {
-      type: String,
-      enum: ['Weak', 'Medium', 'Strong'],
-      default: 'Medium',
+      type: DataTypes.ENUM('Weak', 'Medium', 'Strong'),
+      defaultValue: 'Medium',
     },
     weightage: {
-      type: Number, // Percentage of PYQ appearance or questions count
-      default: 0,
+      type: DataTypes.FLOAT,
+      defaultValue: 0,
     },
     user: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-      required: true,
+      type: DataTypes.UUID,
+      allowNull: false,
     },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+  }
 );
 
-module.exports = mongoose.model('Topic', TopicSchema);
+module.exports = Topic;

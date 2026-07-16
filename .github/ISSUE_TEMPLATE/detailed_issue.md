@@ -2,7 +2,7 @@
 name: Detailed Issue
 about: Comprehensive issue template for planning features, bugs, and enhancements
 title: '[Issue]: '
-labels: ''
+labels: 'ECSoC26'
 assignees: ''
 ---
 
