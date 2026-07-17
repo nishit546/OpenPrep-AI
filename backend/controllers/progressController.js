@@ -1,4 +1,4 @@
-const { Op } = require('sequelize');
+const { Op, fn, col } = require('sequelize');
 const Progress = require('../models/Progress');
 const Topic = require('../models/Topic');
 const ActivityLog = require('../models/ActivityLog');
@@ -16,41 +16,50 @@ exports.getDashboardStats = async (req, res, next) => {
     const streak = req.user.streakCount || 0;
     const totalStudyHours = req.user.studyHours || 0;
 
-    // 2. Topic statistics breakdown (Strong, Medium, Weak counts)
-    const topics = await Topic.findAll({ where: { user: userId } });
-    const totalTopicsCount = topics.length;
+    // 2. Topic statistics breakdown (Strong, Medium, Weak counts) via aggregation
+    const totalTopicsCount = await Topic.count({ where: { user: userId } });
+
+    const topicStats = await Topic.findAll({
+      attributes: ['status', [fn('COUNT', col('status')), 'count']],
+      where: { user: userId },
+      group: ['status'],
+      raw: true,
+    });
 
     let strongCount = 0;
     let mediumCount = 0;
     let weakCount = 0;
 
-    topics.forEach((t) => {
-      if (t.status === 'Strong') strongCount++;
-      else if (t.status === 'Medium') mediumCount++;
-      else if (t.status === 'Weak') weakCount++;
+    topicStats.forEach((t) => {
+      const count = parseInt(t.count, 10) || 0;
+      if (t.status === 'Strong') strongCount = count;
+      else if (t.status === 'Medium') mediumCount = count;
+      else if (t.status === 'Weak') weakCount = count;
     });
 
-    // Calculate syllabus progress percentage
-    const progressRecords = await Progress.findAll({ where: { user: userId } });
-    let totalCompletionSum = 0;
-    progressRecords.forEach((p) => {
-      totalCompletionSum += p.completionPercentage || 0;
+    // Calculate syllabus progress percentage via aggregation
+    const [totalCompletionResult] = await Progress.findAll({
+      attributes: [[fn('SUM', col('completionPercentage')), 'totalCompletion']],
+      where: { user: userId },
+      raw: true,
     });
+    const totalCompletionSum = parseFloat(totalCompletionResult?.totalCompletion) || 0;
     const syllabusProgress =
       totalTopicsCount > 0 ? Math.round(totalCompletionSum / totalTopicsCount) : 0;
 
     // 3. Quiz attempts summaries
     const attemptsCount = await QuizAttempt.count({ where: { user: userId } });
 
-    // 4. Study Hours Chart Data (weekly mock progression based on real records)
+    // 4. Study Hours Chart Data (weekly progression based on real records)
     const progressHistory = await Progress.findAll({
+      attributes: ['studyHours', 'completionPercentage', 'updatedAt'],
       where: { user: userId },
       order: [['updatedAt', 'DESC']],
       limit: 7,
     });
     const weeklyChartData = progressHistory.map((p, idx) => ({
       day: `Topic ${idx + 1}`,
-      hours: p.studyHours || Math.round(Math.random() * 3 + 1),
+      hours: p.studyHours || 0,
       completion: p.completionPercentage || 0,
     }));
 
