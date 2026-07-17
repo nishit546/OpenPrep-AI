@@ -28,10 +28,18 @@ exports.submitFeedback = async (req, res, next) => {
 exports.getFeedbackList = async (req, res, next) => {
   try {
     const { type, status } = req.query;
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
+    const offset = (page - 1) * limit;
+
     const filter = {};
     if (type) filter.type = type;
     if (status) filter.status = status;
 
+    // Count total matching items before pagination
+    const total = await Feedback.count({ where: filter });
+
+    // Fetch all matching items for accurate in-memory sort by upvotes
     const items = await Feedback.findAll({
       where: filter,
       include: [{ model: User, as: 'userRef', attributes: ['id', 'name', 'email'] }],
@@ -49,7 +57,17 @@ exports.getFeedbackList = async (req, res, next) => {
       (a, b) => (b.upvotes ? b.upvotes.length : 0) - (a.upvotes ? a.upvotes.length : 0)
     );
 
-    res.status(200).json({ success: true, count: populatedItems.length, data: populatedItems });
+    // Slice after sorting for correct pagination
+    const paginatedItems = populatedItems.slice(offset, offset + limit);
+
+    res.status(200).json({
+      success: true,
+      count: paginatedItems.length,
+      total,
+      page,
+      totalPages: Math.ceil(total / limit),
+      data: paginatedItems,
+    });
   } catch (error) {
     next(error);
   }

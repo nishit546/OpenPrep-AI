@@ -102,14 +102,28 @@ exports.uploadAndAnalyzePYQ = async (req, res, next) => {
 exports.getPYQs = async (req, res, next) => {
   try {
     const { subjectId } = req.query;
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
+    const offset = (page - 1) * limit;
+
     const filter = { user: req.user.id };
     if (subjectId) filter.subject = subjectId;
 
-    const pyqs = await PYQ.findAll({
+    const { count: total, rows: pyqs } = await PYQ.findAndCountAll({
       where: filter,
       order: [['year', 'DESC']],
+      offset,
+      limit,
     });
-    res.status(200).json({ success: true, count: pyqs.length, data: pyqs });
+
+    res.status(200).json({
+      success: true,
+      count: pyqs.length,
+      total,
+      page,
+      totalPages: Math.ceil(total / limit),
+      data: pyqs,
+    });
   } catch (error) {
     next(error);
   }

@@ -93,6 +93,10 @@ exports.createFlashcard = async (req, res, next) => {
 exports.getFlashcards = async (req, res, next) => {
   try {
     const { subjectId, dueOnly } = req.query;
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
+    const offset = (page - 1) * limit;
+
     const filter = { user: req.user.id };
 
     if (subjectId) filter.subject = subjectId;
@@ -100,12 +104,15 @@ exports.getFlashcards = async (req, res, next) => {
       filter.nextReviewDate = { [Op.lte]: new Date() };
     }
 
-    const cards = await Flashcard.findAll({
+    const { count: total, rows: cards } = await Flashcard.findAndCountAll({
       where: filter,
+      distinct: true,
       include: [
         { model: Subject, as: 'subjectRef' },
         { model: Topic, as: 'topicRef' },
       ],
+      offset,
+      limit,
     });
 
     const populatedCards = cards.map((c) => {
@@ -115,7 +122,14 @@ exports.getFlashcards = async (req, res, next) => {
       return json;
     });
 
-    res.status(200).json({ success: true, count: populatedCards.length, data: populatedCards });
+    res.status(200).json({
+      success: true,
+      count: populatedCards.length,
+      total,
+      page,
+      totalPages: Math.ceil(total / limit),
+      data: populatedCards,
+    });
   } catch (error) {
     next(error);
   }

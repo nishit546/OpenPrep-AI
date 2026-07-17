@@ -57,6 +57,9 @@ exports.uploadNote = async (req, res, next) => {
 exports.getNotes = async (req, res, next) => {
   try {
     const { subjectId, category, search, publicOnly } = req.query;
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
+    const offset = (page - 1) * limit;
 
     const where = {};
 
@@ -88,14 +91,17 @@ exports.getNotes = async (req, res, next) => {
       }
     }
 
-    const notes = await Note.findAll({
+    const { count: total, rows: notes } = await Note.findAndCountAll({
       where,
+      distinct: true,
       include: [
         { model: Subject, as: 'subjectRef' },
         { model: Topic, as: 'topicRef' },
         { model: User, as: 'userRef', attributes: ['id', 'name', 'email'] },
       ],
       order: [['createdAt', 'DESC']],
+      offset,
+      limit,
     });
 
     const populatedNotes = notes.map((n) => {
@@ -113,7 +119,14 @@ exports.getNotes = async (req, res, next) => {
       return json;
     });
 
-    res.status(200).json({ success: true, count: populatedNotes.length, data: populatedNotes });
+    res.status(200).json({
+      success: true,
+      count: populatedNotes.length,
+      total,
+      page,
+      totalPages: Math.ceil(total / limit),
+      data: populatedNotes,
+    });
   } catch (error) {
     next(error);
   }
