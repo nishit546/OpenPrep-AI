@@ -15,7 +15,7 @@ Only the latest release version of OpenPrep AI is actively supported with securi
 
 **Do not open a public GitHub issue for security vulnerabilities.**
 
-Instead, please report security vulnerabilities by emailing us at **security@openprep.ai**.
+Instead, please report security vulnerabilities by emailing us at **nishit.g.doshi.cg@gmail.com**.
 
 Please include the following details in your report:
 
