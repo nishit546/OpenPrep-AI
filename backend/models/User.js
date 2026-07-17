@@ -11,6 +11,12 @@ const User = sequelize.define(
       defaultValue: DataTypes.UUIDV4,
       primaryKey: true,
     },
+    _id: {
+      type: DataTypes.VIRTUAL,
+      get() {
+        return this.id;
+      },
+    },
     name: {
       type: DataTypes.STRING,
       allowNull: false,
