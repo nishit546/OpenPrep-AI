@@ -43,17 +43,14 @@ exports.generateAIFlashcards = async (req, res, next) => {
       count || 6
     );
 
-    const createdCards = [];
-    for (const card of cardsList) {
-      const dbCard = await Flashcard.create({
-        user: req.user.id,
-        subject: subjectId,
-        topic: topicId || null,
-        front: card.front,
-        back: card.back,
-      });
-      createdCards.push(dbCard);
-    }
+    const cardsToInsert = cardsList.map((card) => ({
+      user: req.user.id,
+      subject: subjectId,
+      topic: topicId || null,
+      front: card.front,
+      back: card.back,
+    }));
+    const createdCards = await Flashcard.bulkCreate(cardsToInsert);
 
     // Log activity
     await ActivityLog.create({
