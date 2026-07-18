@@ -71,15 +71,22 @@ exports.generateAIQuiz = async (req, res, next) => {
 exports.getQuizzes = async (req, res, next) => {
   try {
     const { subjectId } = req.query;
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
+    const offset = (page - 1) * limit;
+
     const filter = { createdBy: req.user.id };
     if (subjectId) filter.subject = subjectId;
 
-    const quizzes = await Quiz.findAll({
+    const { count: total, rows: quizzes } = await Quiz.findAndCountAll({
       where: filter,
+      distinct: true,
       include: [
         { model: Subject, as: 'subjectRef' },
         { model: Topic, as: 'topicRef' },
       ],
+      offset,
+      limit,
     });
 
     const populatedQuizzes = quizzes.map((q) => {
@@ -89,7 +96,14 @@ exports.getQuizzes = async (req, res, next) => {
       return json;
     });
 
-    res.status(200).json({ success: true, count: populatedQuizzes.length, data: populatedQuizzes });
+    res.status(200).json({
+      success: true,
+      count: populatedQuizzes.length,
+      total,
+      page,
+      totalPages: Math.ceil(total / limit),
+      data: populatedQuizzes,
+    });
   } catch (error) {
     next(error);
   }
@@ -234,8 +248,13 @@ exports.submitQuizAttempt = async (req, res, next) => {
 // @access  Private
 exports.getAttemptHistory = async (req, res, next) => {
   try {
-    const attempts = await QuizAttempt.findAll({
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
+    const offset = (page - 1) * limit;
+
+    const { count: total, rows: attempts } = await QuizAttempt.findAndCountAll({
       where: { user: req.user.id },
+      distinct: true,
       include: [
         {
           model: Quiz,
@@ -247,6 +266,8 @@ exports.getAttemptHistory = async (req, res, next) => {
         },
       ],
       order: [['createdAt', 'DESC']],
+      offset,
+      limit,
     });
 
     const populatedAttempts = attempts.map((att) => {
@@ -259,9 +280,14 @@ exports.getAttemptHistory = async (req, res, next) => {
       return json;
     });
 
-    res
-      .status(200)
-      .json({ success: true, count: populatedAttempts.length, data: populatedAttempts });
+    res.status(200).json({
+      success: true,
+      count: populatedAttempts.length,
+      total,
+      page,
+      totalPages: Math.ceil(total / limit),
+      data: populatedAttempts,
+    });
   } catch (error) {
     next(error);
   }
