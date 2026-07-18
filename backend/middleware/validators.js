@@ -76,13 +76,13 @@ const validateCreateExam = [
 
 const validateCreateSubject = [
   body('name').trim().notEmpty().withMessage('Please provide a subject name'),
-  body('examId').isMongoId().withMessage('Valid exam ID is required'),
+  body('examId').isUUID(4).withMessage('Valid exam ID is required'),
   handleValidationErrors,
 ];
 
 const validateCreateTopic = [
   body('name').trim().notEmpty().withMessage('Please provide a topic name'),
-  body('subjectId').isMongoId().withMessage('Valid subject ID is required'),
+  body('subjectId').isUUID(4).withMessage('Valid subject ID is required'),
   handleValidationErrors,
 ];
 
@@ -103,7 +103,7 @@ const validateUpdateTopic = [
 // Flashcard routes
 // ---------------------------------------------------------------------------
 const validateGenerateAIFlashcards = [
-  body('subjectId').isMongoId().withMessage('Valid subject ID is required'),
+  body('subjectId').isUUID(4).withMessage('Valid subject ID is required'),
   body('count')
     .optional()
     .isInt({ min: 1, max: 50 })
@@ -114,7 +114,7 @@ const validateGenerateAIFlashcards = [
 const validateCreateFlashcard = [
   body('front').trim().notEmpty().withMessage('Please provide the front text'),
   body('back').trim().notEmpty().withMessage('Please provide the back text'),
-  body('subjectId').isMongoId().withMessage('Valid subject ID is required'),
+  body('subjectId').isUUID(4).withMessage('Valid subject ID is required'),
   handleValidationErrors,
 ];
 
@@ -129,7 +129,7 @@ const validateReviewFlashcard = [
 // Quiz routes
 // ---------------------------------------------------------------------------
 const validateGenerateAIQuiz = [
-  body('subjectId').isMongoId().withMessage('Valid subject ID is required'),
+  body('subjectId').isUUID(4).withMessage('Valid subject ID is required'),
   body('count')
     .optional()
     .isInt({ min: 1, max: 50 })
@@ -155,7 +155,7 @@ const validateSubmitQuizAttempt = [
 // ---------------------------------------------------------------------------
 const validateUploadNote = [
   body('title').trim().notEmpty().withMessage('Please provide a note title'),
-  body('subjectId').isMongoId().withMessage('Valid subject ID is required'),
+  body('subjectId').isUUID(4).withMessage('Valid subject ID is required'),
   body('content').optional().trim(),
   body('isPublic').optional().isBoolean().withMessage('isPublic must be a boolean'),
   handleValidationErrors,
@@ -165,7 +165,7 @@ const validateUploadNote = [
 // PYQ routes
 // ---------------------------------------------------------------------------
 const validateUploadPYQ = [
-  body('subjectId').isMongoId().withMessage('Valid subject ID is required'),
+  body('subjectId').isUUID(4).withMessage('Valid subject ID is required'),
   body('year')
     .optional()
     .isInt({ min: 1900, max: 2100 })
@@ -177,7 +177,7 @@ const validateUploadPYQ = [
 // Study Plan routes
 // ---------------------------------------------------------------------------
 const validateGenerateAIPlan = [
-  body('examId').isMongoId().withMessage('Valid exam ID is required'),
+  body('examId').isUUID(4).withMessage('Valid exam ID is required'),
   body('startDate')
     .notEmpty()
     .withMessage('Start date is required')
