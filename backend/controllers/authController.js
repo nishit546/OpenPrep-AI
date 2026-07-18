@@ -39,7 +39,10 @@ const sendVerificationEmail = async (user, req) => {
   const verificationToken = user.generateToken('emailVerification');
   await user.save();
 
-  const verifyUrl = `${req.protocol}://${req.get('host')}/api/auth/verify-email/${verificationToken}`;
+  // Build frontend URL for verification link. Use FRONTEND_URL if provided,
+  // otherwise default to localhost Vite dev server.
+  const frontendBase = process.env.FRONTEND_URL || 'http://localhost:5173';
+  const verifyUrl = `${frontendBase.replace(/\/$/, '')}/verify-email/${verificationToken}`;
 
   await sendEmail({
     to: user.email,
@@ -55,7 +58,10 @@ const sendPasswordResetEmail = async (user, req) => {
   const resetToken = user.generateToken('resetPassword');
   await user.save();
 
-  const resetUrl = `${req.protocol}://${req.get('host')}/api/auth/reset-password/${resetToken}`;
+  // Build frontend URL for password reset link. Use FRONTEND_URL if provided,
+  // otherwise default to localhost Vite dev server.
+  const frontendBase = process.env.FRONTEND_URL || 'http://localhost:5173';
+  const resetUrl = `${frontendBase.replace(/\/$/, '')}/reset-password/${resetToken}`;
 
   await sendEmail({
     to: user.email,
