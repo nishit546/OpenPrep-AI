@@ -167,6 +167,7 @@ describe('Auth Controller - Integration Tests', () => {
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
       expect(res.body.token).toBeDefined();
+      expect(res.body.refreshToken).toBeDefined();
 
       // Verify user was updated
       const updated = await User.findByPk(user.id);
@@ -350,6 +351,7 @@ describe('Auth Controller - Integration Tests', () => {
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
       expect(res.body.token).toBeDefined();
+      expect(res.body.refreshToken).toBeDefined();
       expect(res.body.message).toContain('Password reset successful');
 
       // Verify old password no longer works

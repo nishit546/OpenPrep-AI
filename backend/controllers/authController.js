@@ -121,11 +121,13 @@ exports.verifyEmail = async (req, res, next) => {
     await user.save();
 
     const accessToken = generateAccessToken(user.id);
+    const refreshToken = await generateRefreshToken(user.id);
 
     res.status(200).json({
       success: true,
       message: 'Email verified successfully. You can now log in.',
       token: accessToken,
+      refreshToken,
     });
   } catch (error) {
     next(error);
@@ -291,11 +293,13 @@ exports.resetPassword = async (req, res, next) => {
     await user.save();
 
     const accessToken = generateAccessToken(user.id);
+    const refreshToken = await generateRefreshToken(user.id);
 
     res.status(200).json({
       success: true,
       message: 'Password reset successful. You can now log in with your new password.',
       token: accessToken,
+      refreshToken,
     });
   } catch (error) {
     next(error);
