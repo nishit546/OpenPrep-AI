@@ -197,3 +197,32 @@ exports.toggleTaskCompletion = async (req, res, next) => {
     next(error);
   }
 };
+
+// @desc    Get all Study Plans
+// @route   GET /api/study-plans/plans
+// @access  Private
+exports.getPlans = async (req, res, next) => {
+  try {
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 10));
+    const offset = (page - 1) * limit;
+
+    const { count: totalItems, rows: plans } = await StudyPlan.findAndCountAll({
+      where: { user: req.user.id },
+      order: [['createdAt', 'DESC']],
+      include: [{ model: Exam, as: 'examRef' }],
+      offset,
+      limit,
+    });
+
+    res.status(200).json({
+      success: true,
+      totalItems,
+      totalPages: Math.ceil(totalItems / limit),
+      currentPage: page,
+      data: plans,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
