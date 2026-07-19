@@ -177,7 +177,9 @@ exports.login = async (req, res, next) => {
     const diffTime = Math.abs(today - lastActive);
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-    if (diffDays === 1) {
+    if (diffDays === 0 && user.streakCount === 0) {
+      user.streakCount = 1;
+    } else if (diffDays === 1) {
       user.streakCount += 1;
     } else if (diffDays > 1) {
       user.streakCount = 1;

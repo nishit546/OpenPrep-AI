@@ -54,7 +54,7 @@ const ResetPassword = () => {
               to="/login"
               className="block text-center mt-6 bg-amber-700 hover:bg-amber-800 text-amber-50 font-semibold px-6 py-2.5 rounded-sm transition-colors"
             >
-              Go to Dashboard
+              Go to Login
             </Link>
           </>
         ) : loading ? (
