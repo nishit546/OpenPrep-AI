@@ -354,3 +354,41 @@ exports.refreshToken = async (req, res, next) => {
     next(error);
   }
 };
+
+// ---------------------------------------------------------------------------
+// @desc    Logout user (invalidate refresh token)
+// @route   POST /api/auth/logout
+// @access  Public
+// ---------------------------------------------------------------------------
+exports.logout = async (req, res, next) => {
+  try {
+    const { refreshToken: rawToken } = req.body;
+    
+    if (rawToken) {
+      const hashed = crypto.createHash('sha256').update(rawToken).digest('hex');
+
+      // Find user who has this hashed refresh token
+      const user = await User.findOne({
+        where: {
+          refreshTokens: {
+            [Op.contains]: [hashed],
+          },
+        },
+      });
+
+      if (user) {
+        // Remove the token from the user's refresh tokens array
+        user.refreshTokens = user.refreshTokens.filter((t) => t !== hashed);
+        await user.save();
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Logged out successfully',
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
