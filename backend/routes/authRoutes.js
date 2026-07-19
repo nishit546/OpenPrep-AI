@@ -24,24 +24,24 @@ const router = express.Router();
 // Skip rate limiting in test environment
 const shouldSkip = () => process.env.NODE_ENV === 'test';
 
-// Login rate limiter: 10 attempts per 15 minutes per IP
+// Login rate limiter: 5 attempts per 15 minutes per IP
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 10,
+  max: 5,
   skip: shouldSkip,
   message: { success: false, error: 'Too many login attempts. Please try again after 15 minutes.' },
   standardHeaders: true,
-  legacyHeaders: false,
+  legacyHeaders: true,
 });
 
-// Register rate limiter: 5 attempts per hour per IP
+// Register rate limiter: 5 attempts per 15 minutes per IP
 const registerLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000,
+  windowMs: 15 * 60 * 1000,
   max: 5,
   skip: shouldSkip,
-  message: { success: false, error: 'Too many registration attempts. Please try again after an hour.' },
+  message: { success: false, error: 'Too many registration attempts. Please try again after 15 minutes.' },
   standardHeaders: true,
-  legacyHeaders: false,
+  legacyHeaders: true,
 });
 
 // Forgot password rate limiter: 5 attempts per hour per IP
@@ -51,7 +51,7 @@ const forgotPasswordLimiter = rateLimit({
   skip: shouldSkip,
   message: { success: false, error: 'Too many password reset requests. Please try again after an hour.' },
   standardHeaders: true,
-  legacyHeaders: false,
+  legacyHeaders: true,
 });
 
 // Refresh token rate limiter: 10 attempts per 15 minutes per IP
@@ -61,7 +61,7 @@ const refreshTokenLimiter = rateLimit({
   skip: shouldSkip,
   message: { success: false, error: 'Too many refresh requests. Please try again later.' },
   standardHeaders: true,
-  legacyHeaders: false,
+  legacyHeaders: true,
 });
 
 router.post('/register', registerLimiter, validateRegister, register);
