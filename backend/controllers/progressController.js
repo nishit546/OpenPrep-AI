@@ -57,8 +57,9 @@ exports.getDashboardStats = async (req, res, next) => {
       order: [['updatedAt', 'DESC']],
       limit: 7,
     });
-    const weeklyChartData = progressHistory.map((p, idx) => ({
-      day: `Topic ${idx + 1}`,
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const weeklyChartData = progressHistory.map((p) => ({
+      day: dayNames[new Date(p.updatedAt).getDay()],
       hours: p.studyHours || 0,
       completion: p.completionPercentage || 0,
     }));
