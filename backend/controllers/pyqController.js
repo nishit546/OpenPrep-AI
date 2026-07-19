@@ -101,13 +101,27 @@ exports.uploadAndAnalyzePYQ = async (req, res, next) => {
 // @access  Private
 exports.getPYQs = async (req, res, next) => {
   try {
-    const { subjectId } = req.query;
+    const { subjectId, courseId } = req.query;
+    const targetId = subjectId || courseId;
+
+    if (targetId) {
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      if (!uuidRegex.test(targetId)) {
+        return res.status(400).json({ success: false, error: 'Invalid ID format' });
+      }
+
+      const subjectExists = await Subject.findByPk(targetId);
+      if (!subjectExists) {
+        return res.status(404).json({ success: false, error: 'Course/Subject not found' });
+      }
+    }
+
     const page = Math.max(1, parseInt(req.query.page) || 1);
     const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
     const offset = (page - 1) * limit;
 
     const filter = { user: req.user.id };
-    if (subjectId) filter.subject = subjectId;
+    if (targetId) filter.subject = targetId;
 
     const { count: total, rows: pyqs } = await PYQ.findAndCountAll({
       where: filter,
