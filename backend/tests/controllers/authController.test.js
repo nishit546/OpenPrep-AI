@@ -316,17 +316,32 @@ describe('Auth Controller - Integration Tests', () => {
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
-      expect(res.body.message).toContain('Password reset link sent');
-      expect(res.body.message).toContain('1 hour');
+      expect(res.body.message).toContain('password reset link');
     });
 
-    it('should return 404 when email does not exist', async () => {
+    it('should return 200 even when email does not exist', async () => {
       const res = await request(app)
         .post('/api/auth/forgot-password')
         .send({ email: 'ghost@example.com' });
 
-      expect(res.status).toBe(404);
-      expect(res.body.success).toBe(false);
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+    });
+
+    it('should return same response for existing and non-existing emails', async () => {
+      await createVerifiedUser({ email: 'exists@example.com' });
+
+      const resExisting = await request(app)
+        .post('/api/auth/forgot-password')
+        .send({ email: 'exists@example.com' });
+
+      const resMissing = await request(app)
+        .post('/api/auth/forgot-password')
+        .send({ email: 'missing@example.com' });
+
+      expect(resExisting.status).toBe(resMissing.status);
+      expect(resExisting.body.success).toBe(resMissing.body.success);
+      expect(resExisting.body.message).toBe(resMissing.body.message);
     });
   });
 
