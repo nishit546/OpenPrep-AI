@@ -183,7 +183,7 @@ const Dashboard = () => {
   const firstDueCard = dueFlashcards.length > 0 ? dueFlashcards[0] : null;
 
   // ── Streak display ──
-  const streakDays = stats?.streak ?? 14;
+  const streakDays = stats?.streak ?? 0;
   const totalStudyHours = stats?.totalStudyHours ?? 0;
   const syllabusProgress = stats?.syllabusProgress ?? 0;
   const attemptsCount = stats?.attemptsCount ?? 0;
