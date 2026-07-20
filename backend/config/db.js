@@ -18,10 +18,12 @@ const connectDB = async () => {
   try {
     await sequelize.authenticate();
     console.log('PostgreSQL Connected successfully via Sequelize');
-    
-    // Sync models (dynamically imported to prevent circular reference at startup)
+
+    // Always register models and associations (required for eager loading)
+    require('../models');
+
+    // Sync schema only in non-production (production uses migrations)
     if (process.env.NODE_ENV !== 'production') {
-      require('../models'); // Registers all models and associations
       await sequelize.sync({ alter: true });
       console.log('Database schemas synced successfully');
     }
