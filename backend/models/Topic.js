@@ -44,6 +44,16 @@ const Topic = sequelize.define(
   },
   {
     timestamps: true,
+    indexes: [
+      {
+        name: 'topic_subject_idx',
+        fields: ['subject'],
+      },
+      {
+        name: 'topic_user_idx',
+        fields: ['user'],
+      },
+    ],
   }
 );
 

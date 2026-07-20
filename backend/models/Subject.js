@@ -36,6 +36,16 @@ const Subject = sequelize.define(
   },
   {
     timestamps: true,
+    indexes: [
+      {
+        name: 'subject_exam_idx',
+        fields: ['exam'],
+      },
+      {
+        name: 'subject_user_idx',
+        fields: ['user'],
+      },
+    ],
   }
 );
 

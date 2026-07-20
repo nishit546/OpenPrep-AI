@@ -50,6 +50,20 @@ const QuizAttempt = sequelize.define(
   },
   {
     timestamps: true,
+    indexes: [
+      {
+        name: 'quizattempt_user_idx',
+        fields: ['user'],
+      },
+      {
+        name: 'quizattempt_quiz_idx',
+        fields: ['quiz'],
+      },
+      {
+        name: 'quizattempt_user_quiz_idx',
+        fields: ['user', 'quiz'],
+      },
+    ],
   }
 );
 

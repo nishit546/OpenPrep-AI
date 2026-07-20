@@ -57,6 +57,24 @@ const Note = sequelize.define(
   },
   {
     timestamps: true,
+    indexes: [
+      {
+        name: 'note_user_idx',
+        fields: ['user'],
+      },
+      {
+        name: 'note_subject_idx',
+        fields: ['subject'],
+      },
+      {
+        name: 'note_topic_idx',
+        fields: ['topic'],
+      },
+      {
+        name: 'note_user_subject_idx',
+        fields: ['user', 'subject'],
+      },
+    ],
   }
 );
 
