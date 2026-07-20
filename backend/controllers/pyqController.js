@@ -1,4 +1,5 @@
 const fs = require('fs');
+const path = require('path');
 const pdfParse = require('pdf-parse');
 const { Op } = require('sequelize');
 const PYQ = require('../models/PYQ');
@@ -155,6 +156,80 @@ exports.getPYQDetails = async (req, res, next) => {
       return res.status(404).json({ success: false, error: 'Question paper analysis not found' });
     }
     res.status(200).json({ success: true, data: pyq });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Re-analyze PYQ with AI
+// @route   POST /api/pyqs/:id/analyze
+// @access  Private
+exports.getPYQAnalysis = async (req, res, next) => {
+  try {
+    const pyq = await PYQ.findOne({
+      where: { id: req.params.id, user: req.user.id },
+    });
+    if (!pyq) {
+      return res.status(404).json({ success: false, error: 'Question paper not found' });
+    }
+
+    // Read the PDF file from disk and re-extract text
+    let extractedText = '';
+    try {
+      const absolutePath = path.join(__dirname, '..', pyq.fileUrl);
+      if (fs.existsSync(absolutePath)) {
+        const dataBuffer = fs.readFileSync(absolutePath);
+        const pdfData = await pdfParse(dataBuffer);
+        extractedText = pdfData.text;
+      }
+    } catch (parseError) {
+      console.error('PDF parsing error during re-analysis:', parseError);
+    }
+
+    // Get subject for analysis context
+    const subject = await Subject.findByPk(pyq.subject);
+    const subjectName = subject ? subject.name : 'the subject';
+
+    // Re-analyze with Gemini (force refresh to bypass cache)
+    const analysis = await geminiService.analyzePYQText(
+      extractedText || `${subjectName} - Year ${pyq.year}`,
+      subjectName,
+      true
+    );
+
+    // Update the PYQ record
+    pyq.analysisResults = analysis;
+    pyq.analyzed = true;
+    await pyq.save();
+
+    res.status(200).json({ success: true, data: pyq });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Delete PYQ
+// @route   DELETE /api/pyqs/:id
+// @access  Private
+exports.deletePYQ = async (req, res, next) => {
+  try {
+    const pyq = await PYQ.findOne({
+      where: { id: req.params.id, user: req.user.id },
+    });
+    if (!pyq) {
+      return res.status(404).json({ success: false, error: 'Question paper not found' });
+    }
+
+    // Delete associated file from disk
+    if (pyq.fileUrl) {
+      const absolutePath = path.join(__dirname, '..', pyq.fileUrl);
+      if (fs.existsSync(absolutePath)) {
+        fs.unlinkSync(absolutePath);
+      }
+    }
+
+    await pyq.destroy();
+    res.status(200).json({ success: true, data: {} });
   } catch (error) {
     next(error);
   }
