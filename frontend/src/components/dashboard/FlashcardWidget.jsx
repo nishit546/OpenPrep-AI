@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Lightbulb, AlertCircle, RefreshCw, BookOpen, ChevronRight } from 'lucide-react';
 
@@ -9,12 +9,10 @@ const Shimmer = ({ className = '' }) => (
 const FlashcardWidget = ({ flashcard = null, loading = false, error = null, totalDue = 0, onRetry }) => {
   const [isFlipped, setIsFlipped] = useState(false);
 
-  // Reset flip state when flashcard changes
-  const prevCard = React.useRef(flashcard);
-  if (flashcard !== prevCard.current) {
-    prevCard.current = flashcard;
+  // Reset flip state when the flashcard changes (after render, not during)
+  useEffect(() => {
     if (isFlipped) setIsFlipped(false);
-  }
+  }, [flashcard]);
 
   if (loading) {
     return (
