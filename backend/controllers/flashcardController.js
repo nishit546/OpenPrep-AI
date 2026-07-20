@@ -108,6 +108,10 @@ exports.getFlashcards = async (req, res, next) => {
         { model: Subject, as: 'subjectRef' },
         { model: Topic, as: 'topicRef' },
       ],
+      order: [
+        ['nextReviewDate', 'ASC'],
+        ['createdAt', 'ASC'],
+      ],
       offset,
       limit,
     });
@@ -124,6 +128,7 @@ exports.getFlashcards = async (req, res, next) => {
       count: populatedCards.length,
       total,
       page,
+      limit,
       totalPages: Math.ceil(total / limit),
       data: populatedCards,
     });

@@ -55,6 +55,12 @@ const Feedback = sequelize.define(
   },
   {
     timestamps: true,
+    indexes: [
+      {
+        name: 'feedback_user_idx',
+        fields: ['user'],
+      },
+    ],
   }
 );
 

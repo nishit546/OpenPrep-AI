@@ -60,8 +60,21 @@ const PYQ = sequelize.define(
     timestamps: true,
     indexes: [
       {
+        name: 'pyq_user_id_idx',
         unique: false,
         fields: ['user', 'id'],
+      },
+      {
+        name: 'pyq_exam_idx',
+        fields: ['exam'],
+      },
+      {
+        name: 'pyq_subject_idx',
+        fields: ['subject'],
+      },
+      {
+        name: 'pyq_user_exam_idx',
+        fields: ['user', 'exam'],
       },
     ],
   }

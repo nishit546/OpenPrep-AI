@@ -39,6 +39,12 @@ const Exam = sequelize.define(
   },
   {
     timestamps: true,
+    indexes: [
+      {
+        name: 'exam_user_idx',
+        fields: ['user'],
+      },
+    ],
   }
 );
 

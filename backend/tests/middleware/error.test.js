@@ -30,43 +30,70 @@ describe('Error Handler Middleware', () => {
     });
   });
 
-  it('should return 404 for a CastError (Mongoose bad ObjectId)', () => {
-    const err = new Error('Resource not found');
-    err.name = 'CastError';
+  it('should return 400 for a SequelizeValidationError', () => {
+    const err = new Error('Validation failed');
+    err.name = 'SequelizeValidationError';
+    err.errors = [
+      { message: 'Email is required' },
+      { message: 'Password must be at least 8 characters' },
+    ];
+    errorHandler(err, req, res, vi.fn());
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body).toEqual({
+      success: false,
+      error: 'Email is required, Password must be at least 8 characters',
+    });
+  });
+
+  it('should return 400 for a SequelizeUniqueConstraintError', () => {
+    const err = new Error('unique constraint violated');
+    err.name = 'SequelizeUniqueConstraintError';
+    err.errors = [
+      { path: 'email', message: 'email must be unique' },
+    ];
+    errorHandler(err, req, res, vi.fn());
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body).toEqual({
+      success: false,
+      error: 'Duplicate value for field: email',
+    });
+  });
+
+  it('should return 404 for a SequelizeForeignKeyConstraintError', () => {
+    const err = new Error('foreign key constraint fails');
+    err.name = 'SequelizeForeignKeyConstraintError';
     errorHandler(err, req, res, vi.fn());
 
     expect(res.statusCode).toBe(404);
     expect(res.body).toEqual({
       success: false,
-      error: 'Resource not found',
+      error: 'Referenced resource not found',
     });
   });
 
-  it('should return 400 for a duplicate key error (code 11000)', () => {
-    const err = new Error('Duplicate field value entered');
-    err.code = 11000;
+  it('should return 400 for a SequelizeDatabaseError', () => {
+    const err = new Error('invalid input syntax for type uuid');
+    err.name = 'SequelizeDatabaseError';
     errorHandler(err, req, res, vi.fn());
 
     expect(res.statusCode).toBe(400);
     expect(res.body).toEqual({
       success: false,
-      error: 'Duplicate field value entered',
+      error: 'Invalid request',
     });
   });
 
-  it('should return 400 for a Mongoose ValidationError', () => {
-    const err = new Error('Please add a name, Please add an email');
-    err.name = 'ValidationError';
-    err.errors = {
-      name: { message: 'Please add a name' },
-      email: { message: 'Please add an email' },
-    };
+  it('should return 400 for a SequelizeEagerLoadingError', () => {
+    const err = new Error('include not found');
+    err.name = 'SequelizeEagerLoadingError';
     errorHandler(err, req, res, vi.fn());
 
     expect(res.statusCode).toBe(400);
     expect(res.body).toEqual({
       success: false,
-      error: 'Please add a name, Please add an email',
+      error: 'Invalid query configuration',
     });
   });
 

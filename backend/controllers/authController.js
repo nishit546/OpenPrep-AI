@@ -163,9 +163,36 @@ exports.login = async (req, res, next) => {
       });
     }
 
+    // Check if account is locked due to too many failed attempts
+    if (user.lockoutUntil && user.lockoutUntil > new Date()) {
+      const remainingMinutes = Math.ceil((user.lockoutUntil - new Date()) / (1000 * 60));
+      return res.status(423).json({
+        success: false,
+        error: `Account locked due to too many failed attempts. Try again in ${remainingMinutes} minute${
+          remainingMinutes !== 1 ? 's' : ''
+        }.`,
+      });
+    }
+
     const isMatch = await user.matchPassword(password);
     if (!isMatch) {
+      // Increment failed login attempts
+      user.loginAttempts += 1;
+
+      // Lock account after 5 consecutive failures
+      if (user.loginAttempts >= 5) {
+        user.lockoutUntil = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+      }
+
+      await user.save();
       return res.status(401).json({ success: false, error: 'Invalid credentials' });
+    }
+
+    // Successful login — reset lockout counters
+    if (user.loginAttempts !== 0 || user.lockoutUntil !== null) {
+      user.loginAttempts = 0;
+      user.lockoutUntil = null;
+      await user.save();
     }
 
     // Update daily streak
@@ -250,15 +277,14 @@ exports.forgotPassword = async (req, res, next) => {
     const { email } = req.body;
     const user = await User.findOne({ where: { email } });
 
-    if (!user) {
-      return res.status(404).json({ success: false, error: 'User not found with this email' });
+    // Always return the same response to prevent email enumeration
+    if (user) {
+      await sendPasswordResetEmail(user, req);
     }
-
-    await sendPasswordResetEmail(user, req);
 
     res.status(200).json({
       success: true,
-      message: 'Password reset link sent to your email. It expires in 1 hour.',
+      message: 'If an account with that email exists, a password reset link has been sent.',
     });
   } catch (error) {
     // If email sending failed, clear the token from DB
@@ -354,3 +380,41 @@ exports.refreshToken = async (req, res, next) => {
     next(error);
   }
 };
+
+// ---------------------------------------------------------------------------
+// @desc    Logout user (invalidate refresh token)
+// @route   POST /api/auth/logout
+// @access  Public
+// ---------------------------------------------------------------------------
+exports.logout = async (req, res, next) => {
+  try {
+    const { refreshToken: rawToken } = req.body;
+    
+    if (rawToken) {
+      const hashed = crypto.createHash('sha256').update(rawToken).digest('hex');
+
+      // Find user who has this hashed refresh token
+      const user = await User.findOne({
+        where: {
+          refreshTokens: {
+            [Op.contains]: [hashed],
+          },
+        },
+      });
+
+      if (user) {
+        // Remove the token from the user's refresh tokens array
+        user.refreshTokens = user.refreshTokens.filter((t) => t !== hashed);
+        await user.save();
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Logged out successfully',
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+

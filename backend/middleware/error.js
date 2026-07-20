@@ -5,24 +5,35 @@ const errorHandler = (err, req, res, next) => {
   // Log to console for developer
   console.error(err);
 
-  // Sequelize database error (e.g., invalid UUIDs or bad queries)
-  if (err.name === 'SequelizeDatabaseError') {
-    const message = 'Database error or invalid query';
-    error = new Error(message);
-    error.statusCode = 400;
-  }
-
-  // Sequelize duplicate key (Unique Constraint)
-  if (err.name === 'SequelizeUniqueConstraintError') {
-    const message = 'Duplicate field value entered';
-    error = new Error(message);
-    error.statusCode = 400;
-  }
-
-  // Sequelize validation error
+  // Sequelize validation error — model-level validation failures
   if (err.name === 'SequelizeValidationError') {
     const message = err.errors.map((val) => val.message).join(', ');
     error = new Error(message);
+    error.statusCode = 400;
+  }
+
+  // Sequelize unique constraint violation — duplicate field value
+  if (err.name === 'SequelizeUniqueConstraintError') {
+    const fields = err.errors.map((e) => e.path).join(', ');
+    error = new Error(`Duplicate value for field: ${fields}`);
+    error.statusCode = 400;
+  }
+
+  // Sequelize foreign key constraint — referenced resource does not exist
+  if (err.name === 'SequelizeForeignKeyConstraintError') {
+    error = new Error('Referenced resource not found');
+    error.statusCode = 404;
+  }
+
+  // Sequelize database error — invalid UUIDs, bad SQL, type mismatches
+  if (err.name === 'SequelizeDatabaseError') {
+    error = new Error('Invalid request');
+    error.statusCode = 400;
+  }
+
+  // Sequelize eager loading error — invalid include options
+  if (err.name === 'SequelizeEagerLoadingError') {
+    error = new Error('Invalid query configuration');
     error.statusCode = 400;
   }
 

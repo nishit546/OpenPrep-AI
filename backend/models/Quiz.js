@@ -46,8 +46,17 @@ const Quiz = sequelize.define(
     timestamps: true,
     indexes: [
       {
+        name: 'quiz_createdby_id_idx',
         unique: false,
         fields: ['createdBy', 'id'],
+      },
+      {
+        name: 'quiz_subject_idx',
+        fields: ['subject'],
+      },
+      {
+        name: 'quiz_topic_idx',
+        fields: ['topic'],
       },
     ],
   }

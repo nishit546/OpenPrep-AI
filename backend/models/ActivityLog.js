@@ -40,6 +40,16 @@ const ActivityLog = sequelize.define(
   },
   {
     timestamps: true,
+    indexes: [
+      {
+        name: 'activitylog_user_idx',
+        fields: ['user'],
+      },
+      {
+        name: 'activitylog_user_timestamp_idx',
+        fields: ['user', 'timestamp'],
+      },
+    ],
   }
 );
 

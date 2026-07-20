@@ -273,6 +273,85 @@ describe('Auth Controller - Integration Tests', () => {
       expect(res.body.success).toBe(false);
       expect(res.body.error).toContain('verify your email');
     });
+
+    // =========================================================================
+    // Account lockout tests
+    // =========================================================================
+
+    it('should lock account after 5 failed login attempts', async () => {
+      // Send 5 wrong passwords
+      for (let i = 0; i < 5; i++) {
+        const res = await request(app).post('/api/auth/login').send({
+          email: 'login@example.com',
+          password: 'WrongPass1!',
+        });
+        expect(res.status).toBe(401);
+      }
+
+      // Verify the user is now locked
+      const user = await User.findOne({ where: { email: 'login@example.com' } });
+      expect(user.loginAttempts).toBe(5);
+      expect(user.lockoutUntil).toBeTruthy();
+      expect(user.lockoutUntil.getTime()).toBeGreaterThan(Date.now());
+    });
+
+    it('should return 423 when account is locked', async () => {
+      // Manually lock the account
+      const user = await User.findOne({ where: { email: 'login@example.com' } });
+      user.loginAttempts = 5;
+      user.lockoutUntil = new Date(Date.now() + 15 * 60 * 1000);
+      await user.save();
+
+      const res = await request(app).post('/api/auth/login').send({
+        email: 'login@example.com',
+        password: 'StrongPass1!',
+      });
+
+      expect(res.status).toBe(423);
+      expect(res.body.success).toBe(false);
+      expect(res.body.error).toContain('Account locked');
+      expect(res.body.error).toContain('minute');
+    });
+
+    it('should reset lockout counter on successful login', async () => {
+      // Simulate 3 failed attempts first
+      const userBefore = await User.findOne({ where: { email: 'login@example.com' } });
+      userBefore.loginAttempts = 3;
+      await userBefore.save();
+
+      // Successful login
+      const res = await request(app).post('/api/auth/login').send({
+        email: 'login@example.com',
+        password: 'StrongPass1!',
+      });
+      expect(res.status).toBe(200);
+
+      // Verify counters are reset
+      const userAfter = await User.findOne({ where: { email: 'login@example.com' } });
+      expect(userAfter.loginAttempts).toBe(0);
+      expect(userAfter.lockoutUntil).toBeNull();
+    });
+
+    it('should allow login after lockout period expires', async () => {
+      // Set lockout in the past (expired lockout)
+      const user = await User.findOne({ where: { email: 'login@example.com' } });
+      user.loginAttempts = 5;
+      user.lockoutUntil = new Date(Date.now() - 1000); // 1 second ago
+      await user.save();
+
+      const res = await request(app).post('/api/auth/login').send({
+        email: 'login@example.com',
+        password: 'StrongPass1!',
+      });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+
+      // Verify counters were reset
+      const userAfter = await User.findOne({ where: { email: 'login@example.com' } });
+      expect(userAfter.loginAttempts).toBe(0);
+      expect(userAfter.lockoutUntil).toBeNull();
+    });
   });
 
   // =========================================================================
@@ -316,17 +395,32 @@ describe('Auth Controller - Integration Tests', () => {
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
-      expect(res.body.message).toContain('Password reset link sent');
-      expect(res.body.message).toContain('1 hour');
+      expect(res.body.message).toContain('password reset link');
     });
 
-    it('should return 404 when email does not exist', async () => {
+    it('should return 200 even when email does not exist', async () => {
       const res = await request(app)
         .post('/api/auth/forgot-password')
         .send({ email: 'ghost@example.com' });
 
-      expect(res.status).toBe(404);
-      expect(res.body.success).toBe(false);
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+    });
+
+    it('should return same response for existing and non-existing emails', async () => {
+      await createVerifiedUser({ email: 'exists@example.com' });
+
+      const resExisting = await request(app)
+        .post('/api/auth/forgot-password')
+        .send({ email: 'exists@example.com' });
+
+      const resMissing = await request(app)
+        .post('/api/auth/forgot-password')
+        .send({ email: 'missing@example.com' });
+
+      expect(resExisting.status).toBe(resMissing.status);
+      expect(resExisting.body.success).toBe(resMissing.body.success);
+      expect(resExisting.body.message).toBe(resMissing.body.message);
     });
   });
 

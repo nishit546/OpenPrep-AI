@@ -59,6 +59,24 @@ const Flashcard = sequelize.define(
   },
   {
     timestamps: true,
+    indexes: [
+      {
+        name: 'flashcard_user_idx',
+        fields: ['user'],
+      },
+      {
+        name: 'flashcard_subject_idx',
+        fields: ['subject'],
+      },
+      {
+        name: 'flashcard_topic_idx',
+        fields: ['topic'],
+      },
+      {
+        name: 'flashcard_user_subject_idx',
+        fields: ['user', 'subject'],
+      },
+    ],
   }
 );
 

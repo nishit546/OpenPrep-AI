@@ -6,7 +6,7 @@ const { validateUploadNote } = require('../middleware/validators');
 
 const router = express.Router();
 
-router.post('/', protect, validateUploadNote, upload.single('file'), uploadNote);
+router.post('/', protect, upload.single('file'), validateUploadNote, uploadNote);
 router.get('/', protect, getNotes);
 router.put('/:id/download', protect, downloadNote);
 router.delete('/:id', protect, deleteNote);

@@ -102,13 +102,27 @@ exports.uploadAndAnalyzePYQ = async (req, res, next) => {
 // @access  Private
 exports.getPYQs = async (req, res, next) => {
   try {
-    const { subjectId } = req.query;
+    const { subjectId, courseId } = req.query;
+    const targetId = subjectId || courseId;
+
+    if (targetId) {
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      if (!uuidRegex.test(targetId)) {
+        return res.status(400).json({ success: false, error: 'Invalid ID format' });
+      }
+
+      const subjectExists = await Subject.findByPk(targetId);
+      if (!subjectExists) {
+        return res.status(404).json({ success: false, error: 'Course/Subject not found' });
+      }
+    }
+
     const page = Math.max(1, parseInt(req.query.page) || 1);
     const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
     const offset = (page - 1) * limit;
 
     const filter = { user: req.user.id };
-    if (subjectId) filter.subject = subjectId;
+    if (targetId) filter.subject = targetId;
 
     const { count: total, rows: pyqs } = await PYQ.findAndCountAll({
       where: filter,
@@ -147,6 +161,53 @@ exports.getPYQDetails = async (req, res, next) => {
   }
 };
 
+// @desc    Re-analyze PYQ with AI
+// @route   POST /api/pyqs/:id/analyze
+// @access  Private
+exports.getPYQAnalysis = async (req, res, next) => {
+  try {
+    const pyq = await PYQ.findOne({
+      where: { id: req.params.id, user: req.user.id },
+    });
+    if (!pyq) {
+      return res.status(404).json({ success: false, error: 'Question paper not found' });
+    }
+
+    // Read the PDF file from disk and re-extract text
+    let extractedText = '';
+    try {
+      const absolutePath = path.join(__dirname, '..', pyq.fileUrl);
+      if (fs.existsSync(absolutePath)) {
+        const dataBuffer = fs.readFileSync(absolutePath);
+        const pdfData = await pdfParse(dataBuffer);
+        extractedText = pdfData.text;
+      }
+    } catch (parseError) {
+      console.error('PDF parsing error during re-analysis:', parseError);
+    }
+
+    // Get subject for analysis context
+    const subject = await Subject.findByPk(pyq.subject);
+    const subjectName = subject ? subject.name : 'the subject';
+
+    // Re-analyze with Gemini (force refresh to bypass cache)
+    const analysis = await geminiService.analyzePYQText(
+      extractedText || `${subjectName} - Year ${pyq.year}`,
+      subjectName,
+      true
+    );
+
+    // Update the PYQ record
+    pyq.analysisResults = analysis;
+    pyq.analyzed = true;
+    await pyq.save();
+
+    res.status(200).json({ success: true, data: pyq });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // @desc    Delete PYQ
 // @route   DELETE /api/pyqs/:id
 // @access  Private
@@ -158,12 +219,15 @@ exports.deletePYQ = async (req, res, next) => {
     if (!pyq) {
       return res.status(404).json({ success: false, error: 'Question paper not found' });
     }
+
+    // Delete associated file from disk
     if (pyq.fileUrl) {
-      const filePath = path.join(__dirname, '..', pyq.fileUrl);
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
+      const absolutePath = path.join(__dirname, '..', pyq.fileUrl);
+      if (fs.existsSync(absolutePath)) {
+        fs.unlinkSync(absolutePath);
       }
     }
+
     await pyq.destroy();
     res.status(200).json({ success: true, data: {} });
   } catch (error) {

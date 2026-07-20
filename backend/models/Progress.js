@@ -50,6 +50,24 @@ const Progress = sequelize.define(
   },
   {
     timestamps: true,
+    indexes: [
+      {
+        name: 'progress_user_idx',
+        fields: ['user'],
+      },
+      {
+        name: 'progress_subject_idx',
+        fields: ['subject'],
+      },
+      {
+        name: 'progress_topic_idx',
+        fields: ['topic'],
+      },
+      {
+        name: 'progress_user_subject_idx',
+        fields: ['user', 'subject'],
+      },
+    ],
   }
 );
 

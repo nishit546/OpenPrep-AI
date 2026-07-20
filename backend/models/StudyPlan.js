@@ -42,6 +42,20 @@ const StudyPlan = sequelize.define(
   },
   {
     timestamps: true,
+    indexes: [
+      {
+        name: 'studyplan_user_idx',
+        fields: ['user'],
+      },
+      {
+        name: 'studyplan_exam_idx',
+        fields: ['exam'],
+      },
+      {
+        name: 'studyplan_user_exam_idx',
+        fields: ['user', 'exam'],
+      },
+    ],
   }
 );
 
