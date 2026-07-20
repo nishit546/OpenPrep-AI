@@ -1,4 +1,5 @@
 const fs = require('fs');
+const path = require('path');
 const pdfParse = require('pdf-parse');
 const { Op } = require('sequelize');
 const PYQ = require('../models/PYQ');
@@ -141,6 +142,30 @@ exports.getPYQDetails = async (req, res, next) => {
       return res.status(404).json({ success: false, error: 'Question paper analysis not found' });
     }
     res.status(200).json({ success: true, data: pyq });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Delete PYQ
+// @route   DELETE /api/pyqs/:id
+// @access  Private
+exports.deletePYQ = async (req, res, next) => {
+  try {
+    const pyq = await PYQ.findOne({
+      where: { id: req.params.id, user: req.user.id },
+    });
+    if (!pyq) {
+      return res.status(404).json({ success: false, error: 'Question paper not found' });
+    }
+    if (pyq.fileUrl) {
+      const filePath = path.join(__dirname, '..', pyq.fileUrl);
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+    }
+    await pyq.destroy();
+    res.status(200).json({ success: true, data: {} });
   } catch (error) {
     next(error);
   }
