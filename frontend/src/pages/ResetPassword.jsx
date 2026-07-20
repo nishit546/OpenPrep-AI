@@ -118,9 +118,10 @@ const ResetPassword = () => {
 
               <button
                 type="submit"
-                className="w-full bg-amber-700 hover:bg-amber-800 text-amber-50 font-semibold py-2.5 rounded-sm transition-colors"
+                disabled={loading}
+                className="w-full bg-amber-700 hover:bg-amber-800 disabled:bg-amber-400 text-amber-50 font-semibold py-2.5 rounded-sm transition-colors"
               >
-                Reset Password
+                {loading ? <Loader className="w-5 h-5 animate-spin mx-auto" /> : 'Reset Password'}
               </button>
             </form>
           </>
