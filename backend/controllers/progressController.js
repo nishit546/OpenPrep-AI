@@ -152,3 +152,181 @@ exports.getSubjectBreakdown = async (req, res, next) => {
     next(error);
   }
 };
+
+// @desc    Get study hours tracking data
+// @route   GET /api/progress/study-hours
+// @access  Private
+exports.getStudyHours = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const totalStudyHours = req.user.studyHours || 0;
+
+    // Weekly study hours from Progress records
+    const progressHistory = await Progress.findAll({
+      attributes: ['studyHours', 'updatedAt'],
+      where: { user: userId },
+      order: [['updatedAt', 'DESC']],
+      limit: 7,
+    });
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const weeklyData = progressHistory.map((p) => ({
+      day: dayNames[new Date(p.updatedAt).getDay()],
+      hours: p.studyHours || 0,
+    }));
+
+    res.status(200).json({
+      success: true,
+      data: {
+        totalStudyHours,
+        weeklyData:
+          weeklyData.length > 0
+            ? weeklyData
+            : [
+                { day: 'Mon', hours: 0 },
+                { day: 'Tue', hours: 0 },
+                { day: 'Wed', hours: 0 },
+                { day: 'Thu', hours: 0 },
+                { day: 'Fri', hours: 0 },
+                { day: 'Sat', hours: 0 },
+                { day: 'Sun', hours: 0 },
+              ],
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Log study time for a topic/subject
+// @route   POST /api/progress/track
+// @access  Private
+exports.trackStudyTime = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const { studyHours, subjectId, topicId, description } = req.body;
+
+    if (studyHours == null || studyHours <= 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Please provide valid study hours (must be greater than 0)',
+      });
+    }
+
+    // Accumulate total study hours on the user record
+    req.user.studyHours = (req.user.studyHours || 0) + parseFloat(studyHours);
+    await req.user.save();
+
+    // If a topic is specified, update or create a Progress record
+    if (topicId && subjectId) {
+      const [progress, created] = await Progress.findOrCreate({
+        where: { user: userId, topic: topicId },
+        defaults: {
+          user: userId,
+          subject: subjectId,
+          topic: topicId,
+          studyHours: parseFloat(studyHours),
+          completionPercentage: 0,
+        },
+      });
+      if (!created) {
+        progress.studyHours = (progress.studyHours || 0) + parseFloat(studyHours);
+        await progress.save();
+      }
+    } else if (subjectId) {
+      // If only subject is specified, update or create a Progress record for that subject
+      const [progress, created] = await Progress.findOrCreate({
+        where: { user: userId, subject: subjectId, topic: null },
+        defaults: {
+          user: userId,
+          subject: subjectId,
+          studyHours: parseFloat(studyHours),
+          completionPercentage: 0,
+        },
+      });
+      if (!created) {
+        progress.studyHours = (progress.studyHours || 0) + parseFloat(studyHours);
+        await progress.save();
+      }
+    }
+
+    // Log activity
+    await ActivityLog.create({
+      user: userId,
+      activityType: 'study_plan_create',
+      description: description || `Studied for ${studyHours} hour${studyHours !== 1 ? 's' : ''}`,
+    });
+
+    res.status(200).json({
+      success: true,
+      data: {
+        totalStudyHours: req.user.studyHours,
+        hoursLogged: parseFloat(studyHours),
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Update topic progress (completion, flashcards, quiz scores)
+// @route   PUT /api/progress/topic/:id
+// @access  Private
+exports.updateTopicProgress = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const topicId = req.params.id;
+
+    const topic = await Topic.findOne({ where: { id: topicId, user: userId } });
+    if (!topic) {
+      return res.status(404).json({ success: false, error: 'Topic not found' });
+    }
+
+    const { completionPercentage, studyHours, flashcardsMastered, quizScores } = req.body;
+
+    // Find or create a Progress record for this topic
+    const subjectId = topic.subject;
+    const [progress, created] = await Progress.findOrCreate({
+      where: { user: userId, topic: topicId },
+      defaults: {
+        user: userId,
+        subject: subjectId,
+        topic: topicId,
+        completionPercentage: completionPercentage ?? 0,
+        studyHours: studyHours ?? 0,
+        flashcardsMastered: flashcardsMastered ?? 0,
+        quizScores: quizScores ?? [],
+      },
+    });
+
+    if (!created) {
+      if (completionPercentage !== undefined) progress.completionPercentage = completionPercentage;
+      if (studyHours !== undefined) progress.studyHours = studyHours;
+      if (flashcardsMastered !== undefined) progress.flashcardsMastered = flashcardsMastered;
+      if (quizScores !== undefined) progress.quizScores = quizScores;
+      await progress.save();
+    }
+
+    return res.status(200).json({ success: true, data: progress });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get recent activity feed
+// @route   GET /api/progress/activity
+// @access  Private
+exports.getActivityFeed = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+
+    const activities = await ActivityLog.findAll({
+      where: { user: userId },
+      order: [['createdAt', 'DESC']],
+      limit: 20,
+    });
+
+    res.status(200).json({ success: true, data: activities });
+  } catch (error) {
+    next(error);
+  }
+};
