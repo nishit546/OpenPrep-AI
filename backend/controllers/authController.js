@@ -163,9 +163,36 @@ exports.login = async (req, res, next) => {
       });
     }
 
+    // Check if account is locked due to too many failed attempts
+    if (user.lockoutUntil && user.lockoutUntil > new Date()) {
+      const remainingMinutes = Math.ceil((user.lockoutUntil - new Date()) / (1000 * 60));
+      return res.status(423).json({
+        success: false,
+        error: `Account locked due to too many failed attempts. Try again in ${remainingMinutes} minute${
+          remainingMinutes !== 1 ? 's' : ''
+        }.`,
+      });
+    }
+
     const isMatch = await user.matchPassword(password);
     if (!isMatch) {
+      // Increment failed login attempts
+      user.loginAttempts += 1;
+
+      // Lock account after 5 consecutive failures
+      if (user.loginAttempts >= 5) {
+        user.lockoutUntil = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+      }
+
+      await user.save();
       return res.status(401).json({ success: false, error: 'Invalid credentials' });
+    }
+
+    // Successful login — reset lockout counters
+    if (user.loginAttempts !== 0 || user.lockoutUntil !== null) {
+      user.loginAttempts = 0;
+      user.lockoutUntil = null;
+      await user.save();
     }
 
     // Update daily streak

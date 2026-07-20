@@ -79,6 +79,14 @@ const User = sequelize.define(
     refreshTokenExpire: {
       type: DataTypes.DATE,
     },
+    loginAttempts: {
+      type: DataTypes.INTEGER,
+      defaultValue: 0,
+    },
+    lockoutUntil: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
   },
   {
     timestamps: true,
