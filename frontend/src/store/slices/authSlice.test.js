@@ -53,10 +53,17 @@ describe('authSlice', () => {
       });
     });
 
-    test('should derive isAuthenticated from token', () => {
+    test('should derive initial loading state from token in localStorage', () => {
       const state = authReducer(undefined, { type: 'unknown' });
       expect(state.token).toBeNull();
       expect(state.isAuthenticated).toBe(false);
+      expect(state.loading).toBe(false);
+
+      localStorage.setItem('token', 'test-token');
+      const stateWithToken = authReducer(undefined, { type: 'unknown' });
+      expect(stateWithToken.token).toBe('test-token');
+      expect(stateWithToken.isAuthenticated).toBe(false);
+      expect(stateWithToken.loading).toBe(true);
     });
   });
 

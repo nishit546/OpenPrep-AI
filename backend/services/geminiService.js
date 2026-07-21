@@ -297,7 +297,7 @@ exports.generateQuiz = async (subjectName, topicName, notesText = '', count = 5,
     return getMockQuiz(subjectName, topicName, count);
   }
 
-  const cacheKey = hashKey('quiz', `${subjectName}:${topicName}:${count}`);
+  const cacheKey = hashKey('quiz', `${subjectName}:${topicName}:${count}:${notesText}`);
 
   // Check cache (skip if forceRefresh)
   if (!forceRefresh) {
@@ -358,7 +358,7 @@ exports.generateFlashcards = async (subjectName, topicName, notesText = '', coun
     return getMockFlashcards(subjectName, topicName, count);
   }
 
-  const cacheKey = hashKey('flashcards', `${subjectName}:${topicName}:${count}`);
+  const cacheKey = hashKey('flashcards', `${subjectName}:${topicName}:${count}:${notesText}`);
 
   // Check cache (skip if forceRefresh)
   if (!forceRefresh) {

@@ -25,7 +25,7 @@ const Progress = sequelize.define(
     },
     topic: {
       type: DataTypes.UUID,
-      allowNull: false,
+      allowNull: true,
     },
     completionPercentage: {
       type: DataTypes.FLOAT,
