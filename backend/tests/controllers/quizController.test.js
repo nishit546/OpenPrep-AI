@@ -5,6 +5,7 @@ const jwt = require('jsonwebtoken');
 const quizRoutes = require('../../routes/quizRoutes');
 const errorHandler = require('../../middleware/error');
 const User = require('../../models/User');
+const Exam = require('../../models/Exam');
 const Subject = require('../../models/Subject');
 const Topic = require('../../models/Topic');
 const Quiz = require('../../models/Quiz');
@@ -39,22 +40,32 @@ describe('Quiz Controller - Integration Tests', () => {
       password: 'password123',
     });
 
-    authToken = jwt.sign({ id: testUser._id }, process.env.JWT_SECRET);
-    otherAuthToken = jwt.sign({ id: testUser2._id }, process.env.JWT_SECRET);
+    authToken = jwt.sign({ id: testUser.id }, process.env.JWT_SECRET);
+    otherAuthToken = jwt.sign({ id: testUser2.id }, process.env.JWT_SECRET);
+
+    const examForSubject = await Exam.create({
+      name: 'Quiz Test Exam',
+      description: 'Exam for quiz subject',
+      date: new Date(),
+      user: testUser.id,
+    });
 
     testSubject = await Subject.create({
       name: 'Test Subject',
       description: 'A subject for testing',
-      exam: uuidv4(),
-      user: testUser._id,
+      exam: examForSubject.id,
+      user: testUser.id,
     });
 
     testTopic = await Topic.create({
       name: 'Test Topic',
       description: 'A topic for testing',
       subject: testSubject._id,
-      user: testUser._id,
+      user: testUser.id,
     });
+
+    const question1Id = uuidv4();
+    const question2Id = uuidv4();
 
     testQuiz = await Quiz.create({
       title: 'Test Quiz',
@@ -62,12 +73,14 @@ describe('Quiz Controller - Integration Tests', () => {
       topic: testTopic._id,
       questions: [
         {
+          _id: question1Id,
           questionText: 'What is 2+2?',
           options: ['1', '2', '3', '4'],
           correctAnswer: 3,
           explanation: '2+2 equals 4',
         },
         {
+          _id: question2Id,
           questionText: 'What is the capital of France?',
           options: ['London', 'Paris', 'Berlin', 'Madrid'],
           correctAnswer: 1,
@@ -75,7 +88,7 @@ describe('Quiz Controller - Integration Tests', () => {
         },
       ],
       type: 'AI_Generated',
-      createdBy: testUser._id,
+      createdBy: testUser.id,
     });
   });
 
@@ -132,14 +145,14 @@ describe('Quiz Controller - Integration Tests', () => {
       expect(res.body.error).toBe('Quiz not found');
     });
 
-    it('should return 404 for invalid ObjectId format (CastError)', async () => {
+    it('should return 400 for invalid UUID format', async () => {
       const res = await request(app)
         .get('/api/quizzes/invalid-id')
         .set('Authorization', `Bearer ${authToken}`);
 
-      expect(res.status).toBe(404);
+      expect(res.status).toBe(400);
       expect(res.body.success).toBe(false);
-      expect(res.body.error).toBe('Resource not found');
+      expect(res.body.error).toBe('Invalid request');
     });
 
     it("should return 404 when another user tries to view someone else's quiz (IDOR protection)", async () => {
@@ -193,7 +206,7 @@ describe('Quiz Controller - Integration Tests', () => {
       expect(res.body.success).toBe(true);
       expect(res.body.data).toHaveProperty('score');
       expect(res.body.data.score).toBe(100);
-      expect(res.body.data.user).toBe(testUser._id.toString());
+      expect(res.body.data.user).toBe(testUser.id.toString());
     });
 
     afterEach(async () => {

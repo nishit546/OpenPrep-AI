@@ -32,11 +32,11 @@ describe('Academic Controller - Integration Tests', () => {
 
     otherUser = await User.create({
       name: 'Other User',
-      email: 'other@example.com',
+      email: 'otheracademic@example.com',
       password: 'password123',
     });
 
-    authToken = jwt.sign({ id: testUser._id }, process.env.JWT_SECRET);
+    authToken = jwt.sign({ id: testUser.id }, process.env.JWT_SECRET);
   });
 
   afterAll(() => {
@@ -59,7 +59,7 @@ describe('Academic Controller - Integration Tests', () => {
         expect(res.status).toBe(201);
         expect(res.body.success).toBe(true);
         expect(res.body.data.name).toBe('Final Exam');
-        expect(res.body.data.user.toString()).toBe(testUser._id.toString());
+        expect(res.body.data.user.toString()).toBe(testUser.id.toString());
         testExam = res.body.data;
       });
 
@@ -85,7 +85,7 @@ describe('Academic Controller - Integration Tests', () => {
       });
 
       it('should return empty array if no exams exist for different user', async () => {
-        const otherToken = jwt.sign({ id: otherUser._id }, process.env.JWT_SECRET);
+        const otherToken = jwt.sign({ id: otherUser.id }, process.env.JWT_SECRET);
         const res = await request(app)
           .get('/api/academic/exams')
           .set('Authorization', `Bearer ${otherToken}`);
@@ -115,21 +115,21 @@ describe('Academic Controller - Integration Tests', () => {
           name: 'Delete Exam',
           description: 'To be deleted',
           date: '2026-06-01',
-          user: testUser._id,
+          user: testUser.id,
         });
 
         const subject = await Subject.create({
           name: 'Delete Subject',
           description: 'To be deleted',
           exam: exam._id,
-          user: testUser._id,
+          user: testUser.id,
         });
 
         await Topic.create({
           name: 'Delete Topic',
           description: 'To be deleted',
           subject: subject._id,
-          user: testUser._id,
+          user: testUser.id,
         });
 
         const res = await request(app)
@@ -164,7 +164,7 @@ describe('Academic Controller - Integration Tests', () => {
         name: 'Subject Test Exam',
         description: 'Exam for subject tests',
         date: '2026-07-01',
-        user: testUser._id,
+        user: testUser.id,
       });
     });
 
@@ -219,14 +219,14 @@ describe('Academic Controller - Integration Tests', () => {
           name: 'Delete Subject',
           description: 'To delete',
           exam: examForSubject._id,
-          user: testUser._id,
+          user: testUser.id,
         });
 
         await Topic.create({
           name: 'Topic to Delete',
           description: 'Cascade delete',
           subject: subject._id,
-          user: testUser._id,
+          user: testUser.id,
         });
 
         const res = await request(app)
@@ -251,14 +251,14 @@ describe('Academic Controller - Integration Tests', () => {
         name: 'Topic Exam',
         description: 'Exam for topic tests',
         date: '2026-08-01',
-        user: testUser._id,
+        user: testUser.id,
       });
 
       subjectForTopic = await Subject.create({
         name: 'Topic Subject',
         description: 'Subject for topic tests',
         exam: examForTopic._id,
-        user: testUser._id,
+        user: testUser.id,
       });
     });
 
@@ -333,7 +333,7 @@ describe('Academic Controller - Integration Tests', () => {
           name: 'Update Topic',
           description: 'Original',
           subject: subjectForTopic._id,
-          user: testUser._id,
+          user: testUser.id,
         });
 
         const res = await request(app)
@@ -367,7 +367,7 @@ describe('Academic Controller - Integration Tests', () => {
         const topic = await Topic.create({
           name: 'Delete Topic',
           subject: subjectForTopic._id,
-          user: testUser._id,
+          user: testUser.id,
         });
 
         const res = await request(app)

@@ -94,11 +94,11 @@ describe('Auth Middleware - protect', () => {
   it('should call next() if valid token and user exists', async () => {
     const user = await User.create({
       name: 'Test User',
-      email: 'test@example.com',
+      email: 'authtest@example.com',
       password: 'password123',
     });
 
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET);
+    const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET);
     const { req, res, next } = createMockReqRes();
     req.headers.authorization = `Bearer ${token}`;
 
@@ -106,8 +106,8 @@ describe('Auth Middleware - protect', () => {
 
     expect(next).toHaveBeenCalled();
     expect(req.user).toBeDefined();
-    expect(req.user._id.toString()).toBe(user._id.toString());
-    expect(req.user.email).toBe('test@example.com');
+    expect(req.user.id.toString()).toBe(user.id.toString());
+    expect(req.user.email).toBe('authtest@example.com');
   });
 
   it('should reject tokens when JWT_SECRET is not configured', async () => {
