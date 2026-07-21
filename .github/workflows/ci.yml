@@ -31,6 +31,22 @@ jobs:
 
   test-backend:
     runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: openprep_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@v3
@@ -49,6 +65,8 @@ jobs:
       - name: Run Backend Tests
         run: npm test
         working-directory: backend
+        env:
+          DATABASE_URL_TEST: postgres://postgres:postgres@localhost:5432/openprep_test
 
   test-frontend:
     runs-on: ubuntu-latest
