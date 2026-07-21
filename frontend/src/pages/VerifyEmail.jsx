@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useParams, Link, Navigate } from 'react-router-dom';
 import { CheckCircle, XCircle, Loader } from 'lucide-react';

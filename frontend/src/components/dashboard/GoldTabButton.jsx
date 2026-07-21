@@ -1,4 +1,3 @@
-import React from 'react';
 import { motion } from 'framer-motion';
 
 const GoldTabButton = ({ icon: Icon, label, onClick, delay = 0 }) => {

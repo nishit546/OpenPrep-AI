@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Play, Pause, RotateCcw, Clock } from 'lucide-react';
 import { motion } from 'framer-motion';
 
@@ -8,16 +8,19 @@ const PomodoroTimer = () => {
 
   useEffect(() => {
     let interval = null;
-    if (isActive && timeLeft > 0) {
+    if (isActive) {
       interval = setInterval(() => {
-        setTimeLeft(time => time - 1);
+        setTimeLeft((time) => {
+          if (time <= 1) {
+            setIsActive(false);
+            return 0;
+          }
+          return time - 1;
+        });
       }, 1000);
-    } else if (timeLeft === 0) {
-      setIsActive(false);
-      // Optional: Play a sound here
     }
     return () => clearInterval(interval);
-  }, [isActive, timeLeft]);
+  }, [isActive]);
 
   const toggleTimer = () => setIsActive(!isActive);
   const resetTimer = () => {

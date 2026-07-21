@@ -1,5 +1,3 @@
-import React from 'react';
-import { motion } from 'framer-motion';
 import { Check, AlertCircle, RefreshCw } from 'lucide-react';
 
 const Shimmer = ({ className = '' }) => (

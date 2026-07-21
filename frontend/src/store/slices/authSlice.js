@@ -116,7 +116,7 @@ export const refreshTokenThunk = createAsyncThunk(
       localStorage.setItem('token', token);
       localStorage.setItem('refreshToken', newRefresh);
       return response.data;
-    } catch (err) {
+    } catch {
       localStorage.removeItem('token');
       localStorage.removeItem('refreshToken');
       return rejectWithValue('Session expired');
