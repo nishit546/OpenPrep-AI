@@ -18,6 +18,7 @@ import GoldTabButton from '../components/dashboard/GoldTabButton';
 import PomodoroTimer from '../components/dashboard/PomodoroTimer';
 import FlashcardWidget from '../components/dashboard/FlashcardWidget';
 import PinnedTasks from '../components/dashboard/PinnedTasks';
+import StudyPlanModal from '../components/dashboard/StudyPlanModal';
 
 import {
   fetchDashboardStats,
@@ -118,6 +119,8 @@ const Dashboard = () => {
 
   const handleRetry = (thunk) => () => dispatch(thunk());
 
+  const [isStudyPlanOpen, setIsStudyPlanOpen] = useState(false);
+
   // ── Task Toggle ──
   const [toggleError, setToggleError] = useState(null);
   const handleToggleTask = async (taskId) => {
@@ -199,7 +202,7 @@ const Dashboard = () => {
       <div className="absolute -left-4 top-24 flex flex-col gap-4 z-30 hidden md:flex">
         <GoldTabButton icon={Play} label="Start Quiz" delay={0.1} />
         <GoldTabButton icon={FileText} label="Analyze PYQ" delay={0.2} />
-        <GoldTabButton icon={Calendar} label="Study Plan" delay={0.3} />
+        <GoldTabButton icon={Calendar} label="Study Plan" delay={0.3} onClick={() => setIsStudyPlanOpen(true)} />
         <GoldTabButton icon={TrendingUp} label="Reports" delay={0.4} />
       </div>
 
@@ -574,6 +577,12 @@ const Dashboard = () => {
           </VintagePaper>
         </div>
       </div>
+      
+      <StudyPlanModal 
+        isOpen={isStudyPlanOpen} 
+        onClose={() => setIsStudyPlanOpen(false)} 
+        activePlan={activePlan} 
+      />
     </LeatherBoard>
   );
 };
