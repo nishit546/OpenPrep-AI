@@ -128,10 +128,10 @@ export const refreshTokenThunk = createAsyncThunk(
 const initialState = {
   token: getInitialToken(),
   refreshToken: getInitialRefreshToken(),
-  isAuthenticated: !!getInitialToken(),
+  isAuthenticated: false,
   registrationSuccess: false,
   user: null,
-  loading: false,
+  loading: !!getInitialToken(),
   error: null,
   message: null,
 };
