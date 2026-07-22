@@ -30,7 +30,9 @@ function checkFileType(file, cb) {
   if (mimetype && extname) {
     return cb(null, true);
   } else {
-    cb(new Error('Only PDFs, documents, and images are allowed!'));
+    const error = new Error('Only PDFs, documents, and images are allowed!');
+    error.name = 'FileValidationError';
+    cb(error);
   }
 }
 

@@ -37,6 +37,17 @@ const errorHandler = (err, req, res, next) => {
     error.statusCode = 400;
   }
 
+  // Multer file size limit error
+  if (err.name === 'MulterError') {
+    error = new Error(err.message);
+    error.statusCode = 400;
+  }
+
+  // Custom file type validation error
+  if (err.name === 'FileValidationError') {
+    error.statusCode = 400;
+  }
+
   res.status(error.statusCode || 500).json({
     success: false,
     error: error.message || 'Server Error',
