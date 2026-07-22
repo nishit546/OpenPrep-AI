@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - PDF and text processing pipelines in Express backend.
 - Security headers via `helmet` middleware (CSP, X-Frame-Options, HSTS, etc.).
 - Rate limiting on auth endpoints (login 10/15min, register 5/hr, forgot-password 5/hr, refresh 10/15min).
+- Rate limiting on AI endpoints: `aiLimiter` (10 req/min/IP) on `/flashcards/generate-ai`, `/quizzes/generate-ai`, `/study-plans/generate-ai`; `strictAiLimiter` (5 req/min/IP) on `/pyqs/upload` and `/pyqs/:id/analyze`. Rate limiters skip in test environment.
 - Input validation middleware via `express-validator` for auth routes.
 - Startup validation: server exits if `JWT_SECRET` is not defined.
 - Request body size limiting to 10KB.
