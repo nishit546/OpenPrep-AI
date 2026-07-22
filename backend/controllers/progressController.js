@@ -50,19 +50,41 @@ exports.getDashboardStats = async (req, res, next) => {
     // 3. Quiz attempts summaries
     const attemptsCount = await QuizAttempt.count({ where: { user: userId } });
 
-    // 4. Study Hours Chart Data (weekly progression based on real records)
+    // 4. Study Hours Chart Data (weekly progression over last 7 calendar days)
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+    sevenDaysAgo.setHours(0, 0, 0, 0);
+
     const progressHistory = await Progress.findAll({
-      attributes: ['studyHours', 'completionPercentage', 'updatedAt'],
-      where: { user: userId },
-      order: [['updatedAt', 'DESC']],
-      limit: 7,
+      attributes: [
+        [fn('DATE', col('updatedAt')), 'date'],
+        [fn('SUM', col('studyHours')), 'totalStudyHours'],
+        [fn('AVG', col('completionPercentage')), 'avgCompletion'],
+      ],
+      where: {
+        user: userId,
+        updatedAt: { [Op.gte]: sevenDaysAgo },
+      },
+      group: [fn('DATE', col('updatedAt'))],
+      order: [[fn('DATE', col('updatedAt')), 'ASC']],
+      raw: true,
     });
+
     const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    const weeklyChartData = progressHistory.map((p) => ({
-      day: dayNames[new Date(p.updatedAt).getDay()],
-      hours: p.studyHours || 0,
-      completion: p.completionPercentage || 0,
-    }));
+    const weeklyChartData = [];
+    for (let i = 6; i >= 0; i--) {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      date.setHours(0, 0, 0, 0);
+      const dateStr = date.toISOString().split('T')[0];
+
+      const record = progressHistory.find((r) => r.date === dateStr);
+      weeklyChartData.push({
+        day: dayNames[date.getDay()],
+        hours: record ? parseFloat(record.totalStudyHours) || 0 : 0,
+        completion: record ? Math.round(parseFloat(record.avgCompletion)) || 0 : 0,
+      });
+    }
 
     // 5. Recent activity logs
     const activities = await ActivityLog.findAll({
@@ -84,18 +106,7 @@ exports.getDashboardStats = async (req, res, next) => {
           weak: weakCount,
         },
         attemptsCount,
-        weeklyChartData:
-          weeklyChartData.length > 0
-            ? weeklyChartData
-            : [
-                { day: 'Mon', hours: 1, completion: 20 },
-                { day: 'Tue', hours: 2, completion: 40 },
-                { day: 'Wed', hours: 1.5, completion: 45 },
-                { day: 'Thu', hours: 3, completion: 60 },
-                { day: 'Fri', hours: 2.5, completion: 75 },
-                { day: 'Sat', hours: 4, completion: 90 },
-                { day: 'Sun', hours: 2, completion: 100 },
-              ],
+        weeklyChartData,
         recentActivity: activities,
       },
     });
@@ -161,35 +172,45 @@ exports.getStudyHours = async (req, res, next) => {
     const userId = req.user.id;
     const totalStudyHours = req.user.studyHours || 0;
 
-    // Weekly study hours from Progress records
+    // Weekly study hours from Progress records (last 7 calendar days)
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+    sevenDaysAgo.setHours(0, 0, 0, 0);
+
     const progressHistory = await Progress.findAll({
-      attributes: ['studyHours', 'updatedAt'],
-      where: { user: userId },
-      order: [['updatedAt', 'DESC']],
-      limit: 7,
+      attributes: [
+        [fn('DATE', col('updatedAt')), 'date'],
+        [fn('SUM', col('studyHours')), 'totalStudyHours'],
+      ],
+      where: {
+        user: userId,
+        updatedAt: { [Op.gte]: sevenDaysAgo },
+      },
+      group: [fn('DATE', col('updatedAt'))],
+      order: [[fn('DATE', col('updatedAt')), 'ASC']],
+      raw: true,
     });
+
     const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    const weeklyData = progressHistory.map((p) => ({
-      day: dayNames[new Date(p.updatedAt).getDay()],
-      hours: p.studyHours || 0,
-    }));
+    const weeklyData = [];
+    for (let i = 6; i >= 0; i--) {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      date.setHours(0, 0, 0, 0);
+      const dateStr = date.toISOString().split('T')[0];
+
+      const record = progressHistory.find((r) => r.date === dateStr);
+      weeklyData.push({
+        day: dayNames[date.getDay()],
+        hours: record ? parseFloat(record.totalStudyHours) || 0 : 0,
+      });
+    }
 
     res.status(200).json({
       success: true,
       data: {
         totalStudyHours,
-        weeklyData:
-          weeklyData.length > 0
-            ? weeklyData
-            : [
-                { day: 'Mon', hours: 0 },
-                { day: 'Tue', hours: 0 },
-                { day: 'Wed', hours: 0 },
-                { day: 'Thu', hours: 0 },
-                { day: 'Fri', hours: 0 },
-                { day: 'Sat', hours: 0 },
-                { day: 'Sun', hours: 0 },
-              ],
+        weeklyData,
       },
     });
   } catch (error) {

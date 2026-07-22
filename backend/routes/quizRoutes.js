@@ -7,6 +7,7 @@ const {
   getAttemptHistory,
 } = require('../controllers/quizController');
 const { protect } = require('../middleware/auth');
+const { aiLimiter } = require('../middleware/rateLimiter');
 const {
   validateGenerateAIQuiz,
   validateSubmitQuizAttempt,
@@ -14,7 +15,7 @@ const {
 
 const router = express.Router();
 
-router.post('/generate-ai', protect, validateGenerateAIQuiz, generateAIQuiz);
+router.post('/generate-ai', protect, aiLimiter, validateGenerateAIQuiz, generateAIQuiz);
 router.get('/', protect, getQuizzes);
 router.get('/attempts/history', protect, getAttemptHistory);
 router.get('/:id', protect, getQuizDetails);

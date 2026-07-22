@@ -203,8 +203,8 @@ exports.toggleTaskCompletion = async (req, res, next) => {
 // @access  Private
 exports.getPlans = async (req, res, next) => {
   try {
-    const page = Math.max(1, parseInt(req.query.page) || 1);
-    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 10));
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 10));
     const offset = (page - 1) * limit;
 
     const { count: totalItems, rows: plans } = await StudyPlan.findAndCountAll({

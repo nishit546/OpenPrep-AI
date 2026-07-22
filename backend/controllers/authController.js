@@ -11,7 +11,7 @@ const sendEmail = require('../services/emailService');
 // Generate access token (15 min expiry)
 const generateAccessToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, {
-    expiresIn: '15m',
+    expiresIn: process.env.JWT_EXPIRE || '15m',
   });
 };
 

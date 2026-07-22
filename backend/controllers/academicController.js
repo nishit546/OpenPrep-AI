@@ -2,6 +2,13 @@ const { Op } = require('sequelize');
 const Exam = require('../models/Exam');
 const Subject = require('../models/Subject');
 const Topic = require('../models/Topic');
+const Quiz = require('../models/Quiz');
+const QuizAttempt = require('../models/QuizAttempt');
+const Flashcard = require('../models/Flashcard');
+const Note = require('../models/Note');
+const Progress = require('../models/Progress');
+const StudyPlan = require('../models/StudyPlan');
+const PYQ = require('../models/PYQ');
 
 // ==========================================
 // EXAMS CONTROLLER
@@ -44,12 +51,34 @@ exports.deleteExam = async (req, res, next) => {
       return res.status(404).json({ success: false, error: 'Exam not found' });
     }
 
-    // Cascade delete subjects and topics
+    // Collect all subject IDs for this exam
     const subjects = await Subject.findAll({ where: { exam: exam.id } });
     const subjectIds = subjects.map((sub) => sub.id);
 
-    await Subject.destroy({ where: { exam: exam.id } });
+    // 1. Delete QuizAttempts for quizzes under these subjects
+    const quizzes = await Quiz.findAll({ where: { subject: { [Op.in]: subjectIds } } });
+    const quizIds = quizzes.map((q) => q.id);
+    if (quizIds.length > 0) {
+      await QuizAttempt.destroy({ where: { quiz: { [Op.in]: quizIds } } });
+    }
+
+    // 2. Delete child records that reference subject or topic
+    await Progress.destroy({ where: { subject: { [Op.in]: subjectIds } } });
+    await Flashcard.destroy({ where: { subject: { [Op.in]: subjectIds } } });
+    await Note.destroy({ where: { subject: { [Op.in]: subjectIds } } });
+
+    // 3. Delete quizzes (after QuizAttempts are removed)
+    await Quiz.destroy({ where: { subject: { [Op.in]: subjectIds } } });
+
+    // 4. Delete topics and subjects
     await Topic.destroy({ where: { subject: { [Op.in]: subjectIds } } });
+    await Subject.destroy({ where: { exam: exam.id } });
+
+    // 5. Delete exam-level records
+    await StudyPlan.destroy({ where: { exam: exam.id } });
+    await PYQ.destroy({ where: { exam: exam.id } });
+
+    // 6. Delete the exam itself
     await exam.destroy();
 
     res.status(200).json({ success: true, data: {} });
@@ -107,7 +136,28 @@ exports.deleteSubject = async (req, res, next) => {
       return res.status(404).json({ success: false, error: 'Subject not found' });
     }
 
+    // 1. Delete QuizAttempts for quizzes under this subject
+    const quizzes = await Quiz.findAll({ where: { subject: subject.id } });
+    const quizIds = quizzes.map((q) => q.id);
+    if (quizIds.length > 0) {
+      await QuizAttempt.destroy({ where: { quiz: { [Op.in]: quizIds } } });
+    }
+
+    // 2. Delete child records that reference this subject
+    await Progress.destroy({ where: { subject: subject.id } });
+    await Flashcard.destroy({ where: { subject: subject.id } });
+    await Note.destroy({ where: { subject: subject.id } });
+
+    // 3. Delete quizzes
+    await Quiz.destroy({ where: { subject: subject.id } });
+
+    // 4. Delete topics
     await Topic.destroy({ where: { subject: subject.id } });
+
+    // 5. Delete PYQs for this subject
+    await PYQ.destroy({ where: { subject: subject.id } });
+
+    // 6. Delete the subject itself
     await subject.destroy();
 
     res.status(200).json({ success: true, data: {} });
@@ -193,7 +243,17 @@ exports.deleteTopic = async (req, res, next) => {
       return res.status(404).json({ success: false, error: 'Topic not found' });
     }
 
+    // 1. Delete child records that reference this topic
+    await Progress.destroy({ where: { topic: topic.id } });
+    await Flashcard.destroy({ where: { topic: topic.id } });
+    await Note.destroy({ where: { topic: topic.id } });
+
+    // 2. Nullify topic reference on quizzes (quiz itself is preserved)
+    await Quiz.update({ topic: null }, { where: { topic: topic.id } });
+
+    // 3. Delete the topic itself
     await topic.destroy();
+
     res.status(200).json({ success: true, data: {} });
   } catch (error) {
     next(error);

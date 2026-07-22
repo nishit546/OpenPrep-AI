@@ -187,7 +187,13 @@ const validateGenerateAIPlan = [
     .notEmpty()
     .withMessage('End date is required')
     .isISO8601()
-    .withMessage('End date must be a valid ISO date'),
+    .withMessage('End date must be a valid ISO date')
+    .custom((endDate, { req }) => {
+      if (new Date(endDate) <= new Date(req.body.startDate)) {
+        throw new Error('End date must be after start date');
+      }
+      return true;
+    }),
   body('studyHoursPerDay')
     .optional()
     .isFloat({ min: 0.5, max: 24 })

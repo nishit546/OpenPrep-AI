@@ -51,8 +51,8 @@ Subject.hasMany(Progress, { foreignKey: 'subject', onDelete: 'CASCADE' });
 Topic.belongsTo(Subject, { foreignKey: 'subject', as: 'subjectRef' });
 Topic.belongsTo(User, { foreignKey: 'user', as: 'userRef' });
 Topic.hasMany(Quiz, { foreignKey: 'topic', onDelete: 'SET NULL' });
-Topic.hasMany(Note, { foreignKey: 'topic', onDelete: 'SET NULL' });
-Topic.hasMany(Flashcard, { foreignKey: 'topic', onDelete: 'SET NULL' });
+Topic.hasMany(Note, { foreignKey: 'topic', onDelete: 'CASCADE' });
+Topic.hasMany(Flashcard, { foreignKey: 'topic', onDelete: 'CASCADE' });
 Topic.hasMany(Progress, { foreignKey: 'topic', onDelete: 'CASCADE' });
 
 // PYQ associations

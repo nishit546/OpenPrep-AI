@@ -8,12 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ---
 
 ## [Unreleased]
+### Fixed
+- **Cascade deletion**: Deleting an Exam, Subject, or Topic now properly cascade-deletes all associated child records (Progress, Flashcards, Notes, Quizzes, QuizAttempts, StudyPlans, PYQs) instead of leaving orphaned records. Previously, the controllers used bulk `Model.destroy()` which bypassed Sequelize's cascade hooks, and the `deleteExam`/`deleteSubject` controllers only manually deleted Subjects/Topics while missing all other child records. The `deleteTopic` controller now also cascade-deletes Flashcards and Notes instead of setting their FK to `NULL`.
+- **Model associations**: Changed `Topic.hasMany(Flashcard)` and `Topic.hasMany(Note)` from `onDelete: 'SET NULL'` to `onDelete: 'CASCADE'` for consistency.
+
 ### Added
 - Spaced Repetition engine logic for Flashcards (`SuperMemo SM-2` adaptation).
 - Redux slices for global user auth state and request handling.
 - PDF and text processing pipelines in Express backend.
 - Security headers via `helmet` middleware (CSP, X-Frame-Options, HSTS, etc.).
 - Rate limiting on auth endpoints (login 10/15min, register 5/hr, forgot-password 5/hr, refresh 10/15min).
+- Rate limiting on AI endpoints: `aiLimiter` (10 req/min/IP) on `/flashcards/generate-ai`, `/quizzes/generate-ai`, `/study-plans/generate-ai`; `strictAiLimiter` (5 req/min/IP) on `/pyqs/upload` and `/pyqs/:id/analyze`. Rate limiters skip in test environment.
 - Input validation middleware via `express-validator` for auth routes.
 - Startup validation: server exits if `JWT_SECRET` is not defined.
 - Request body size limiting to 10KB.
@@ -37,6 +42,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Token expiration handling inside the Redux Thunk loader.
 - **Security**: Removed hardcoded JWT fallback secret `supersecret_openprep_key` from `middleware/auth.js` and `controllers/authController.js`. JWT secret must now come exclusively from the `JWT_SECRET` environment variable.
 - **Forgot password stub**: `forgotPassword` previously returned fake `{ success: true, data: {} }` with no actual functionality. Now generates real crypto tokens and sends email.
+- **Feedback list memory/safety risk**: `GET /api/community/feedback` now paginates and sorts by upvote count at the database level (using `ORDER BY array_length` + `LIMIT`/`OFFSET`) instead of loading all rows into memory. Fixes out-of-memory risk at scale. (#124)
 
 ---
 

@@ -47,7 +47,7 @@ const PomodoroTimer = () => {
 
         <Clock className="w-6 h-6 text-yellow-800 mb-2 opacity-50" />
         
-        <h3 className="font-playfair font-bold text-4xl text-neutral-900 tracking-wider">
+        <h3 className="font-playfair font-bold text-4xl text-neutral-900 dark:text-white tracking-wider">
           {String(minutes).padStart(2, '0')}:{String(seconds).padStart(2, '0')}
         </h3>
         <p className="text-xs text-neutral-500 font-bold tracking-widest mt-1 uppercase">Focus</p>
@@ -67,7 +67,7 @@ const PomodoroTimer = () => {
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
             onClick={resetTimer}
-            className="w-10 h-10 rounded-full bg-neutral-200 text-neutral-700 flex items-center justify-center shadow-md border border-neutral-300"
+            className="w-10 h-10 rounded-full bg-neutral-200 dark:bg-slate-700 text-neutral-700 dark:text-neutral-200 flex items-center justify-center shadow-md border border-neutral-300 dark:border-slate-600"
           >
             <RotateCcw className="w-4 h-4" />
           </motion.button>
