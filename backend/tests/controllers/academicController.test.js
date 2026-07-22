@@ -8,6 +8,13 @@ const User = require('../../models/User');
 const Exam = require('../../models/Exam');
 const Subject = require('../../models/Subject');
 const Topic = require('../../models/Topic');
+const Quiz = require('../../models/Quiz');
+const QuizAttempt = require('../../models/QuizAttempt');
+const Note = require('../../models/Note');
+const Flashcard = require('../../models/Flashcard');
+const Progress = require('../../models/Progress');
+const StudyPlan = require('../../models/StudyPlan');
+const PYQ = require('../../models/PYQ');
 
 const app = express();
 app.use(express.json());
@@ -384,6 +391,221 @@ describe('Academic Controller - Integration Tests', () => {
           .set('Authorization', `Bearer ${authToken}`);
 
         expect(res.status).toBe(404);
+      });
+    });
+  });
+
+  // ===================== CASCADE DELETION =====================
+  describe('Cascade Deletion', () => {
+    let exam;
+    let subject;
+    let topic;
+    let quiz;
+    let quizAttempt;
+    let flashcard;
+    let note;
+    let progress;
+    let studyPlan;
+
+    async function createFullHierarchy() {
+      exam = await Exam.create({
+        name: 'Cascade Test Exam',
+        description: 'Exam for cascade deletion tests',
+        date: '2026-12-01',
+        user: testUser.id,
+      });
+
+      subject = await Subject.create({
+        name: 'Cascade Test Subject',
+        description: 'Subject for cascade tests',
+        exam: exam._id,
+        user: testUser.id,
+      });
+
+      topic = await Topic.create({
+        name: 'Cascade Test Topic',
+        description: 'Topic for cascade tests',
+        subject: subject._id,
+        user: testUser.id,
+      });
+
+      quiz = await Quiz.create({
+        title: 'Cascade Test Quiz',
+        subject: subject._id,
+        topic: topic._id,
+        createdBy: testUser.id,
+      });
+
+      quizAttempt = await QuizAttempt.create({
+        user: testUser.id,
+        quiz: quiz._id,
+        score: 8,
+        totalQuestions: 10,
+      });
+
+      flashcard = await Flashcard.create({
+        user: testUser.id,
+        subject: subject._id,
+        topic: topic._id,
+        front: 'Cascade test front',
+        back: 'Cascade test back',
+      });
+
+      note = await Note.create({
+        title: 'Cascade Test Note',
+        content: 'Note for cascade tests',
+        subject: subject._id,
+        topic: topic._id,
+        user: testUser.id,
+      });
+
+      progress = await Progress.create({
+        user: testUser.id,
+        subject: subject._id,
+        topic: topic._id,
+        completionPercentage: 50,
+      });
+
+      studyPlan = await StudyPlan.create({
+        exam: exam._id,
+        user: testUser.id,
+        startDate: '2026-11-01',
+        endDate: '2026-12-31',
+      });
+    }
+
+    describe('DELETE /api/academic/exams/:id', () => {
+      beforeEach(async () => {
+        await createFullHierarchy();
+      });
+
+      it('should cascade-delete all child records when deleting an exam', async () => {
+        const res = await request(app)
+          .delete(`/api/academic/exams/${exam._id}`)
+          .set('Authorization', `Bearer ${authToken}`);
+
+        expect(res.status).toBe(200);
+
+        // Verify all associated records are cascade-deleted
+        expect(await Exam.findByPk(exam.id)).toBeNull();
+        expect(await Subject.findByPk(subject.id)).toBeNull();
+        expect(await Topic.findByPk(topic.id)).toBeNull();
+        expect(await Quiz.findByPk(quiz.id)).toBeNull();
+        expect(await QuizAttempt.findByPk(quizAttempt.id)).toBeNull();
+        expect(await Flashcard.findByPk(flashcard.id)).toBeNull();
+        expect(await Note.findByPk(note.id)).toBeNull();
+        expect(await Progress.findByPk(progress.id)).toBeNull();
+        expect(await StudyPlan.findByPk(studyPlan.id)).toBeNull();
+      });
+
+      it('should cascade-delete all child records when deleting an exam with multiple subjects/topics', async () => {
+        // Add a second subject with its own topic, quiz, etc.
+        const subject2 = await Subject.create({
+          name: 'Cascade Subject 2',
+          description: 'Second subject',
+          exam: exam._id,
+          user: testUser.id,
+        });
+
+        const topic2 = await Topic.create({
+          name: 'Cascade Topic 2',
+          subject: subject2._id,
+          user: testUser.id,
+        });
+
+        const quiz2 = await Quiz.create({
+          title: 'Cascade Quiz 2',
+          subject: subject2._id,
+          topic: topic2._id,
+          createdBy: testUser.id,
+        });
+
+        await QuizAttempt.create({
+          user: testUser.id,
+          quiz: quiz2._id,
+          score: 9,
+          totalQuestions: 10,
+        });
+
+        // Delete the exam
+        const res = await request(app)
+          .delete(`/api/academic/exams/${exam._id}`)
+          .set('Authorization', `Bearer ${authToken}`);
+
+        expect(res.status).toBe(200);
+
+        // Both subjects and their children should be gone
+        expect(await Subject.findByPk(subject2.id)).toBeNull();
+        expect(await Topic.findByPk(topic2.id)).toBeNull();
+        expect(await Quiz.findByPk(quiz2.id)).toBeNull();
+      });
+    });
+
+    describe('DELETE /api/academic/subjects/:id', () => {
+      beforeEach(async () => {
+        await createFullHierarchy();
+      });
+
+      it('should cascade-delete all child records when deleting a subject', async () => {
+        const res = await request(app)
+          .delete(`/api/academic/subjects/${subject._id}`)
+          .set('Authorization', `Bearer ${authToken}`);
+
+        expect(res.status).toBe(200);
+
+        // Verify associated records are cascade-deleted
+        expect(await Subject.findByPk(subject.id)).toBeNull();
+        expect(await Topic.findByPk(topic.id)).toBeNull();
+        expect(await Quiz.findByPk(quiz.id)).toBeNull();
+        expect(await QuizAttempt.findByPk(quizAttempt.id)).toBeNull();
+        expect(await Flashcard.findByPk(flashcard.id)).toBeNull();
+        expect(await Note.findByPk(note.id)).toBeNull();
+        expect(await Progress.findByPk(progress.id)).toBeNull();
+
+        // Exam should still exist
+        expect(await Exam.findByPk(exam.id)).not.toBeNull();
+      });
+    });
+
+    describe('DELETE /api/academic/topics/:id', () => {
+      beforeEach(async () => {
+        await createFullHierarchy();
+      });
+
+      it('should cascade-delete flashcards, notes, and progress when deleting a topic', async () => {
+        const res = await request(app)
+          .delete(`/api/academic/topics/${topic._id}`)
+          .set('Authorization', `Bearer ${authToken}`);
+
+        expect(res.status).toBe(200);
+
+        // Topic should be deleted
+        expect(await Topic.findByPk(topic.id)).toBeNull();
+
+        // Flashcards and Notes for this topic should be cascade-deleted
+        expect(await Flashcard.findByPk(flashcard.id)).toBeNull();
+        expect(await Note.findByPk(note.id)).toBeNull();
+        expect(await Progress.findByPk(progress.id)).toBeNull();
+
+        // Quiz should still exist with topic set to null
+        const updatedQuiz = await Quiz.findByPk(quiz.id);
+        expect(updatedQuiz).not.toBeNull();
+        expect(updatedQuiz.topic).toBeNull();
+
+        // Subject and exam should still exist
+        expect(await Subject.findByPk(subject.id)).not.toBeNull();
+        expect(await Exam.findByPk(exam.id)).not.toBeNull();
+      });
+
+      it('should preserve quiz attempts when deleting a topic', async () => {
+        const res = await request(app)
+          .delete(`/api/academic/topics/${topic._id}`)
+          .set('Authorization', `Bearer ${authToken}`);
+
+        expect(res.status).toBe(200);
+
+        // Quiz attempt should still exist (quiz is preserved)
+        expect(await QuizAttempt.findByPk(quizAttempt.id)).not.toBeNull();
       });
     });
   });
