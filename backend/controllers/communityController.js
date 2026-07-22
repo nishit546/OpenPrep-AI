@@ -28,8 +28,8 @@ exports.submitFeedback = async (req, res, next) => {
 exports.getFeedbackList = async (req, res, next) => {
   try {
     const { type, status } = req.query;
-    const page = Math.max(1, parseInt(req.query.page) || 1);
-    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 20));
     const offset = (page - 1) * limit;
 
     const filter = {};

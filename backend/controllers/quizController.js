@@ -71,8 +71,8 @@ exports.generateAIQuiz = async (req, res, next) => {
 exports.getQuizzes = async (req, res, next) => {
   try {
     const { subjectId } = req.query;
-    const page = Math.max(1, parseInt(req.query.page) || 1);
-    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 20));
     const offset = (page - 1) * limit;
 
     const filter = { createdBy: req.user.id };
@@ -248,8 +248,8 @@ exports.submitQuizAttempt = async (req, res, next) => {
 // @access  Private
 exports.getAttemptHistory = async (req, res, next) => {
   try {
-    const page = Math.max(1, parseInt(req.query.page) || 1);
-    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 20));
     const offset = (page - 1) * limit;
 
     const { count: total, rows: attempts } = await QuizAttempt.findAndCountAll({
