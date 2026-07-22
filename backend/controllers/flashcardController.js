@@ -111,9 +111,11 @@ exports.getFlashcards = async (req, res, next) => {
       order: [
         ['nextReviewDate', 'ASC'],
         ['createdAt', 'ASC'],
+        ['id', 'ASC'],
       ],
       offset,
       limit,
+      subQuery: false,
     });
 
     const populatedCards = cards.map((c) => {

@@ -18,7 +18,7 @@ import GoldTabButton from '../components/dashboard/GoldTabButton';
 import PomodoroTimer from '../components/dashboard/PomodoroTimer';
 import FlashcardWidget from '../components/dashboard/FlashcardWidget';
 import PinnedTasks from '../components/dashboard/PinnedTasks';
-import StudyPlanModal from '../components/dashboard/StudyPlanModal';
+import CreateNoteModal from '../components/dashboard/CreateNoteModal';
 
 import {
   fetchDashboardStats,
@@ -111,17 +111,21 @@ const Dashboard = () => {
   } = useSelector((state) => state.dashboard);
 
   useEffect(() => {
-    dispatch(fetchDashboardStats());
-    dispatch(fetchSubjectBreakdown());
-    dispatch(fetchActivePlan());
-    dispatch(fetchDueFlashcards());
+    const fetchAll = () => {
+      dispatch(fetchDashboardStats());
+      dispatch(fetchSubjectBreakdown());
+      dispatch(fetchActivePlan());
+      dispatch(fetchDueFlashcards());
+    };
+
+    fetchAll();
+
+    window.addEventListener('focus', fetchAll);
+    return () => window.removeEventListener('focus', fetchAll);
   }, [dispatch]);
 
   const handleRetry = (thunk) => () => dispatch(thunk());
 
-  const [isStudyPlanOpen, setIsStudyPlanOpen] = useState(false);
-
-  // ── Task Toggle ──
   const [toggleError, setToggleError] = useState(null);
   const handleToggleTask = async (taskId) => {
     const planId = activePlan?.id || activePlan?._id;
@@ -136,10 +140,15 @@ const Dashboard = () => {
         studyTimeMinutes: 25,
       });
       dispatch(fetchActivePlan());
+      dispatch(fetchDashboardStats());
+      dispatch(fetchSubjectBreakdown());
     } catch (err) {
       setToggleError('Failed to update task. Please try again.');
     }
   };
+
+  // ── Note Modal State ──
+  const [isNoteModalOpen, setIsNoteModalOpen] = useState(false);
 
   // ── Derived Data ──
   const chartData = weeklyChartData.length > 0
@@ -204,6 +213,15 @@ const Dashboard = () => {
         <GoldTabButton icon={FileText} label="Analyze PYQ" delay={0.2} />
         <GoldTabButton icon={Calendar} label="Study Plan" delay={0.3} onClick={() => setIsStudyPlanOpen(true)} />
         <GoldTabButton icon={TrendingUp} label="Reports" delay={0.4} />
+        <button 
+          onClick={() => setIsNoteModalOpen(true)}
+          className="bg-neutral-800 text-yellow-500 border border-yellow-700/50 hover:bg-neutral-700 p-2 rounded-r-lg shadow-lg flex items-center justify-center relative group"
+        >
+          <FileText className="w-5 h-5" />
+          <div className="absolute left-full ml-2 px-2 py-1 bg-neutral-800 text-yellow-500 text-xs rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap transition-opacity">
+            Create Note
+          </div>
+        </button>
       </div>
 
       <div className="pl-4 md:pl-16 pr-4 lg:pr-8 py-8 space-y-12">
@@ -229,6 +247,7 @@ const Dashboard = () => {
             transition={{ duration: 0.5, delay: 0.3 }}
             className="flex items-center space-x-6 mt-6 md:mt-0"
           >
+            <ThemeToggle className="mr-2" />
             <div className="flex flex-col items-center">
               <div className="relative">
                 <Flame className="w-12 h-12 text-orange-500 animate-pulse-glow" fill="currentColor" />
@@ -262,50 +281,50 @@ const Dashboard = () => {
             <>
               <VintagePaper delay={0.2} className="border-t-4 border-t-red-800">
                 <div className="flex justify-between items-start mb-2">
-                  <h3 className="text-neutral-800 font-playfair font-bold text-xl">Total Solved</h3>
-                  <Target className="text-neutral-600 w-5 h-5" />
+                  <h3 className="text-neutral-800 dark:text-neutral-100 font-playfair font-bold text-xl">Total Solved</h3>
+                  <Target className="text-neutral-600 dark:text-neutral-400 w-5 h-5" />
                 </div>
-                <p className="text-4xl font-bold text-neutral-900 font-playfair">
+                <p className="text-4xl font-bold text-neutral-900 dark:text-white font-playfair">
                   {attemptsCount.toLocaleString()}
                 </p>
-                <p className="text-neutral-600 text-sm mt-2 italic border-t border-neutral-300 pt-2">
+                <p className="text-neutral-600 dark:text-neutral-400 text-sm mt-2 italic border-t border-neutral-300 dark:border-neutral-600 pt-2">
                   Quiz attempts
                 </p>
               </VintagePaper>
 
               <VintagePaper delay={0.3} className="border-t-4 border-t-green-800">
                 <div className="flex justify-between items-start mb-2">
-                  <h3 className="text-neutral-800 font-playfair font-bold text-xl">Mastery</h3>
-                  <CheckCircle className="text-neutral-600 w-5 h-5" />
+                  <h3 className="text-neutral-800 dark:text-neutral-100 font-playfair font-bold text-xl">Mastery</h3>
+                  <CheckCircle className="text-neutral-600 dark:text-neutral-400 w-5 h-5" />
                 </div>
-                <p className="text-4xl font-bold text-neutral-900 font-playfair">{syllabusProgress}%</p>
-                <p className="text-neutral-600 text-sm mt-2 italic border-t border-neutral-300 pt-2">
+                <p className="text-4xl font-bold text-neutral-900 dark:text-white font-playfair">{syllabusProgress}%</p>
+                <p className="text-neutral-600 dark:text-neutral-400 text-sm mt-2 italic border-t border-neutral-300 dark:border-neutral-600 pt-2">
                   Syllabus completion
                 </p>
               </VintagePaper>
 
               <VintagePaper delay={0.4} className="border-t-4 border-t-blue-800">
                 <div className="flex justify-between items-start mb-2">
-                  <h3 className="text-neutral-800 font-playfair font-bold text-xl">Study Hours</h3>
-                  <Clock className="text-neutral-600 w-5 h-5" />
+                  <h3 className="text-neutral-800 dark:text-neutral-100 font-playfair font-bold text-xl">Study Hours</h3>
+                  <Clock className="text-neutral-600 dark:text-neutral-400 w-5 h-5" />
                 </div>
-                <p className="text-4xl font-bold text-neutral-900 font-playfair">
+                <p className="text-4xl font-bold text-neutral-900 dark:text-white font-playfair">
                   {totalStudyHours.toFixed(1)}h
                 </p>
-                <p className="text-neutral-600 text-sm mt-2 italic border-t border-neutral-300 pt-2">
+                <p className="text-neutral-600 dark:text-neutral-400 text-sm mt-2 italic border-t border-neutral-300 dark:border-neutral-600 pt-2">
                   Total study time
                 </p>
               </VintagePaper>
 
               <VintagePaper delay={0.5} className="border-t-4 border-t-purple-800">
                 <div className="flex justify-between items-start mb-2">
-                  <h3 className="text-neutral-800 font-playfair font-bold text-xl">Topics Done</h3>
-                  <BookOpen className="text-neutral-600 w-5 h-5" />
+                  <h3 className="text-neutral-800 dark:text-neutral-100 font-playfair font-bold text-xl">Topics Done</h3>
+                  <BookOpen className="text-neutral-600 dark:text-neutral-400 w-5 h-5" />
                 </div>
-                <p className="text-4xl font-bold text-neutral-900 font-playfair">
+                <p className="text-4xl font-bold text-neutral-900 dark:text-white font-playfair">
                   {strong + medium}/{totalTopics}
                 </p>
-                <p className="text-neutral-600 text-sm mt-2 italic border-t border-neutral-300 pt-2">
+                <p className="text-neutral-600 dark:text-neutral-400 text-sm mt-2 italic border-t border-neutral-300 dark:border-neutral-600 pt-2">
                   {totalTopics > 0 ? `${Math.round(((strong + medium) / totalTopics) * 100)}% Course completion` : 'No topics yet'}
                 </p>
               </VintagePaper>
@@ -426,7 +445,7 @@ const Dashboard = () => {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* --- STUDY PROGRESS (INK RULERS) --- */}
+          {/* --- SUBJECT PROGRESS --- */}
           <VintagePaper delay={0.6} className="lg:col-span-1 shadow-[0_10px_20px_rgba(0,0,0,0.4)]">
             <h2 className="text-2xl font-bold font-playfair text-neutral-900 mb-6 border-b border-neutral-400 pb-2">
               Subject Progress
@@ -453,11 +472,8 @@ const Dashboard = () => {
                       <span>{topic.name}</span>
                       <span>{topic.prog}%</span>
                     </div>
-                    {/* Ruler Background */}
                     <div className="h-4 w-full bg-neutral-300 rounded-sm border border-neutral-400 relative overflow-hidden shadow-inner">
-                      {/* Tick marks */}
                       <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAiIGhlaWdodD0iMTAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHBhdGggZD0iTTAgMGgwLjV2NWgtMC41eiIgZmlsbD0iIzlhM2FmIi8+PC9zdmc+')] opacity-50" />
-                      {/* Ink Fill */}
                       <motion.div
                         initial={{ width: 0 }}
                         animate={{ width: `${topic.prog}%` }}
@@ -472,56 +488,57 @@ const Dashboard = () => {
           </VintagePaper>
 
           {/* --- RECENT ACTIVITY TIMELINE --- */}
-          <div className="lg:col-span-2 space-y-6">
-            <h2 className="text-3xl font-bold font-playfair text-gold-foil border-b border-yellow-700/50 pb-2">
-              Recent Activity
+          <div className="lg:col-span-2 mt-8">
+            <h2 className="text-3xl font-playfair font-bold text-neutral-800 dark:text-neutral-100 mb-6 flex items-center gap-3">
+              <Clock className="w-8 h-8 text-neutral-500 dark:text-neutral-400" /> Recent Activity
             </h2>
-
-            {loadingStats ? (
-              <div className="space-y-4">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="flex items-center gap-4">
-                    <Shimmer className="w-10 h-10 rounded-full shrink-0" />
-                    <div className="flex-1">
-                      <Shimmer className="h-5 w-48 mb-1" />
-                      <Shimmer className="h-3 w-24" />
+            <VintagePaper delay={0.4}>
+              {loadingStats ? (
+                <div className="space-y-4">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="flex items-center gap-4">
+                      <Shimmer className="w-10 h-10 rounded-full shrink-0" />
+                      <div className="flex-1">
+                        <Shimmer className="h-5 w-48 mb-1" />
+                        <Shimmer className="h-3 w-24" />
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            ) : errorStats ? (
-              <ErrorBanner message={errorStats} onRetry={handleRetry(fetchDashboardStats)} />
-            ) : recentActivity.length === 0 ? (
-              <EmptyState icon={BookOpen} message="No activity yet — start your learning journey!" />
-            ) : (
-              <div className="space-y-4 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-yellow-700/50 before:to-transparent">
-                {recentActivity.slice(0, 6).map((item, i) => {
-                  const cfg = getActivityConfig(item.activityType);
-                  const Icon = cfg.icon;
-                  return (
-                    <motion.div
-                      key={item.id || i}
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: 0.8 + (i * 0.2) }}
-                      className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active"
-                    >
-                      <div className={`flex items-center justify-center w-10 h-10 rounded-full border-2 border-yellow-600 bg-leather text-yellow-500 shadow-[0_0_10px_rgba(212,175,55,0.4)] shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10`}>
-                        <Icon className={`w-5 h-5 ${cfg.color}`} />
-                      </div>
-                      <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] p-4 bg-vintage-paper rounded-sm shadow-paper border border-neutral-300">
-                        <h3 className={`font-bold font-playfair text-neutral-800 text-lg`}>
-                          {item.description}
-                        </h3>
-                        <p className="text-sm text-neutral-600 italic mt-1">
-                          {timeAgo(item.createdAt || item.timestamp)}
-                        </p>
-                      </div>
-                    </motion.div>
-                  );
-                })}
-              </div>
-            )}
+                  ))}
+                </div>
+              ) : errorStats ? (
+                <ErrorBanner message={errorStats} onRetry={handleRetry(fetchDashboardStats)} />
+              ) : recentActivity.length === 0 ? (
+                <EmptyState icon={BookOpen} message="No activity yet — start your learning journey!" />
+              ) : (
+                <div className="space-y-4 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-yellow-700/50 before:to-transparent">
+                  {recentActivity.slice(0, 6).map((item, i) => {
+                    const config = getActivityConfig(item.activityType);
+                    const Icon = config.icon;
+                    return (
+                      <motion.div
+                        key={item.id || i}
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 0.8 + (i * 0.2) }}
+                        className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active"
+                      >
+                        <div className={`mt-1 bg-white dark:bg-slate-800 border border-neutral-300 dark:border-slate-600 p-2 rounded-full shadow-sm ${config.color} group-hover:scale-110 transition-transform`}>
+                          <Icon className="w-4 h-4" />
+                        </div>
+                        <div className="ml-4 flex-1 border-b border-neutral-200 dark:border-slate-700 pb-4">
+                          <p className="text-neutral-800 dark:text-neutral-200 font-inter font-medium leading-tight">
+                            {item.description}
+                          </p>
+                          <p className="text-xs text-neutral-400 dark:text-neutral-500 mt-1 font-inter tracking-wide uppercase">
+                            {timeAgo(item.createdAt || item.timestamp)}
+                          </p>
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              )}
+            </VintagePaper>
           </div>
         </div>
 
@@ -546,14 +563,14 @@ const Dashboard = () => {
           </VintagePaper>
 
           <VintagePaper delay={1.0}>
-            <h2 className="text-2xl font-bold font-playfair text-neutral-900 mb-4 border-b border-neutral-400 pb-2 flex items-center">
+            <h2 className="text-2xl font-bold font-playfair text-neutral-900 dark:text-neutral-100 mb-4 border-b border-neutral-400 dark:border-slate-700 pb-2 flex items-center">
               <Calendar className="mr-2" /> Consistency
             </h2>
-            <div className="grid grid-cols-10 gap-1 p-4 bg-neutral-200/50 rounded-sm border border-neutral-300 shadow-inner">
+            <div className="grid grid-cols-10 gap-1 p-4 bg-neutral-200/50 dark:bg-slate-800/50 rounded-sm border border-neutral-300 dark:border-slate-700 shadow-inner">
               {weeklyChartData.length > 0
                 ? weeklyChartData.map((d, i) => {
                     const intensity = Math.min(3, Math.floor((d.completion || 0) / 33));
-                    const colors = ['bg-neutral-300', 'bg-yellow-700/40', 'bg-yellow-700/70', 'bg-yellow-800'];
+                    const colors = ['bg-neutral-300 dark:bg-slate-700', 'bg-yellow-700/40', 'bg-yellow-700/70', 'bg-yellow-800'];
                     return (
                       <motion.div
                         key={i}
@@ -567,21 +584,25 @@ const Dashboard = () => {
                     <motion.div
                       key={i}
                       whileHover={{ scale: 1.2 }}
-                      className="w-full aspect-square rounded-sm bg-neutral-300"
+                      className="w-full aspect-square rounded-sm bg-neutral-300 dark:bg-slate-700"
                     />
                   ))}
             </div>
-            <p className="text-xs text-center text-neutral-600 mt-2 italic">
+            <p className="text-xs text-center text-neutral-600 dark:text-neutral-400 mt-2 italic">
               {weeklyChartData.length > 0 ? 'Recent activity' : 'Last 30 Days'}
             </p>
           </VintagePaper>
         </div>
       </div>
-      
-      <StudyPlanModal 
-        isOpen={isStudyPlanOpen} 
-        onClose={() => setIsStudyPlanOpen(false)} 
-        activePlan={activePlan} 
+      {/* --- CREATE NOTE MODAL --- */}
+      <CreateNoteModal 
+        isOpen={isNoteModalOpen} 
+        onClose={() => setIsNoteModalOpen(false)} 
+        onNoteCreated={(note) => {
+          // Note created successfully
+          console.log('Note created', note);
+          // Could refresh activity here
+        }}
       />
     </LeatherBoard>
   );
