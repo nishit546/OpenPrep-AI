@@ -1,9 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   Flame, Play, FileText, Calendar, TrendingUp, Award, BookOpen,
   Target, CheckCircle, Clock, AlertCircle, RefreshCw, Lightbulb,
+  LogOut, X,
 } from 'lucide-react';
 import API from '../services/api';
 import {
@@ -19,6 +21,8 @@ import PomodoroTimer from '../components/dashboard/PomodoroTimer';
 import FlashcardWidget from '../components/dashboard/FlashcardWidget';
 import PinnedTasks from '../components/dashboard/PinnedTasks';
 import CreateNoteModal from '../components/dashboard/CreateNoteModal';
+import StudyPlanModal from '../components/dashboard/StudyPlanModal';
+import ThemeToggle from '../components/ThemeToggle';
 
 import {
   fetchDashboardStats,
@@ -26,6 +30,7 @@ import {
   fetchActivePlan,
   fetchDueFlashcards,
 } from '../store/slices/dashboardSlice';
+import { logout } from '../store/slices/authSlice';
 
 // ── Helpers ──
 
@@ -55,6 +60,37 @@ const activityConfig = {
 function getActivityConfig(type) {
   return activityConfig[type] || { icon: FileText, color: 'text-neutral-700' };
 }
+
+const achievements = [
+  {
+    id: 'first-quiz',
+    label: 'First Steps',
+    description: 'Complete your first quiz',
+    icon: Target,
+    earned: (stats) => (stats?.attemptsCount ?? 0) > 0,
+  },
+  {
+    id: 'streak-3',
+    label: 'On Fire',
+    description: '3-day streak',
+    icon: Flame,
+    earned: (stats) => (stats?.streak ?? 0) >= 3,
+  },
+  {
+    id: 'mastery-50',
+    label: 'Halfway There',
+    description: '50% syllabus mastery',
+    icon: TrendingUp,
+    earned: (stats) => (stats?.syllabusProgress ?? 0) >= 50,
+  },
+  {
+    id: 'study-10h',
+    label: 'Dedicated Scholar',
+    description: '10+ study hours logged',
+    icon: Clock,
+    earned: (stats) => (stats?.totalStudyHours ?? 0) >= 10,
+  },
+];
 
 // ── Loading Skeleton ──
 const Shimmer = ({ className = '' }) => (
@@ -102,7 +138,9 @@ const EmptyState = ({ icon: Icon = Lightbulb, message = 'No data yet' }) => (
 // ── Main Component ──
 const Dashboard = () => {
   const dispatch = useDispatch();
+  const navigate = useNavigate();
 
+  const { user } = useSelector((state) => state.auth);
   const {
     stats, weeklyChartData, recentActivity, subjectBreakdown,
     activePlan, dueFlashcards,
@@ -126,6 +164,11 @@ const Dashboard = () => {
 
   const handleRetry = (thunk) => () => dispatch(thunk());
 
+  const handleLogout = useCallback(() => {
+    dispatch(logout());
+    navigate('/');
+  }, [dispatch, navigate]);
+
   const [toggleError, setToggleError] = useState(null);
   const handleToggleTask = async (taskId) => {
     const planId = activePlan?.id || activePlan?._id;
@@ -142,13 +185,22 @@ const Dashboard = () => {
       dispatch(fetchActivePlan());
       dispatch(fetchDashboardStats());
       dispatch(fetchSubjectBreakdown());
-    } catch (err) {
+    } catch {
       setToggleError('Failed to update task. Please try again.');
     }
   };
 
   // ── Note Modal State ──
   const [isNoteModalOpen, setIsNoteModalOpen] = useState(false);
+  const [isStudyPlanOpen, setIsStudyPlanOpen] = useState(false);
+  const [comingSoon, setComingSoon] = useState(null);
+
+  useEffect(() => {
+    if (comingSoon) {
+      const timer = setTimeout(() => setComingSoon(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [comingSoon]);
 
   // ── Derived Data ──
   const chartData = weeklyChartData.length > 0
@@ -209,10 +261,10 @@ const Dashboard = () => {
     <LeatherBoard>
       {/* --- QUICK ACTIONS TABS --- */}
       <div className="absolute -left-4 top-24 flex flex-col gap-4 z-30 hidden md:flex">
-        <GoldTabButton icon={Play} label="Start Quiz" delay={0.1} />
-        <GoldTabButton icon={FileText} label="Analyze PYQ" delay={0.2} />
+        <GoldTabButton icon={Play} label="Start Quiz" delay={0.1} onClick={() => setComingSoon('Quiz feature coming soon!')} />
+        <GoldTabButton icon={FileText} label="Analyze PYQ" delay={0.2} onClick={() => setComingSoon('PYQ Analysis coming soon!')} />
         <GoldTabButton icon={Calendar} label="Study Plan" delay={0.3} onClick={() => setIsStudyPlanOpen(true)} />
-        <GoldTabButton icon={TrendingUp} label="Reports" delay={0.4} />
+        <GoldTabButton icon={TrendingUp} label="Reports" delay={0.4} onClick={() => setComingSoon('Reports coming soon!')} />
         <button 
           onClick={() => setIsNoteModalOpen(true)}
           className="bg-neutral-800 text-yellow-500 border border-yellow-700/50 hover:bg-neutral-700 p-2 rounded-r-lg shadow-lg flex items-center justify-center relative group"
@@ -234,7 +286,7 @@ const Dashboard = () => {
             className="flex-1"
           >
             <h1 className="text-5xl md:text-6xl font-bold text-gold-foil mb-2 font-playfair tracking-tight">
-              Welcome back, Scholar.
+              Welcome back{user?.name ? `, ${user.name}` : ', Scholar'}.
             </h1>
             <p className="text-amber-100/70 text-lg italic font-playfair">
               &ldquo;The roots of education are bitter, but the fruit is sweet.&rdquo; – Aristotle
@@ -257,9 +309,13 @@ const Dashboard = () => {
               <span className="text-amber-200/50 text-xs uppercase tracking-widest">Streak</span>
             </div>
 
-            <button className="bg-gradient-to-br from-yellow-600 to-yellow-800 text-yellow-50 px-8 py-4 rounded-sm border border-yellow-500/50 shadow-[0_4px_15px_rgba(0,0,0,0.5)] hover:shadow-[0_6px_20px_rgba(212,175,55,0.3)] transition-all flex items-center group">
-              <span className="font-playfair font-bold text-lg tracking-wide group-hover:text-white">Resume Learning</span>
-              <Play className="ml-3 w-5 h-5 text-yellow-300 group-hover:text-white" fill="currentColor" />
+            <button
+              onClick={handleLogout}
+              className="bg-gradient-to-br from-red-700 to-red-900 text-red-50 px-4 py-3 rounded-sm border border-red-500/50 shadow-[0_4px_15px_rgba(0,0,0,0.5)] hover:shadow-[0_6px_20px_rgba(220,50,50,0.3)] transition-all flex items-center gap-2 group"
+              aria-label="Log out"
+            >
+              <LogOut className="w-5 h-5 group-hover:text-white" />
+              <span className="font-playfair font-bold text-sm tracking-wide group-hover:text-white hidden sm:inline">Logout</span>
             </button>
           </motion.div>
         </div>
@@ -549,16 +605,31 @@ const Dashboard = () => {
               <Award className="mr-2" /> Trophy Cabinet
             </h2>
             <div className="flex justify-around items-center h-full pb-8">
-              {[...Array(4)].map((_, i) => (
-                <div key={i} className="flex flex-col items-center group cursor-pointer">
-                  <div className="w-20 h-20 rounded-full bg-gradient-to-br from-yellow-300 via-yellow-500 to-yellow-700 p-1 shadow-[0_4px_10px_rgba(0,0,0,0.3)] group-hover:scale-110 transition-transform relative">
-                    <div className="w-full h-full rounded-full border-2 border-yellow-200/50 bg-leather flex items-center justify-center">
-                      <Award className="w-10 h-10 text-gold-foil" />
+              {achievements.map((badge) => {
+                const earned = badge.earned(stats);
+                const Icon = badge.icon;
+                return (
+                  <div key={badge.id} className="flex flex-col items-center group cursor-pointer" title={badge.description}>
+                    <div className={`w-20 h-20 rounded-full p-1 shadow-[0_4px_10px_rgba(0,0,0,0.3)] group-hover:scale-110 transition-transform relative ${
+                      earned
+                        ? 'bg-gradient-to-br from-yellow-300 via-yellow-500 to-yellow-700'
+                        : 'bg-gradient-to-br from-neutral-300 via-neutral-400 to-neutral-500 opacity-50'
+                    }`}>
+                      <div className={`w-full h-full rounded-full border-2 flex items-center justify-center ${
+                        earned ? 'border-yellow-200/50 bg-leather' : 'border-neutral-400/50 bg-neutral-200'
+                      }`}>
+                        <Icon className={`w-10 h-10 ${earned ? 'text-gold-foil' : 'text-neutral-400'}`} />
+                      </div>
                     </div>
+                    <span className={`text-sm font-bold mt-3 text-center ${earned ? 'text-neutral-800' : 'text-neutral-400'}`}>
+                      {badge.label}
+                    </span>
+                    <span className={`text-xs ${earned ? 'text-green-700' : 'text-neutral-400 italic'}`}>
+                      {earned ? 'Earned' : 'Locked'}
+                    </span>
                   </div>
-                  <span className="text-sm font-bold text-neutral-800 mt-3 text-center">Badge {i + 1}</span>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </VintagePaper>
 
@@ -599,11 +670,34 @@ const Dashboard = () => {
         isOpen={isNoteModalOpen} 
         onClose={() => setIsNoteModalOpen(false)} 
         onNoteCreated={(note) => {
-          // Note created successfully
           console.log('Note created', note);
-          // Could refresh activity here
         }}
       />
+
+      {/* --- STUDY PLAN MODAL --- */}
+      <StudyPlanModal
+        isOpen={isStudyPlanOpen}
+        onClose={() => setIsStudyPlanOpen(false)}
+        activePlan={activePlan}
+      />
+
+      {/* --- COMING SOON TOAST --- */}
+      <AnimatePresence>
+        {comingSoon && (
+          <motion.div
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 50 }}
+            className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-neutral-900 text-yellow-50 px-6 py-3 rounded-sm border border-yellow-700/50 shadow-[0_4px_20px_rgba(0,0,0,0.6)] flex items-center gap-3"
+          >
+            <AlertCircle className="w-5 h-5 text-yellow-400 shrink-0" />
+            <span className="font-inter font-medium">{comingSoon}</span>
+            <button onClick={() => setComingSoon(null)} className="ml-2 text-yellow-400 hover:text-yellow-200">
+              <X className="w-4 h-4" />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </LeatherBoard>
   );
 };
