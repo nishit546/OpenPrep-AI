@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ---
 
 ## [Unreleased]
+### Fixed
+- **Cascade deletion**: Deleting an Exam, Subject, or Topic now properly cascade-deletes all associated child records (Progress, Flashcards, Notes, Quizzes, QuizAttempts, StudyPlans, PYQs) instead of leaving orphaned records. Previously, the controllers used bulk `Model.destroy()` which bypassed Sequelize's cascade hooks, and the `deleteExam`/`deleteSubject` controllers only manually deleted Subjects/Topics while missing all other child records. The `deleteTopic` controller now also cascade-deletes Flashcards and Notes instead of setting their FK to `NULL`.
+- **Model associations**: Changed `Topic.hasMany(Flashcard)` and `Topic.hasMany(Note)` from `onDelete: 'SET NULL'` to `onDelete: 'CASCADE'` for consistency.
+
 ### Added
 - Spaced Repetition engine logic for Flashcards (`SuperMemo SM-2` adaptation).
 - Redux slices for global user auth state and request handling.
