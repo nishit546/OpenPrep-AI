@@ -144,6 +144,11 @@ exports.downloadNote = async (req, res, next) => {
       return res.status(404).json({ success: false, error: 'Note not found' });
     }
 
+    const isOwner = note.user === req.user.id;
+    if (!isOwner && !note.isPublic) {
+      return res.status(404).json({ success: false, error: 'Note not found' });
+    }
+
     note.downloadsCount += 1;
     await note.save();
 
