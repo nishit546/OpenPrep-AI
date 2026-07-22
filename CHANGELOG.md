@@ -37,6 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Token expiration handling inside the Redux Thunk loader.
 - **Security**: Removed hardcoded JWT fallback secret `supersecret_openprep_key` from `middleware/auth.js` and `controllers/authController.js`. JWT secret must now come exclusively from the `JWT_SECRET` environment variable.
 - **Forgot password stub**: `forgotPassword` previously returned fake `{ success: true, data: {} }` with no actual functionality. Now generates real crypto tokens and sends email.
+- **Feedback list memory/safety risk**: `GET /api/community/feedback` now paginates and sorts by upvote count at the database level (using `ORDER BY array_length` + `LIMIT`/`OFFSET`) instead of loading all rows into memory. Fixes out-of-memory risk at scale. (#124)
 
 ---
 
