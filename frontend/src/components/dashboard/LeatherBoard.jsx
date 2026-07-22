@@ -1,4 +1,3 @@
-import React from 'react';
 
 const LeatherBoard = ({ children }) => {
   return (

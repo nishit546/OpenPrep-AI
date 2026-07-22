@@ -1,4 +1,3 @@
-import React from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { motion } from 'framer-motion';
@@ -10,9 +9,6 @@ import {
   Award, 
   ArrowRight, 
   Sparkles, 
-  Lock, 
-  CheckCircle,
-  FileCode,
   Check,
   ChevronRight,
   Sun,

@@ -39,13 +39,13 @@ const validateRegister = [
 ];
 
 const validateLogin = [
-  body('email').trim().isEmail().withMessage('Please provide a valid email'),
+  body('email').trim().isEmail().withMessage('Please provide a valid email').normalizeEmail(),
   body('password').notEmpty().withMessage('Please provide a password'),
   handleValidationErrors,
 ];
 
 const validateForgotPassword = [
-  body('email').trim().isEmail().withMessage('Please provide a valid email'),
+  body('email').trim().isEmail().withMessage('Please provide a valid email').normalizeEmail(),
   handleValidationErrors,
 ];
 

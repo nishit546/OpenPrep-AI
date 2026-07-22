@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { Link, useNavigate } from 'react-router-dom';
-import { Mail, User, Lock, Eye, EyeOff, AlertCircle, CheckCircle } from 'lucide-react';
+import { Mail, User, Lock, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import { registerUser, clearError, clearRegistrationSuccess } from '../store/slices/authSlice';
 
 const Register = () => {

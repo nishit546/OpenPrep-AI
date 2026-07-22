@@ -212,10 +212,6 @@ exports.trackStudyTime = async (req, res, next) => {
       });
     }
 
-    // Accumulate total study hours on the user record
-    req.user.studyHours = (req.user.studyHours || 0) + parseFloat(studyHours);
-    await req.user.save();
-
     // If a topic is specified, update or create a Progress record
     if (topicId && subjectId) {
       const [progress, created] = await Progress.findOrCreate({
@@ -239,6 +235,7 @@ exports.trackStudyTime = async (req, res, next) => {
         defaults: {
           user: userId,
           subject: subjectId,
+          topic: null,
           studyHours: parseFloat(studyHours),
           completionPercentage: 0,
         },
@@ -255,6 +252,10 @@ exports.trackStudyTime = async (req, res, next) => {
       activityType: 'study_plan_create',
       description: description || `Studied for ${studyHours} hour${studyHours !== 1 ? 's' : ''}`,
     });
+
+    // Accumulate total study hours on the user record AFTER progress + activity succeed
+    req.user.studyHours = (req.user.studyHours || 0) + parseFloat(studyHours);
+    await req.user.save();
 
     res.status(200).json({
       success: true,

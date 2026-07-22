@@ -116,7 +116,7 @@ export const refreshTokenThunk = createAsyncThunk(
       localStorage.setItem('token', token);
       localStorage.setItem('refreshToken', newRefresh);
       return response.data;
-    } catch (err) {
+    } catch {
       localStorage.removeItem('token');
       localStorage.removeItem('refreshToken');
       return rejectWithValue('Session expired');
@@ -128,10 +128,10 @@ export const refreshTokenThunk = createAsyncThunk(
 const initialState = {
   token: getInitialToken(),
   refreshToken: getInitialRefreshToken(),
-  isAuthenticated: !!getInitialToken(),
+  isAuthenticated: false,
   registrationSuccess: false,
   user: null,
-  loading: false,
+  loading: !!getInitialToken(),
   error: null,
   message: null,
 };

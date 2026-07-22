@@ -172,7 +172,7 @@ describe('Auth Controller - Integration Tests', () => {
       // Verify user was updated
       const updated = await User.findByPk(user.id);
       expect(updated.isEmailVerified).toBe(true);
-      expect(updated.emailVerificationToken).toBeUndefined();
+      expect(updated.emailVerificationToken).toBeNull();
     });
 
     it('should return 400 with invalid token', async () => {

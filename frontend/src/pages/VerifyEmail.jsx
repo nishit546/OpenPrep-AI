@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useParams, Link, Navigate } from 'react-router-dom';
 import { CheckCircle, XCircle, Loader } from 'lucide-react';
@@ -20,6 +20,8 @@ const VerifyEmail = () => {
     return <Navigate to="/dashboard" replace />;
   }
 
+  const displayError = !token ? 'No verification token provided. Please check your verification link.' : error;
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-amber-900 via-stone-900 to-stone-950 p-4">
       <div className="w-full max-w-md bg-gradient-to-br from-amber-50 to-amber-100 rounded-sm shadow-[0_20px_60px_rgba(0,0,0,0.8)] border border-amber-700/50 p-8 text-center">
@@ -29,13 +31,13 @@ const VerifyEmail = () => {
             <h1 className="text-xl font-bold font-playfair text-stone-900">Verifying Your Email...</h1>
             <p className="text-stone-600 mt-2 text-sm">Please wait while we confirm your email address.</p>
           </>
-        ) : error ? (
+        ) : displayError ? (
           <>
             <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4">
               <XCircle className="w-8 h-8 text-red-600" />
             </div>
             <h1 className="text-xl font-bold font-playfair text-stone-900">Verification Failed</h1>
-            <p className="text-stone-600 mt-2 text-sm">{error}</p>
+            <p className="text-stone-600 mt-2 text-sm">{displayError}</p>
             <Link
               to="/login"
               className="inline-block mt-6 bg-amber-700 hover:bg-amber-800 text-amber-50 font-semibold px-6 py-2.5 rounded-sm transition-colors"

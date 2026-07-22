@@ -5,6 +5,7 @@ const jwt = require('jsonwebtoken');
 const flashcardRoutes = require('../../routes/flashcardRoutes');
 const errorHandler = require('../../middleware/error');
 const User = require('../../models/User');
+const Exam = require('../../models/Exam');
 const Subject = require('../../models/Subject');
 const Topic = require('../../models/Topic');
 const Flashcard = require('../../models/Flashcard');
@@ -29,20 +30,27 @@ describe('Flashcard Controller - SM-2 Algorithm Tests', () => {
       password: 'password123',
     });
 
-    authToken = jwt.sign({ id: testUser._id }, process.env.JWT_SECRET);
+    authToken = jwt.sign({ id: testUser.id }, process.env.JWT_SECRET);
+
+    const testExam = await Exam.create({
+      name: 'Flashcard Exam',
+      description: 'Exam for flashcard tests',
+      date: new Date(),
+      user: testUser.id,
+    });
 
     testSubject = await Subject.create({
       name: 'Test Subject',
       description: 'Subject for flashcards',
-      exam: uuidv4(),
-      user: testUser._id,
+      exam: testExam.id,
+      user: testUser.id,
     });
 
     testTopic = await Topic.create({
       name: 'Test Topic',
       description: 'Topic for flashcards',
       subject: testSubject._id,
-      user: testUser._id,
+      user: testUser.id,
     });
   });
 
@@ -102,7 +110,7 @@ describe('Flashcard Controller - SM-2 Algorithm Tests', () => {
 
     it('should return flashcards filtered by subject', async () => {
       await Flashcard.create({
-        user: testUser._id,
+        user: testUser.id,
         subject: testSubject._id,
         front: 'Q1',
         back: 'A1',
@@ -123,7 +131,7 @@ describe('Flashcard Controller - SM-2 Algorithm Tests', () => {
 
     beforeEach(async () => {
       card = await Flashcard.create({
-        user: testUser._id,
+        user: testUser.id,
         subject: testSubject._id,
         topic: testTopic._id,
         front: 'SM-2 Test Question?',
@@ -234,7 +242,7 @@ describe('Flashcard Controller - SM-2 Algorithm Tests', () => {
   describe('DELETE /api/flashcards/:id', () => {
     it('should delete an existing flashcard', async () => {
       const c = await Flashcard.create({
-        user: testUser._id,
+        user: testUser.id,
         subject: testSubject._id,
         front: 'Delete me?',
         back: 'Deleted',

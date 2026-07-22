@@ -1,4 +1,3 @@
-import React from 'react';
 
 const StickyNote = ({ children, color = 'yellow', rotation = 'rotate-1', className = '' }) => {
   // Map color names to Tailwind color classes for the sticky note background

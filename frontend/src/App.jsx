@@ -11,7 +11,7 @@ import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import ProtectedRoute from './components/ProtectedRoute';
 import CustomCursor from './components/CustomCursor';
-import './App.css';
+import ScrollToTop from './components/ScrollToTop';import './App.css';
 
 function App() {
   const dispatch = useDispatch();
@@ -24,8 +24,8 @@ function App() {
 
   return (
   <>
-    <CustomCursor />
-    <Routes>
+<CustomCursor />
+    <ScrollToTop />    <Routes>
       <Route path="/" element={<Landing />} />
       <Route path="/register" element={<Register />} />
       <Route path="/login" element={<Login />} />

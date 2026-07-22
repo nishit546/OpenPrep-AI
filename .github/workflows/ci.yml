@@ -31,6 +31,20 @@ jobs:
 
   test-backend:
     runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@v3
@@ -49,6 +63,8 @@ jobs:
       - name: Run Backend Tests
         run: npm test
         working-directory: backend
+        env:
+          DATABASE_URL_TEST: postgres://postgres@localhost:5432/postgres
 
   test-frontend:
     runs-on: ubuntu-latest
