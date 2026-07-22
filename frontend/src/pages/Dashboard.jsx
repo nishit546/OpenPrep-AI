@@ -211,7 +211,7 @@ const Dashboard = () => {
       <div className="absolute -left-4 top-24 flex flex-col gap-4 z-30 hidden md:flex">
         <GoldTabButton icon={Play} label="Start Quiz" delay={0.1} />
         <GoldTabButton icon={FileText} label="Analyze PYQ" delay={0.2} />
-        <GoldTabButton icon={Calendar} label="Study Plan" delay={0.3} />
+        <GoldTabButton icon={Calendar} label="Study Plan" delay={0.3} onClick={() => setIsStudyPlanOpen(true)} />
         <GoldTabButton icon={TrendingUp} label="Reports" delay={0.4} />
         <button 
           onClick={() => setIsNoteModalOpen(true)}
