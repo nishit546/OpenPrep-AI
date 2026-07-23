@@ -47,10 +47,11 @@ const Login = () => {
         <form onSubmit={handleSubmit} className="space-y-5">
           {/* Email */}
           <div>
-            <label className="block text-sm font-semibold text-stone-700 mb-1">Email</label>
+            <label htmlFor="login-email" className="block text-sm font-semibold text-stone-700 mb-1">Email</label>
             <div className="relative">
               <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
               <input
+                id="login-email"
                 type="email"
                 name="email"
                 value={formData.email}
@@ -64,10 +65,11 @@ const Login = () => {
 
           {/* Password */}
           <div>
-            <label className="block text-sm font-semibold text-stone-700 mb-1">Password</label>
+            <label htmlFor="login-password" className="block text-sm font-semibold text-stone-700 mb-1">Password</label>
             <div className="relative">
               <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
               <input
+                id="login-password"
                 type={showPassword ? 'text' : 'password'}
                 name="password"
                 value={formData.password}
@@ -79,6 +81,7 @@ const Login = () => {
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600"
               >
                 {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -95,10 +98,12 @@ const Login = () => {
           <button
             type="submit"
             disabled={loading}
+            aria-busy={loading}
+            aria-label="Sign in"
             className="w-full bg-amber-700 hover:bg-amber-800 disabled:bg-amber-400 text-amber-50 font-semibold py-2.5 rounded-sm transition-colors flex items-center justify-center gap-2"
           >
             {loading ? (
-              <span className="w-4 h-4 border-2 border-amber-200 border-t-transparent rounded-full animate-spin" />
+              <span className="w-4 h-4 border-2 border-amber-200 border-t-transparent rounded-full animate-spin" aria-hidden="true" />
             ) : (
               'Sign In'
             )}
