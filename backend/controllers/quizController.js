@@ -148,6 +148,24 @@ exports.submitQuizAttempt = async (req, res, next) => {
       return res.status(404).json({ success: false, error: 'Quiz not found' });
     }
 
+    // Validate that all questions are answered
+    if (answers.length !== quiz.questions.length) {
+      return res.status(400).json({ 
+        success: false, 
+        error: `Incomplete submission: expected ${quiz.questions.length} answers but received ${answers.length}` 
+      });
+    }
+
+    // Validate that all submitted questionIds actually belong to this quiz
+    const quizQuestionIds = quiz.questions.map(q => String(q._id || q.id));
+    const invalidAnswers = answers.filter(ans => !quizQuestionIds.includes(String(ans.questionId)));
+    if (invalidAnswers.length > 0) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Invalid questionId(s) submitted that do not belong to this quiz' 
+      });
+    }
+
     // Evaluate answers
     let correctCount = 0;
     const evaluatedAnswers = quiz.questions.map((q) => {
