@@ -1,9 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   Flame, Play, FileText, Calendar, TrendingUp, Award, BookOpen,
   Target, CheckCircle, Clock, AlertCircle, RefreshCw, Lightbulb,
+  LogOut, X,
 } from 'lucide-react';
 import API from '../services/api';
 import {
@@ -18,6 +20,9 @@ import GoldTabButton from '../components/dashboard/GoldTabButton';
 import PomodoroTimer from '../components/dashboard/PomodoroTimer';
 import FlashcardWidget from '../components/dashboard/FlashcardWidget';
 import PinnedTasks from '../components/dashboard/PinnedTasks';
+import CreateNoteModal from '../components/dashboard/CreateNoteModal';
+import StudyPlanModal from '../components/dashboard/StudyPlanModal';
+import ThemeToggle from '../components/ThemeToggle';
 
 import {
   fetchDashboardStats,
@@ -25,6 +30,7 @@ import {
   fetchActivePlan,
   fetchDueFlashcards,
 } from '../store/slices/dashboardSlice';
+import { logout } from '../store/slices/authSlice';
 
 // ── Helpers ──
 
@@ -54,6 +60,37 @@ const activityConfig = {
 function getActivityConfig(type) {
   return activityConfig[type] || { icon: FileText, color: 'text-neutral-700' };
 }
+
+const achievements = [
+  {
+    id: 'first-quiz',
+    label: 'First Steps',
+    description: 'Complete your first quiz',
+    icon: Target,
+    earned: (stats) => (stats?.attemptsCount ?? 0) > 0,
+  },
+  {
+    id: 'streak-3',
+    label: 'On Fire',
+    description: '3-day streak',
+    icon: Flame,
+    earned: (stats) => (stats?.streak ?? 0) >= 3,
+  },
+  {
+    id: 'mastery-50',
+    label: 'Halfway There',
+    description: '50% syllabus mastery',
+    icon: TrendingUp,
+    earned: (stats) => (stats?.syllabusProgress ?? 0) >= 50,
+  },
+  {
+    id: 'study-10h',
+    label: 'Dedicated Scholar',
+    description: '10+ study hours logged',
+    icon: Clock,
+    earned: (stats) => (stats?.totalStudyHours ?? 0) >= 10,
+  },
+];
 
 // ── Loading Skeleton ──
 const Shimmer = ({ className = '' }) => (
@@ -101,7 +138,9 @@ const EmptyState = ({ icon: Icon = Lightbulb, message = 'No data yet' }) => (
 // ── Main Component ──
 const Dashboard = () => {
   const dispatch = useDispatch();
+  const navigate = useNavigate();
 
+  const { user } = useSelector((state) => state.auth);
   const {
     stats, weeklyChartData, recentActivity, subjectBreakdown,
     activePlan, dueFlashcards,
@@ -110,15 +149,26 @@ const Dashboard = () => {
   } = useSelector((state) => state.dashboard);
 
   useEffect(() => {
-    dispatch(fetchDashboardStats());
-    dispatch(fetchSubjectBreakdown());
-    dispatch(fetchActivePlan());
-    dispatch(fetchDueFlashcards());
+    const fetchAll = () => {
+      dispatch(fetchDashboardStats());
+      dispatch(fetchSubjectBreakdown());
+      dispatch(fetchActivePlan());
+      dispatch(fetchDueFlashcards());
+    };
+
+    fetchAll();
+
+    window.addEventListener('focus', fetchAll);
+    return () => window.removeEventListener('focus', fetchAll);
   }, [dispatch]);
 
   const handleRetry = (thunk) => () => dispatch(thunk());
 
-  // ── Task Toggle ──
+  const handleLogout = useCallback(() => {
+    dispatch(logout());
+    navigate('/');
+  }, [dispatch, navigate]);
+
   const [toggleError, setToggleError] = useState(null);
   const handleToggleTask = async (taskId) => {
     const planId = activePlan?.id || activePlan?._id;
@@ -133,10 +183,24 @@ const Dashboard = () => {
         studyTimeMinutes: 25,
       });
       dispatch(fetchActivePlan());
-    } catch (err) {
+      dispatch(fetchDashboardStats());
+      dispatch(fetchSubjectBreakdown());
+    } catch {
       setToggleError('Failed to update task. Please try again.');
     }
   };
+
+  // ── Note Modal State ──
+  const [isNoteModalOpen, setIsNoteModalOpen] = useState(false);
+  const [isStudyPlanOpen, setIsStudyPlanOpen] = useState(false);
+  const [comingSoon, setComingSoon] = useState(null);
+
+  useEffect(() => {
+    if (comingSoon) {
+      const timer = setTimeout(() => setComingSoon(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [comingSoon]);
 
   // ── Derived Data ──
   const chartData = weeklyChartData.length > 0
@@ -197,10 +261,19 @@ const Dashboard = () => {
     <LeatherBoard>
       {/* --- QUICK ACTIONS TABS --- */}
       <div className="absolute -left-4 top-24 flex flex-col gap-4 z-30 hidden md:flex">
-        <GoldTabButton icon={Play} label="Start Quiz" delay={0.1} />
-        <GoldTabButton icon={FileText} label="Analyze PYQ" delay={0.2} />
-        <GoldTabButton icon={Calendar} label="Study Plan" delay={0.3} />
-        <GoldTabButton icon={TrendingUp} label="Reports" delay={0.4} />
+        <GoldTabButton icon={Play} label="Start Quiz" delay={0.1} onClick={() => setComingSoon('Quiz feature coming soon!')} />
+        <GoldTabButton icon={FileText} label="Analyze PYQ" delay={0.2} onClick={() => setComingSoon('PYQ Analysis coming soon!')} />
+        <GoldTabButton icon={Calendar} label="Study Plan" delay={0.3} onClick={() => setIsStudyPlanOpen(true)} />
+        <GoldTabButton icon={TrendingUp} label="Reports" delay={0.4} onClick={() => setComingSoon('Reports coming soon!')} />
+        <button 
+          onClick={() => setIsNoteModalOpen(true)}
+          className="bg-neutral-800 text-yellow-500 border border-yellow-700/50 hover:bg-neutral-700 p-2 rounded-r-lg shadow-lg flex items-center justify-center relative group"
+        >
+          <FileText className="w-5 h-5" />
+          <div className="absolute left-full ml-2 px-2 py-1 bg-neutral-800 text-yellow-500 text-xs rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap transition-opacity">
+            Create Note
+          </div>
+        </button>
       </div>
 
       <div className="pl-4 md:pl-16 pr-4 lg:pr-8 py-8 space-y-12">
@@ -213,7 +286,7 @@ const Dashboard = () => {
             className="flex-1"
           >
             <h1 className="text-5xl md:text-6xl font-bold text-gold-foil mb-2 font-playfair tracking-tight">
-              Welcome back, Scholar.
+              Welcome back{user?.name ? `, ${user.name}` : ', Scholar'}.
             </h1>
             <p className="text-amber-100/70 text-lg italic font-playfair">
               &ldquo;The roots of education are bitter, but the fruit is sweet.&rdquo; – Aristotle
@@ -226,6 +299,7 @@ const Dashboard = () => {
             transition={{ duration: 0.5, delay: 0.3 }}
             className="flex items-center space-x-6 mt-6 md:mt-0"
           >
+            <ThemeToggle className="mr-2" />
             <div className="flex flex-col items-center">
               <div className="relative">
                 <Flame className="w-12 h-12 text-orange-500 animate-pulse-glow" fill="currentColor" />
@@ -235,9 +309,13 @@ const Dashboard = () => {
               <span className="text-amber-200/50 text-xs uppercase tracking-widest">Streak</span>
             </div>
 
-            <button className="bg-gradient-to-br from-yellow-600 to-yellow-800 text-yellow-50 px-8 py-4 rounded-sm border border-yellow-500/50 shadow-[0_4px_15px_rgba(0,0,0,0.5)] hover:shadow-[0_6px_20px_rgba(212,175,55,0.3)] transition-all flex items-center group">
-              <span className="font-playfair font-bold text-lg tracking-wide group-hover:text-white">Resume Learning</span>
-              <Play className="ml-3 w-5 h-5 text-yellow-300 group-hover:text-white" fill="currentColor" />
+            <button
+              onClick={handleLogout}
+              className="bg-gradient-to-br from-red-700 to-red-900 text-red-50 px-4 py-3 rounded-sm border border-red-500/50 shadow-[0_4px_15px_rgba(0,0,0,0.5)] hover:shadow-[0_6px_20px_rgba(220,50,50,0.3)] transition-all flex items-center gap-2 group"
+              aria-label="Log out"
+            >
+              <LogOut className="w-5 h-5 group-hover:text-white" />
+              <span className="font-playfair font-bold text-sm tracking-wide group-hover:text-white hidden sm:inline">Logout</span>
             </button>
           </motion.div>
         </div>
@@ -259,50 +337,50 @@ const Dashboard = () => {
             <>
               <VintagePaper delay={0.2} className="border-t-4 border-t-red-800">
                 <div className="flex justify-between items-start mb-2">
-                  <h3 className="text-neutral-800 font-playfair font-bold text-xl">Total Solved</h3>
-                  <Target className="text-neutral-600 w-5 h-5" />
+                  <h3 className="text-neutral-800 dark:text-neutral-100 font-playfair font-bold text-xl">Total Solved</h3>
+                  <Target className="text-neutral-600 dark:text-neutral-400 w-5 h-5" />
                 </div>
-                <p className="text-4xl font-bold text-neutral-900 font-playfair">
+                <p className="text-4xl font-bold text-neutral-900 dark:text-white font-playfair">
                   {attemptsCount.toLocaleString()}
                 </p>
-                <p className="text-neutral-600 text-sm mt-2 italic border-t border-neutral-300 pt-2">
+                <p className="text-neutral-600 dark:text-neutral-400 text-sm mt-2 italic border-t border-neutral-300 dark:border-neutral-600 pt-2">
                   Quiz attempts
                 </p>
               </VintagePaper>
 
               <VintagePaper delay={0.3} className="border-t-4 border-t-green-800">
                 <div className="flex justify-between items-start mb-2">
-                  <h3 className="text-neutral-800 font-playfair font-bold text-xl">Mastery</h3>
-                  <CheckCircle className="text-neutral-600 w-5 h-5" />
+                  <h3 className="text-neutral-800 dark:text-neutral-100 font-playfair font-bold text-xl">Mastery</h3>
+                  <CheckCircle className="text-neutral-600 dark:text-neutral-400 w-5 h-5" />
                 </div>
-                <p className="text-4xl font-bold text-neutral-900 font-playfair">{syllabusProgress}%</p>
-                <p className="text-neutral-600 text-sm mt-2 italic border-t border-neutral-300 pt-2">
+                <p className="text-4xl font-bold text-neutral-900 dark:text-white font-playfair">{syllabusProgress}%</p>
+                <p className="text-neutral-600 dark:text-neutral-400 text-sm mt-2 italic border-t border-neutral-300 dark:border-neutral-600 pt-2">
                   Syllabus completion
                 </p>
               </VintagePaper>
 
               <VintagePaper delay={0.4} className="border-t-4 border-t-blue-800">
                 <div className="flex justify-between items-start mb-2">
-                  <h3 className="text-neutral-800 font-playfair font-bold text-xl">Study Hours</h3>
-                  <Clock className="text-neutral-600 w-5 h-5" />
+                  <h3 className="text-neutral-800 dark:text-neutral-100 font-playfair font-bold text-xl">Study Hours</h3>
+                  <Clock className="text-neutral-600 dark:text-neutral-400 w-5 h-5" />
                 </div>
-                <p className="text-4xl font-bold text-neutral-900 font-playfair">
+                <p className="text-4xl font-bold text-neutral-900 dark:text-white font-playfair">
                   {totalStudyHours.toFixed(1)}h
                 </p>
-                <p className="text-neutral-600 text-sm mt-2 italic border-t border-neutral-300 pt-2">
+                <p className="text-neutral-600 dark:text-neutral-400 text-sm mt-2 italic border-t border-neutral-300 dark:border-neutral-600 pt-2">
                   Total study time
                 </p>
               </VintagePaper>
 
               <VintagePaper delay={0.5} className="border-t-4 border-t-purple-800">
                 <div className="flex justify-between items-start mb-2">
-                  <h3 className="text-neutral-800 font-playfair font-bold text-xl">Topics Done</h3>
-                  <BookOpen className="text-neutral-600 w-5 h-5" />
+                  <h3 className="text-neutral-800 dark:text-neutral-100 font-playfair font-bold text-xl">Topics Done</h3>
+                  <BookOpen className="text-neutral-600 dark:text-neutral-400 w-5 h-5" />
                 </div>
-                <p className="text-4xl font-bold text-neutral-900 font-playfair">
+                <p className="text-4xl font-bold text-neutral-900 dark:text-white font-playfair">
                   {strong + medium}/{totalTopics}
                 </p>
-                <p className="text-neutral-600 text-sm mt-2 italic border-t border-neutral-300 pt-2">
+                <p className="text-neutral-600 dark:text-neutral-400 text-sm mt-2 italic border-t border-neutral-300 dark:border-neutral-600 pt-2">
                   {totalTopics > 0 ? `${Math.round(((strong + medium) / totalTopics) * 100)}% Course completion` : 'No topics yet'}
                 </p>
               </VintagePaper>
@@ -423,7 +501,7 @@ const Dashboard = () => {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* --- STUDY PROGRESS (INK RULERS) --- */}
+          {/* --- SUBJECT PROGRESS --- */}
           <VintagePaper delay={0.6} className="lg:col-span-1 shadow-[0_10px_20px_rgba(0,0,0,0.4)]">
             <h2 className="text-2xl font-bold font-playfair text-neutral-900 mb-6 border-b border-neutral-400 pb-2">
               Subject Progress
@@ -450,11 +528,8 @@ const Dashboard = () => {
                       <span>{topic.name}</span>
                       <span>{topic.prog}%</span>
                     </div>
-                    {/* Ruler Background */}
                     <div className="h-4 w-full bg-neutral-300 rounded-sm border border-neutral-400 relative overflow-hidden shadow-inner">
-                      {/* Tick marks */}
                       <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAiIGhlaWdodD0iMTAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHBhdGggZD0iTTAgMGgwLjV2NWgtMC41eiIgZmlsbD0iIzlhM2FmIi8+PC9zdmc+')] opacity-50" />
-                      {/* Ink Fill */}
                       <motion.div
                         initial={{ width: 0 }}
                         animate={{ width: `${topic.prog}%` }}
@@ -469,56 +544,57 @@ const Dashboard = () => {
           </VintagePaper>
 
           {/* --- RECENT ACTIVITY TIMELINE --- */}
-          <div className="lg:col-span-2 space-y-6">
-            <h2 className="text-3xl font-bold font-playfair text-gold-foil border-b border-yellow-700/50 pb-2">
-              Recent Activity
+          <div className="lg:col-span-2 mt-8">
+            <h2 className="text-3xl font-playfair font-bold text-neutral-800 dark:text-neutral-100 mb-6 flex items-center gap-3">
+              <Clock className="w-8 h-8 text-neutral-500 dark:text-neutral-400" /> Recent Activity
             </h2>
-
-            {loadingStats ? (
-              <div className="space-y-4">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="flex items-center gap-4">
-                    <Shimmer className="w-10 h-10 rounded-full shrink-0" />
-                    <div className="flex-1">
-                      <Shimmer className="h-5 w-48 mb-1" />
-                      <Shimmer className="h-3 w-24" />
+            <VintagePaper delay={0.4}>
+              {loadingStats ? (
+                <div className="space-y-4">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="flex items-center gap-4">
+                      <Shimmer className="w-10 h-10 rounded-full shrink-0" />
+                      <div className="flex-1">
+                        <Shimmer className="h-5 w-48 mb-1" />
+                        <Shimmer className="h-3 w-24" />
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            ) : errorStats ? (
-              <ErrorBanner message={errorStats} onRetry={handleRetry(fetchDashboardStats)} />
-            ) : recentActivity.length === 0 ? (
-              <EmptyState icon={BookOpen} message="No activity yet — start your learning journey!" />
-            ) : (
-              <div className="space-y-4 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-yellow-700/50 before:to-transparent">
-                {recentActivity.slice(0, 6).map((item, i) => {
-                  const cfg = getActivityConfig(item.activityType);
-                  const Icon = cfg.icon;
-                  return (
-                    <motion.div
-                      key={item.id || i}
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: 0.8 + (i * 0.2) }}
-                      className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active"
-                    >
-                      <div className={`flex items-center justify-center w-10 h-10 rounded-full border-2 border-yellow-600 bg-leather text-yellow-500 shadow-[0_0_10px_rgba(212,175,55,0.4)] shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10`}>
-                        <Icon className={`w-5 h-5 ${cfg.color}`} />
-                      </div>
-                      <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] p-4 bg-vintage-paper rounded-sm shadow-paper border border-neutral-300">
-                        <h3 className={`font-bold font-playfair text-neutral-800 text-lg`}>
-                          {item.description}
-                        </h3>
-                        <p className="text-sm text-neutral-600 italic mt-1">
-                          {timeAgo(item.createdAt || item.timestamp)}
-                        </p>
-                      </div>
-                    </motion.div>
-                  );
-                })}
-              </div>
-            )}
+                  ))}
+                </div>
+              ) : errorStats ? (
+                <ErrorBanner message={errorStats} onRetry={handleRetry(fetchDashboardStats)} />
+              ) : recentActivity.length === 0 ? (
+                <EmptyState icon={BookOpen} message="No activity yet — start your learning journey!" />
+              ) : (
+                <div className="space-y-4 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-yellow-700/50 before:to-transparent">
+                  {recentActivity.slice(0, 6).map((item, i) => {
+                    const config = getActivityConfig(item.activityType);
+                    const Icon = config.icon;
+                    return (
+                      <motion.div
+                        key={item.id || i}
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 0.8 + (i * 0.2) }}
+                        className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active"
+                      >
+                        <div className={`mt-1 bg-white dark:bg-slate-800 border border-neutral-300 dark:border-slate-600 p-2 rounded-full shadow-sm ${config.color} group-hover:scale-110 transition-transform`}>
+                          <Icon className="w-4 h-4" />
+                        </div>
+                        <div className="ml-4 flex-1 border-b border-neutral-200 dark:border-slate-700 pb-4">
+                          <p className="text-neutral-800 dark:text-neutral-200 font-inter font-medium leading-tight">
+                            {item.description}
+                          </p>
+                          <p className="text-xs text-neutral-400 dark:text-neutral-500 mt-1 font-inter tracking-wide uppercase">
+                            {timeAgo(item.createdAt || item.timestamp)}
+                          </p>
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              )}
+            </VintagePaper>
           </div>
         </div>
 
@@ -529,28 +605,43 @@ const Dashboard = () => {
               <Award className="mr-2" /> Trophy Cabinet
             </h2>
             <div className="flex justify-around items-center h-full pb-8">
-              {[...Array(4)].map((_, i) => (
-                <div key={i} className="flex flex-col items-center group cursor-pointer">
-                  <div className="w-20 h-20 rounded-full bg-gradient-to-br from-yellow-300 via-yellow-500 to-yellow-700 p-1 shadow-[0_4px_10px_rgba(0,0,0,0.3)] group-hover:scale-110 transition-transform relative">
-                    <div className="w-full h-full rounded-full border-2 border-yellow-200/50 bg-leather flex items-center justify-center">
-                      <Award className="w-10 h-10 text-gold-foil" />
+              {achievements.map((badge) => {
+                const earned = badge.earned(stats);
+                const Icon = badge.icon;
+                return (
+                  <div key={badge.id} className="flex flex-col items-center group cursor-pointer" title={badge.description}>
+                    <div className={`w-20 h-20 rounded-full p-1 shadow-[0_4px_10px_rgba(0,0,0,0.3)] group-hover:scale-110 transition-transform relative ${
+                      earned
+                        ? 'bg-gradient-to-br from-yellow-300 via-yellow-500 to-yellow-700'
+                        : 'bg-gradient-to-br from-neutral-300 via-neutral-400 to-neutral-500 opacity-50'
+                    }`}>
+                      <div className={`w-full h-full rounded-full border-2 flex items-center justify-center ${
+                        earned ? 'border-yellow-200/50 bg-leather' : 'border-neutral-400/50 bg-neutral-200'
+                      }`}>
+                        <Icon className={`w-10 h-10 ${earned ? 'text-gold-foil' : 'text-neutral-400'}`} />
+                      </div>
                     </div>
+                    <span className={`text-sm font-bold mt-3 text-center ${earned ? 'text-neutral-800' : 'text-neutral-400'}`}>
+                      {badge.label}
+                    </span>
+                    <span className={`text-xs ${earned ? 'text-green-700' : 'text-neutral-400 italic'}`}>
+                      {earned ? 'Earned' : 'Locked'}
+                    </span>
                   </div>
-                  <span className="text-sm font-bold text-neutral-800 mt-3 text-center">Badge {i + 1}</span>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </VintagePaper>
 
           <VintagePaper delay={1.0}>
-            <h2 className="text-2xl font-bold font-playfair text-neutral-900 mb-4 border-b border-neutral-400 pb-2 flex items-center">
+            <h2 className="text-2xl font-bold font-playfair text-neutral-900 dark:text-neutral-100 mb-4 border-b border-neutral-400 dark:border-slate-700 pb-2 flex items-center">
               <Calendar className="mr-2" /> Consistency
             </h2>
-            <div className="grid grid-cols-10 gap-1 p-4 bg-neutral-200/50 rounded-sm border border-neutral-300 shadow-inner">
+            <div className="grid grid-cols-10 gap-1 p-4 bg-neutral-200/50 dark:bg-slate-800/50 rounded-sm border border-neutral-300 dark:border-slate-700 shadow-inner">
               {weeklyChartData.length > 0
                 ? weeklyChartData.map((d, i) => {
                     const intensity = Math.min(3, Math.floor((d.completion || 0) / 33));
-                    const colors = ['bg-neutral-300', 'bg-yellow-700/40', 'bg-yellow-700/70', 'bg-yellow-800'];
+                    const colors = ['bg-neutral-300 dark:bg-slate-700', 'bg-yellow-700/40', 'bg-yellow-700/70', 'bg-yellow-800'];
                     return (
                       <motion.div
                         key={i}
@@ -564,16 +655,49 @@ const Dashboard = () => {
                     <motion.div
                       key={i}
                       whileHover={{ scale: 1.2 }}
-                      className="w-full aspect-square rounded-sm bg-neutral-300"
+                      className="w-full aspect-square rounded-sm bg-neutral-300 dark:bg-slate-700"
                     />
                   ))}
             </div>
-            <p className="text-xs text-center text-neutral-600 mt-2 italic">
+            <p className="text-xs text-center text-neutral-600 dark:text-neutral-400 mt-2 italic">
               {weeklyChartData.length > 0 ? 'Recent activity' : 'Last 30 Days'}
             </p>
           </VintagePaper>
         </div>
       </div>
+      {/* --- CREATE NOTE MODAL --- */}
+      <CreateNoteModal 
+        isOpen={isNoteModalOpen} 
+        onClose={() => setIsNoteModalOpen(false)} 
+        onNoteCreated={(note) => {
+          console.log('Note created', note);
+        }}
+      />
+
+      {/* --- STUDY PLAN MODAL --- */}
+      <StudyPlanModal
+        isOpen={isStudyPlanOpen}
+        onClose={() => setIsStudyPlanOpen(false)}
+        activePlan={activePlan}
+      />
+
+      {/* --- COMING SOON TOAST --- */}
+      <AnimatePresence>
+        {comingSoon && (
+          <motion.div
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 50 }}
+            className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-neutral-900 text-yellow-50 px-6 py-3 rounded-sm border border-yellow-700/50 shadow-[0_4px_20px_rgba(0,0,0,0.6)] flex items-center gap-3"
+          >
+            <AlertCircle className="w-5 h-5 text-yellow-400 shrink-0" />
+            <span className="font-inter font-medium">{comingSoon}</span>
+            <button onClick={() => setComingSoon(null)} className="ml-2 text-yellow-400 hover:text-yellow-200">
+              <X className="w-4 h-4" />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </LeatherBoard>
   );
 };

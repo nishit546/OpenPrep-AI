@@ -1,4 +1,4 @@
-const { Op } = require('sequelize');
+const { Op, Sequelize } = require('sequelize');
 const Feedback = require('../models/Feedback');
 const User = require('../models/User');
 
@@ -28,37 +28,34 @@ exports.submitFeedback = async (req, res, next) => {
 exports.getFeedbackList = async (req, res, next) => {
   try {
     const { type, status } = req.query;
-    const page = Math.max(1, parseInt(req.query.page) || 1);
-    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 20));
     const offset = (page - 1) * limit;
 
     const filter = {};
     if (type) filter.type = type;
     if (status) filter.status = status;
 
-    // Count total matching items before pagination
+    // Count total matching items (efficient COUNT query, not affected by pagination)
     const total = await Feedback.count({ where: filter });
 
-    // Fetch all matching items for accurate in-memory sort by upvotes
+    // Fetch only the requested page, sorted by upvote count at the database level
     const items = await Feedback.findAll({
       where: filter,
       include: [{ model: User, as: 'userRef', attributes: ['id', 'name', 'email'] }],
-      order: [['createdAt', 'DESC']],
+      order: [
+        [Sequelize.literal('COALESCE(array_length("upvotes", 1), 0)'), 'DESC'],
+        ['createdAt', 'DESC'],
+      ],
+      limit,
+      offset,
     });
 
-    const populatedItems = items.map((item) => {
+    const paginatedItems = items.map((item) => {
       const json = item.toJSON();
       json.user = json.userRef;
       return json;
     });
-
-    // In-memory sorting based on upvotes count (descending)
-    populatedItems.sort(
-      (a, b) => (b.upvotes ? b.upvotes.length : 0) - (a.upvotes ? a.upvotes.length : 0)
-    );
-
-    // Slice after sorting for correct pagination
-    const paginatedItems = populatedItems.slice(offset, offset + limit);
 
     res.status(200).json({
       success: true,

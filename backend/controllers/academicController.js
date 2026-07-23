@@ -3,13 +3,13 @@ const { sequelize } = require('../config/db');
 const Exam = require('../models/Exam');
 const Subject = require('../models/Subject');
 const Topic = require('../models/Topic');
-const PYQ = require('../models/PYQ');
-const StudyPlan = require('../models/StudyPlan');
 const Quiz = require('../models/Quiz');
 const QuizAttempt = require('../models/QuizAttempt');
-const Note = require('../models/Note');
 const Flashcard = require('../models/Flashcard');
+const Note = require('../models/Note');
 const Progress = require('../models/Progress');
+const StudyPlan = require('../models/StudyPlan');
+const PYQ = require('../models/PYQ');
 
 // ==========================================
 // EXAMS CONTROLLER
@@ -55,17 +55,35 @@ exports.deleteExam = async (req, res, next) => {
       return res.status(404).json({ success: false, error: 'Exam not found' });
     }
 
-    const subjects = await Subject.findAll({
-      where: { exam: exam.id },
-      transaction: t,
-    });
+    // Collect all subject IDs for this exam
+    const subjects = await Subject.findAll({ where: { exam: exam.id } });
     const subjectIds = subjects.map((sub) => sub.id);
 
-    const topics = await Topic.findAll({
-      where: { subject: { [Op.in]: subjectIds } },
-      transaction: t,
-    });
-    const topicIds = topics.map((top) => top.id);
+    // 1. Delete QuizAttempts for quizzes under these subjects
+    const quizzes = await Quiz.findAll({ where: { subject: { [Op.in]: subjectIds } } });
+    const quizIds = quizzes.map((q) => q.id);
+    if (quizIds.length > 0) {
+      await QuizAttempt.destroy({ where: { quiz: { [Op.in]: quizIds } } });
+    }
+
+    // 2. Delete child records that reference subject or topic
+    await Progress.destroy({ where: { subject: { [Op.in]: subjectIds } } });
+    await Flashcard.destroy({ where: { subject: { [Op.in]: subjectIds } } });
+    await Note.destroy({ where: { subject: { [Op.in]: subjectIds } } });
+
+    // 3. Delete quizzes (after QuizAttempts are removed)
+    await Quiz.destroy({ where: { subject: { [Op.in]: subjectIds } } });
+
+    // 4. Delete topics and subjects
+    await Topic.destroy({ where: { subject: { [Op.in]: subjectIds } } });
+    await Subject.destroy({ where: { exam: exam.id } });
+
+    // 5. Delete exam-level records
+    await StudyPlan.destroy({ where: { exam: exam.id } });
+    await PYQ.destroy({ where: { exam: exam.id } });
+
+    // 6. Delete the exam itself
+    await exam.destroy();
 
     const quizzes = await Quiz.findAll({
       where: { [Op.or]: [{ subject: { [Op.in]: subjectIds } }, { topic: { [Op.in]: topicIds } }] },
@@ -144,26 +162,29 @@ exports.deleteSubject = async (req, res, next) => {
       return res.status(404).json({ success: false, error: 'Subject not found' });
     }
 
-    const topics = await Topic.findAll({
-      where: { subject: subject.id },
-      transaction: t,
-    });
-    const topicIds = topics.map((top) => top.id);
-
-    const quizzes = await Quiz.findAll({
-      where: { [Op.or]: [{ subject: subject.id }, { topic: { [Op.in]: topicIds } }] },
-      transaction: t,
-    });
+    // 1. Delete QuizAttempts for quizzes under this subject
+    const quizzes = await Quiz.findAll({ where: { subject: subject.id } });
     const quizIds = quizzes.map((q) => q.id);
+    if (quizIds.length > 0) {
+      await QuizAttempt.destroy({ where: { quiz: { [Op.in]: quizIds } } });
+    }
 
-    await QuizAttempt.destroy({ where: { quiz: { [Op.in]: quizIds } }, transaction: t });
-    await Quiz.destroy({ where: { [Op.or]: [{ subject: subject.id }, { topic: { [Op.in]: topicIds } }] }, transaction: t });
-    await PYQ.destroy({ where: { subject: subject.id }, transaction: t });
-    await Note.destroy({ where: { subject: subject.id }, transaction: t });
-    await Flashcard.destroy({ where: { subject: subject.id }, transaction: t });
-    await Progress.destroy({ where: { [Op.or]: [{ subject: subject.id }, { topic: { [Op.in]: topicIds } }] }, transaction: t });
-    await Topic.destroy({ where: { subject: subject.id }, transaction: t });
-    await subject.destroy({ transaction: t });
+    // 2. Delete child records that reference this subject
+    await Progress.destroy({ where: { subject: subject.id } });
+    await Flashcard.destroy({ where: { subject: subject.id } });
+    await Note.destroy({ where: { subject: subject.id } });
+
+    // 3. Delete quizzes
+    await Quiz.destroy({ where: { subject: subject.id } });
+
+    // 4. Delete topics
+    await Topic.destroy({ where: { subject: subject.id } });
+
+    // 5. Delete PYQs for this subject
+    await PYQ.destroy({ where: { subject: subject.id } });
+
+    // 6. Delete the subject itself
+    await subject.destroy();
 
     await t.commit();
     res.status(200).json({ success: true, data: {} });
@@ -253,20 +274,17 @@ exports.deleteTopic = async (req, res, next) => {
       return res.status(404).json({ success: false, error: 'Topic not found' });
     }
 
-    const quizzes = await Quiz.findAll({
-      where: { topic: topic.id },
-      transaction: t,
-    });
-    const quizIds = quizzes.map((q) => q.id);
+    // 1. Delete child records that reference this topic
+    await Progress.destroy({ where: { topic: topic.id } });
+    await Flashcard.destroy({ where: { topic: topic.id } });
+    await Note.destroy({ where: { topic: topic.id } });
 
-    await QuizAttempt.destroy({ where: { quiz: { [Op.in]: quizIds } }, transaction: t });
-    await Quiz.destroy({ where: { topic: topic.id }, transaction: t });
-    await Flashcard.destroy({ where: { topic: topic.id }, transaction: t });
-    await Progress.destroy({ where: { topic: topic.id }, transaction: t });
-    await Note.update({ topic: null }, { where: { topic: topic.id }, transaction: t });
-    await topic.destroy({ transaction: t });
+    // 2. Nullify topic reference on quizzes (quiz itself is preserved)
+    await Quiz.update({ topic: null }, { where: { topic: topic.id } });
 
-    await t.commit();
+    // 3. Delete the topic itself
+    await topic.destroy();
+
     res.status(200).json({ success: true, data: {} });
   } catch (error) {
     await t.rollback();

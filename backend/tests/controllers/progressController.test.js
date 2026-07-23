@@ -119,7 +119,7 @@ describe('Progress Controller - Integration Tests', () => {
       expect(Array.isArray(res.body.data.recentActivity)).toBe(true);
     });
 
-    it('should return dummy weekly data when no progress records', async () => {
+    it('should return zero-filled weekly chart data when no recent progress records', async () => {
       // Use otherUser who has no progress
       const res = await request(app)
         .get('/api/progress/stats')
@@ -206,7 +206,7 @@ describe('Progress Controller - Integration Tests', () => {
       expect(res.body.data).toHaveProperty('weeklyData');
     });
 
-    it('should return default weekly data when no progress records', async () => {
+    it('should return zero-filled weekly data when no recent progress records', async () => {
       const res = await request(app)
         .get('/api/progress/study-hours')
         .set('Authorization', `Bearer ${otherAuthToken}`);
