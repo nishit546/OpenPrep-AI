@@ -26,7 +26,8 @@
     "pdf-parse": "^1.1.1",
     "pg": "^8.22.0",
     "pg-hstore": "^2.3.4",
-    "sequelize": "^6.37.8"
+    "sequelize": "^6.37.8",
+    "uuid": "^11.1.1"
   },
   "devDependencies": {
     "nodemon": "^3.1.0",
