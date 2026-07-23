@@ -81,6 +81,18 @@ const refreshTokenLimiter = rateLimit({
   legacyHeaders: true,
 });
 
+// Limit email verification attempts to 5 requests per 15 minutes per IP
+const verifyEmailLimiter = rateLimit({
+  windowMs: RATE_LIMIT.WINDOWS.FIFTEEN_MINUTES,
+  max: 5,
+  skip: shouldSkip,
+  message: createRateLimitResponse(
+    'Too many email verification attempts. Please try again after 15 minutes.'
+  ),
+  standardHeaders: true,
+  legacyHeaders: true,
+});
+
 /* -------------------------------------------------------------------------- */
 /*                         Public Authentication Routes                       */
 /* -------------------------------------------------------------------------- */
@@ -103,7 +115,7 @@ router.post(
 router.post('/reset-password/:token', validateResetPassword, resetPassword);
 
 // Verify a user's email address using the verification token
-router.post('/verify-email/:token', verifyEmail);
+router.post('/verify-email/:token', verifyEmailLimiter, verifyEmail);
 
 // Refresh an expired access token
 router.post(
