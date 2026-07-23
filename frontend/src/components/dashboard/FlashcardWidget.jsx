@@ -63,7 +63,19 @@ const FlashcardWidget = ({ flashcard = null, loading = false, error = null, tota
   }
 
   return (
-    <div className="relative w-full h-48 cursor-pointer perspective-1000" onClick={() => setIsFlipped(!isFlipped)}>
+    <div
+      className="relative w-full h-48 cursor-pointer perspective-1000"
+      role="button"
+      tabIndex={0}
+      aria-label={isFlipped ? 'Flip to front of card' : 'Flip to back of card'}
+      onClick={() => setIsFlipped(!isFlipped)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          setIsFlipped((prev) => !prev);
+        }
+      }}
+    >
       <motion.div
         className="w-full h-full relative preserve-3d"
         initial={false}

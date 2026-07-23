@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Fixed
+- **Timer leak in Gemini service**: `callWithTimeout` in `geminiService.js` now properly clears the `setTimeout` timer handle after `Promise.race` completes. Previously, every AI call (PYQ analysis, study plan, quiz, flashcard, and performance analysis) leaked a dangling timer reference that kept the Node.js event loop active and the reject closure in memory until the timeout naturally expired. (#166)
 - **Cascade deletion**: Deleting an Exam, Subject, or Topic now properly cascade-deletes all associated child records (Progress, Flashcards, Notes, Quizzes, QuizAttempts, StudyPlans, PYQs) instead of leaving orphaned records. Previously, the controllers used bulk `Model.destroy()` which bypassed Sequelize's cascade hooks, and the `deleteExam`/`deleteSubject` controllers only manually deleted Subjects/Topics while missing all other child records. The `deleteTopic` controller now also cascade-deletes Flashcards and Notes instead of setting their FK to `NULL`.
 - **Model associations**: Changed `Topic.hasMany(Flashcard)` and `Topic.hasMany(Note)` from `onDelete: 'SET NULL'` to `onDelete: 'CASCADE'` for consistency.
 
@@ -43,7 +44,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Security**: Removed hardcoded JWT fallback secret `supersecret_openprep_key` from `middleware/auth.js` and `controllers/authController.js`. JWT secret must now come exclusively from the `JWT_SECRET` environment variable.
 - **Forgot password stub**: `forgotPassword` previously returned fake `{ success: true, data: {} }` with no actual functionality. Now generates real crypto tokens and sends email.
 - **Feedback list memory/safety risk**: `GET /api/community/feedback` now paginates and sorts by upvote count at the database level (using `ORDER BY array_length` + `LIMIT`/`OFFSET`) instead of loading all rows into memory. Fixes out-of-memory risk at scale. (#124)
-- **Documentation corrections**: Fixed incorrect references to MongoDB/Mongoose across `docs/backend-architecture.md`, `docs/security.md`, and `docs/authentication-flow.md` — updated to correctly reference PostgreSQL and Sequelize, which are the actual database technologies used by the project. (#165)
+- **Missing `uuid` dependency**: Added `uuid` as an explicit dependency in `backend/package.json`. The package was already used via `require('uuid')` in production code (`quizController`, `studyPlanController`) and 8 test files but was only available as a transitive dependency — a production crash risk if any dependency removed its own `uuid` sub-dependency. (#164)
 
 ---
 

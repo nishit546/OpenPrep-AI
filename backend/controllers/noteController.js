@@ -170,7 +170,15 @@ exports.deleteNote = async (req, res, next) => {
 
     // Delete associated file from disk if it exists
     if (note.fileUrl) {
-      const filePath = path.join(__dirname, '..', note.fileUrl);
+      const uploadsDir = path.resolve(path.join(__dirname, '../uploads'));
+      const filePath = path.resolve(path.join(__dirname, '..', note.fileUrl));
+      const relative = path.relative(uploadsDir, filePath);
+      const isInside = relative && !relative.startsWith('..') && !path.isAbsolute(relative);
+
+      if (!isInside) {
+        return res.status(400).json({ success: false, error: 'Invalid file path' });
+      }
+
       if (fs.existsSync(filePath)) {
         fs.unlinkSync(filePath);
       }

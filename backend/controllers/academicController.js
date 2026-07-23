@@ -1,4 +1,5 @@
 const { Op } = require('sequelize');
+const { sequelize } = require('../config/db');
 const Exam = require('../models/Exam');
 const Subject = require('../models/Subject');
 const Topic = require('../models/Topic');
@@ -42,12 +43,15 @@ exports.getExams = async (req, res, next) => {
 };
 
 exports.deleteExam = async (req, res, next) => {
+  const t = await sequelize.transaction();
   try {
     const exam = await Exam.findOne({
       where: { id: req.params.id, user: req.user.id },
+      transaction: t,
     });
 
     if (!exam) {
+      await t.rollback();
       return res.status(404).json({ success: false, error: 'Exam not found' });
     }
 
@@ -81,8 +85,27 @@ exports.deleteExam = async (req, res, next) => {
     // 6. Delete the exam itself
     await exam.destroy();
 
+    const quizzes = await Quiz.findAll({
+      where: { [Op.or]: [{ subject: { [Op.in]: subjectIds } }, { topic: { [Op.in]: topicIds } }] },
+      transaction: t,
+    });
+    const quizIds = quizzes.map((q) => q.id);
+
+    await QuizAttempt.destroy({ where: { quiz: { [Op.in]: quizIds } }, transaction: t });
+    await Quiz.destroy({ where: { [Op.or]: [{ subject: { [Op.in]: subjectIds } }, { topic: { [Op.in]: topicIds } }] }, transaction: t });
+    await StudyPlan.destroy({ where: { exam: exam.id }, transaction: t });
+    await PYQ.destroy({ where: { [Op.or]: [{ exam: exam.id }, { subject: { [Op.in]: subjectIds } }] }, transaction: t });
+    await Note.destroy({ where: { subject: { [Op.in]: subjectIds } }, transaction: t });
+    await Flashcard.destroy({ where: { subject: { [Op.in]: subjectIds } }, transaction: t });
+    await Progress.destroy({ where: { [Op.or]: [{ subject: { [Op.in]: subjectIds } }, { topic: { [Op.in]: topicIds } }] }, transaction: t });
+    await Topic.destroy({ where: { subject: { [Op.in]: subjectIds } }, transaction: t });
+    await Subject.destroy({ where: { exam: exam.id }, transaction: t });
+    await exam.destroy({ transaction: t });
+
+    await t.commit();
     res.status(200).json({ success: true, data: {} });
   } catch (error) {
+    await t.rollback();
     next(error);
   }
 };
@@ -127,12 +150,15 @@ exports.getSubjects = async (req, res, next) => {
 };
 
 exports.deleteSubject = async (req, res, next) => {
+  const t = await sequelize.transaction();
   try {
     const subject = await Subject.findOne({
       where: { id: req.params.id, user: req.user.id },
+      transaction: t,
     });
 
     if (!subject) {
+      await t.rollback();
       return res.status(404).json({ success: false, error: 'Subject not found' });
     }
 
@@ -160,8 +186,10 @@ exports.deleteSubject = async (req, res, next) => {
     // 6. Delete the subject itself
     await subject.destroy();
 
+    await t.commit();
     res.status(200).json({ success: true, data: {} });
   } catch (error) {
+    await t.rollback();
     next(error);
   }
 };
@@ -234,12 +262,15 @@ exports.updateTopic = async (req, res, next) => {
 };
 
 exports.deleteTopic = async (req, res, next) => {
+  const t = await sequelize.transaction();
   try {
     const topic = await Topic.findOne({
       where: { id: req.params.id, user: req.user.id },
+      transaction: t,
     });
 
     if (!topic) {
+      await t.rollback();
       return res.status(404).json({ success: false, error: 'Topic not found' });
     }
 
@@ -256,6 +287,7 @@ exports.deleteTopic = async (req, res, next) => {
 
     res.status(200).json({ success: true, data: {} });
   } catch (error) {
+    await t.rollback();
     next(error);
   }
 };

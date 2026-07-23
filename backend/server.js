@@ -3,6 +3,8 @@ const express = require('express');
 const compression = require('compression');
 const cors = require('cors');
 const helmet = require('helmet');
+const cookieParser = require('cookie-parser');
+const csrf = require('csurf');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
 const { connectDB } = require('./config/db');
@@ -37,6 +39,13 @@ app.use(cors({
   origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
   credentials: true,
 }));
+
+// CSRF protection middleware
+const csrfProtection = csrf({ cookie: true });
+app.use(csrfProtection);
+
+// Cookie parser (required for csurf cookie-based tokens)
+app.use(cookieParser());
 
 // Response compression (skip binary uploads via default filter)
 app.use(compression());

@@ -65,9 +65,6 @@ export const verifyEmail = createAsyncThunk(
   async (token, { rejectWithValue }) => {
     try {
       const response = await API.post(`/auth/verify-email/${token}`);
-      const { token: jwt, refreshToken } = response.data;
-      localStorage.setItem('token', jwt);
-      localStorage.setItem('refreshToken', refreshToken);
       return response.data;
     } catch (err) {
       return rejectWithValue(err.response?.data?.error || 'Email verification failed');
@@ -126,12 +123,12 @@ export const refreshTokenThunk = createAsyncThunk(
 
 // ── Initial State ──
 const initialState = {
-  token: getInitialToken(),
-  refreshToken: getInitialRefreshToken(),
+  get token() { return getInitialToken(); },
+  get refreshToken() { return getInitialRefreshToken(); },
   isAuthenticated: false,
   registrationSuccess: false,
   user: null,
-  loading: !!getInitialToken(),
+  get loading() { return !!getInitialToken(); },
   error: null,
   message: null,
 };
@@ -229,10 +226,11 @@ const authSlice = createSlice({
       })
       .addCase(verifyEmail.fulfilled, (state, action) => {
         state.loading = false;
-        state.isAuthenticated = true;
-        state.token = action.payload.token;
-        state.refreshToken = action.payload.refreshToken;
-        state.user = action.payload.user;
+        state.isAuthenticated = false;
+        state.token = null;
+        state.refreshToken = null;
+        state.user = null;
+        state.message = action.payload.message || 'Email verified successfully. You can now log in.';
       })
       .addCase(verifyEmail.rejected, (state, action) => {
         state.loading = false;

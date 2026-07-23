@@ -36,15 +36,24 @@ const hashKey = (prefix, str) => {
 /**
  * Timeout wrapper using Promise.race (safe for SDK versions that lack AbortSignal support).
  * @google/generative-ai ^0.11.4 does NOT support AbortSignal via requestOptions.
+ *
+ * The timer handle is always cleared in the finally block to prevent an
+ * accumulating timer leak — each AI call would otherwise leave a dangling
+ * setTimeout reference keeping the Node.js event loop active and the
+ * reject closure in memory until the timeout naturally expired.
  */
 async function callWithTimeout(model, prompt, timeoutMs = 30000) {
-  const result = await Promise.race([
-    model.generateContent(prompt),
-    new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('Gemini request timed out')), timeoutMs)
-    )
-  ]);
-  return result;
+  let timeoutId;
+  const timeoutPromise = new Promise((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error('Gemini request timed out')), timeoutMs);
+  });
+
+  try {
+    const result = await Promise.race([model.generateContent(prompt), timeoutPromise]);
+    return result;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 /**
