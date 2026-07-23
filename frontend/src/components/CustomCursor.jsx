@@ -33,9 +33,6 @@ function CustomCursor() {
       frame = requestAnimationFrame(animateRing);
     };
 
-    const addHover = () => ring.classList.add('cursor-hover');
-    const removeHover = () => ring.classList.remove('cursor-hover');
-
     const addClick = () => {
       dot.classList.add('cursor-click');
       ring.classList.add('cursor-click');
@@ -45,28 +42,34 @@ function CustomCursor() {
       ring.classList.remove('cursor-click');
     };
 
+    const hoverSelector = 'a, button, input, textarea, select, [role="button"], .cursor-pointer';
+
+    const handleBodyMouseEnter = (e) => {
+      if (e.target.closest(hoverSelector)) {
+        ring.classList.add('cursor-hover');
+      }
+    };
+
+    const handleBodyMouseLeave = (e) => {
+      if (e.target.closest(hoverSelector)) {
+        ring.classList.remove('cursor-hover');
+      }
+    };
+
     window.addEventListener('mousemove', moveDot);
     window.addEventListener('mousedown', addClick);
     window.addEventListener('mouseup', removeClick);
+    document.body.addEventListener('mouseenter', handleBodyMouseEnter, true);
+    document.body.addEventListener('mouseleave', handleBodyMouseLeave, true);
     frame = requestAnimationFrame(animateRing);
-
-    const hoverTargets = document.querySelectorAll(
-      'a, button, input, textarea, select, [role="button"], .cursor-pointer'
-    );
-    hoverTargets.forEach((el) => {
-      el.addEventListener('mouseenter', addHover);
-      el.addEventListener('mouseleave', removeHover);
-    });
 
     return () => {
       window.removeEventListener('mousemove', moveDot);
       window.removeEventListener('mousedown', addClick);
       window.removeEventListener('mouseup', removeClick);
+      document.body.removeEventListener('mouseenter', handleBodyMouseEnter, true);
+      document.body.removeEventListener('mouseleave', handleBodyMouseLeave, true);
       cancelAnimationFrame(frame);
-      hoverTargets.forEach((el) => {
-        el.removeEventListener('mouseenter', addHover);
-        el.removeEventListener('mouseleave', removeHover);
-      });
     };
   }, []);
 
