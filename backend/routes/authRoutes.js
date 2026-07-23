@@ -24,12 +24,20 @@ const router = express.Router();
 // Skip rate limiting in test environment
 const shouldSkip = () => process.env.NODE_ENV === 'test';
 
+// Shared helper for consistent rate limit responses
+const createRateLimitResponse = (errorMessage) => ({
+  success: false,
+  error: errorMessage,
+});
+
 // Login rate limiter: 5 attempts per 15 minutes per IP
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 5,
   skip: shouldSkip,
-  message: { success: false, error: 'Too many login attempts. Please try again after 15 minutes.' },
+  message: createRateLimitResponse(
+    'Too many login attempts. Please try again after 15 minutes.'
+  ),
   standardHeaders: true,
   legacyHeaders: true,
 });
@@ -39,7 +47,9 @@ const registerLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 5,
   skip: shouldSkip,
-  message: { success: false, error: 'Too many registration attempts. Please try again after 15 minutes.' },
+  message: createRateLimitResponse(
+    'Too many registration attempts. Please try again after 15 minutes.'
+  ),
   standardHeaders: true,
   legacyHeaders: true,
 });
@@ -49,7 +59,9 @@ const forgotPasswordLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   max: 5,
   skip: shouldSkip,
-  message: { success: false, error: 'Too many password reset requests. Please try again after an hour.' },
+  message: createRateLimitResponse(
+    'Too many password reset requests. Please try again after an hour.'
+  ),
   standardHeaders: true,
   legacyHeaders: true,
 });
@@ -59,7 +71,9 @@ const refreshTokenLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 10,
   skip: shouldSkip,
-  message: { success: false, error: 'Too many refresh requests. Please try again later.' },
+  message: createRateLimitResponse(
+    'Too many refresh requests. Please try again later.'
+  ),
   standardHeaders: true,
   legacyHeaders: true,
 });
