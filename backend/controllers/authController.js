@@ -1,5 +1,6 @@
 const crypto = require('crypto');
 const { Op } = require('sequelize');
+const { sequelize } = require('../config/db');
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
 const sendEmail = require('../services/emailService');
@@ -76,18 +77,22 @@ const sendPasswordResetEmail = async (user, req) => {
 // @access  Public
 // ---------------------------------------------------------------------------
 exports.register = async (req, res, next) => {
+  const t = await sequelize.transaction();
   try {
     const { name, email, password } = req.body;
 
-    const userExists = await User.findOne({ where: { email } });
+    const userExists = await User.findOne({ where: { email }, transaction: t });
     if (userExists) {
+      await t.rollback();
       return res.status(400).json({ success: false, error: 'User already exists' });
     }
 
-    const user = await User.create({ name, email, password, role: 'student' });
+    const user = await User.create({ name, email, password, role: 'student' }, { transaction: t });
 
     // Send verification email (logs to console if SMTP not configured)
     await sendVerificationEmail(user, req);
+
+    await t.commit();
 
     res.status(201).json({
       success: true,
@@ -95,6 +100,12 @@ exports.register = async (req, res, next) => {
       isEmailVerified: false,
     });
   } catch (error) {
+    if (t && !t.finished) {
+      await t.rollback();
+    }
+    if (error.name === 'SequelizeUniqueConstraintError') {
+      return res.status(400).json({ success: false, error: 'User already exists' });
+    }
     next(error);
   }
 };
