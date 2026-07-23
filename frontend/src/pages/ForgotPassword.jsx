@@ -49,10 +49,11 @@ const ForgotPassword = () => {
         {!message && (
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
-              <label className="block text-sm font-semibold text-stone-700 mb-1">Email</label>
+              <label htmlFor="forgot-email" className="block text-sm font-semibold text-stone-700 mb-1">Email</label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
                 <input
+                  id="forgot-email"
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -66,10 +67,12 @@ const ForgotPassword = () => {
             <button
               type="submit"
               disabled={loading}
+              aria-busy={loading}
+              aria-label="Send reset link"
               className="w-full bg-amber-700 hover:bg-amber-800 disabled:bg-amber-400 text-amber-50 font-semibold py-2.5 rounded-sm transition-colors flex items-center justify-center gap-2"
             >
               {loading ? (
-                <span className="w-4 h-4 border-2 border-amber-200 border-t-transparent rounded-full animate-spin" />
+                <span className="w-4 h-4 border-2 border-amber-200 border-t-transparent rounded-full animate-spin" aria-hidden="true" />
               ) : (
                 'Send Reset Link'
               )}

@@ -58,6 +58,7 @@ const PomodoroTimer = () => {
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
             onClick={toggleTimer}
+            aria-label={isActive ? 'Pause timer' : 'Start timer'}
             className="w-10 h-10 rounded-full bg-yellow-700 text-yellow-50 flex items-center justify-center shadow-md border border-yellow-600"
           >
             {isActive ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current" />}
@@ -67,6 +68,7 @@ const PomodoroTimer = () => {
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
             onClick={resetTimer}
+            aria-label="Reset timer"
             className="w-10 h-10 rounded-full bg-neutral-200 dark:bg-slate-700 text-neutral-700 dark:text-neutral-200 flex items-center justify-center shadow-md border border-neutral-300 dark:border-slate-600"
           >
             <RotateCcw className="w-4 h-4" />
