@@ -8,6 +8,7 @@ const {
 } = require('../controllers/flashcardController');
 const { protect } = require('../middleware/auth');
 const { aiLimiter } = require('../middleware/rateLimiter');
+const { checkQuota } = require('../middleware/quotaMiddleware');
 const {
   validateGenerateAIFlashcards,
   validateCreateFlashcard,
@@ -16,7 +17,7 @@ const {
 
 const router = express.Router();
 
-router.post('/generate-ai', protect, aiLimiter, validateGenerateAIFlashcards, generateAIFlashcards);
+router.post('/generate-ai', protect, aiLimiter, checkQuota, validateGenerateAIFlashcards, generateAIFlashcards);
 router.post('/', protect, validateCreateFlashcard, createFlashcard);
 router.get('/', protect, getFlashcards);
 router.put('/:id/review', protect, validateReviewFlashcard, reviewFlashcard);

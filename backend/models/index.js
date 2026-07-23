@@ -14,6 +14,7 @@ const Flashcard = require('./Flashcard');
 const Progress = require('./Progress');
 const Feedback = require('./Feedback');
 const ActivityLog = require('./ActivityLog');
+const UsageQuota = require('./UsageQuota');
 
 // Define Associations
 
@@ -110,4 +111,5 @@ module.exports = {
   Progress,
   Feedback,
   ActivityLog,
+  UsageQuota,
 };
