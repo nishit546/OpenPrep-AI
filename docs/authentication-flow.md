@@ -23,7 +23,7 @@ OpenPrep AI uses a **dual-token authentication strategy** with short-lived acces
 
 ### Refresh Token (Crypto-Random)
 * **Generation**: `crypto.randomBytes(32).toString('hex')` — 64-character hex string.
-* **Storage**: SHA-256 hash stored in the User document's `refreshTokens` array (supports multi-device login).
+* **Storage**: SHA-256 hash stored in the User record's `refreshTokens` array (supports multi-device login).
 * **Token Lifetime**: 7 days.
 * **Rotation**: Every refresh invalidates the old token and issues a new pair.
 * **Invalidation**: Password reset clears all existing refresh tokens.
@@ -40,7 +40,7 @@ sequenceDiagram
     actor Student
     participant React as React Frontend
     participant Express as Express Backend
-    participant DB as MongoDB
+    participant DB as PostgreSQL
     
     Student->>React: Enters Name, Email, Password
     React->>Express: POST /api/auth/register (payload)
@@ -53,7 +53,7 @@ sequenceDiagram
     else Email is free
         Express->>Express: Generate Salt and Hash Password (bcrypt)
         Express->>Express: Generate crypto verification token (SHA-256)
-        Express->>DB: Insert new User document (isEmailVerified: false)
+        Express->>DB: Insert new User record (isEmailVerified: false)
         DB-->>Express: Returns saved User record
         Express->>Express: Send verification email (nodemailer / console)
         Express-->>React: 201 Created { success: true, message, isEmailVerified: false }
@@ -69,7 +69,7 @@ sequenceDiagram
     actor Student
     participant React as React Frontend
     participant Express as Express Backend
-    participant DB as MongoDB
+    participant DB as PostgreSQL
     
     Student->>React: Clicks verification link from email
     React->>Express: POST /api/auth/verify-email/:token
@@ -97,7 +97,7 @@ sequenceDiagram
     actor Student
     participant React as React Frontend
     participant Express as Express Backend
-    participant DB as MongoDB
+    participant DB as PostgreSQL
     
     Student->>React: Enters Email & Password
     React->>Express: POST /api/auth/login (payload)
@@ -145,7 +145,7 @@ graph TD
     HeaderCheck --> |No| Err401[401: Unauthorized - No Token]
     HeaderCheck --> |Yes: Bearer <token>| Decrypt{Verify JWT}
     Decrypt --> |Invalid / Expired| Err401_2[401: Unauthorized - Invalid Token]
-    Decrypt --> |Valid| FetchDB[Query User record from MongoDB]
+    Decrypt --> |Valid| FetchDB[Query User record from PostgreSQL]
     FetchDB --> |Not Found| Err401_3[401: Unauthorized - User Deleted]
     FetchDB --> |Found| AttachReq[Attach user object to req.user]
     AttachReq --> Next[Call next middleware / controller handler]
@@ -167,7 +167,7 @@ sequenceDiagram
     autonumber
     participant Client as React Frontend
     participant Express as Express Backend
-    participant DB as MongoDB
+    participant DB as PostgreSQL
 
     Client->>Express: API request with expired JWT
     Express-->>Client: 401 Unauthorized (token expired)

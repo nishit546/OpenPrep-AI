@@ -38,7 +38,7 @@ This document outlines the security architecture, data validation flows, and pol
 
 ### 5. Refresh Token Security
 * Refresh tokens are 64-character cryptographically random hex strings.
-* Stored as SHA-256 hashes in the User document's `refreshTokens` array.
+* Stored as SHA-256 hashes in the User record's `refreshTokens` array.
 * **Rotation**: Each use invalidates the old token and issues a new pair.
 * Support for **multi-device login** via the tokens array. 
 * Expires after 7 days.
@@ -78,9 +78,9 @@ This document outlines the security architecture, data validation flows, and pol
 * Authentication routes use **express-validator** middleware for centralized, consistent input validation before reaching controllers.
 * Validation errors return uniform `400` responses with comma-separated error messages.
 
-### 7. NoSQL Injection Prevention
-* All user inputs are parameterized via **Mongoose Schemas**.
-* Input payloads are validated to block NoSQL query operator injection (e.g., preventing inputs containing `{ "$gt": "" }`).
+### 7. SQL Injection Prevention
+* All database queries use **Sequelize's parameterized queries** (via model methods like `findByPk`, `findOne`, `findAll`, etc.), which automatically escape user input and prevent SQL injection.
+* Raw queries are handled through Sequelize's `sequelize.query()` with parameterized bindings — raw string interpolation of user input is never used.
 
 ### 8. Cross-Site Scripting (XSS) Mitigation
 * The frontend React components escape rendered variables by default.
