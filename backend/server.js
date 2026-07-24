@@ -40,12 +40,12 @@ app.use(cors({
   credentials: true,
 }));
 
+// Cookie parser (required for csurf cookie-based tokens)
+app.use(cookieParser());
+
 // CSRF protection middleware
 const csrfProtection = csrf({ cookie: true });
 app.use(csrfProtection);
-
-// Cookie parser (required for csurf cookie-based tokens)
-app.use(cookieParser());
 
 // Response compression (skip binary uploads via default filter)
 app.use(compression());
