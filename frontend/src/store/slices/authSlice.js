@@ -261,6 +261,8 @@ const authSlice = createSlice({
         state.loading = false;
         state.isAuthenticated = true;
         state.token = action.payload.token;
+        state.refreshToken = action.payload.refreshToken;
+        state.user = action.payload.user;
         state.message = action.payload.message || 'Password reset successful.';
       })
       .addCase(resetPassword.rejected, (state, action) => {
