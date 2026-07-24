@@ -65,8 +65,43 @@ const apiLimiter = rateLimit({
 });
 app.use('/api/', apiLimiter);
 
-// Set Static Folder for File Uploads
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// Set Static Folder for File Uploads (Protected)
+const { protect } = require('./middleware/auth');
+const Note = require('./models/Note');
+const PYQ = require('./models/PYQ');
+
+app.get('/uploads/:filename', protect, async (req, res, next) => {
+  try {
+    const filename = req.params.filename;
+    const fileUrl = `/uploads/${filename}`;
+    
+    let record = await Note.findOne({ where: { fileUrl } });
+    let isPublic = false;
+    let owner = null;
+
+    if (record) {
+      isPublic = record.isPublic;
+      owner = record.user;
+    } else {
+      record = await PYQ.findOne({ where: { fileUrl } });
+      if (record) {
+        owner = record.user;
+      }
+    }
+
+    if (!record) {
+      return res.status(404).json({ success: false, error: 'File not found' });
+    }
+
+    if (owner !== req.user.id && !isPublic) {
+      return res.status(403).json({ success: false, error: 'Not authorized to access this file' });
+    }
+
+    res.sendFile(path.join(__dirname, 'uploads', filename));
+  } catch (error) {
+    next(error);
+  }
+});
 
 // Mount routes
 app.use('/api/auth', authRoutes);
