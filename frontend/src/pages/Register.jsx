@@ -127,6 +127,8 @@ const Register = () => {
                 onChange={handleChange}
                 required
                 minLength={8}
+                pattern="(?=.*\d)(?=.*[a-z])(?=.*[A-Z])(?=.*[^a-zA-Z0-9]).{8,}"
+                title="Must contain at least one uppercase letter, one lowercase letter, one number, and one special character"
                 placeholder="Min. 8 chars, upper, lower, number, special"
                 className="w-full pl-10 pr-10 py-2.5 bg-white border border-stone-300 rounded-sm text-stone-900 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-amber-600 focus:border-transparent text-sm"
               />
