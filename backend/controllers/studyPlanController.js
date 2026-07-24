@@ -125,8 +125,22 @@ exports.getActivePlan = async (req, res, next) => {
       return res.status(200).json({ success: true, data: null });
     }
 
-    // Perform in-memory join for topic references inside JSONB dailyGoals
-    const topics = await Topic.findAll({ where: { user: req.user.id } });
+    // Extract topic IDs referenced in dailyGoals
+    const topicIds = new Set();
+    plan.dailyGoals.forEach((goal) => {
+      goal.tasks.forEach((task) => {
+        if (task.topic) topicIds.add(task.topic);
+      });
+    });
+
+    // Fetch only the referenced topics for the in-memory join
+    const topics = await Topic.findAll({
+      where: {
+        id: { [Op.in]: Array.from(topicIds) },
+        user: req.user.id,
+      },
+    });
+
     const topicMap = {};
     topics.forEach((t) => {
       topicMap[t.id] = t;
