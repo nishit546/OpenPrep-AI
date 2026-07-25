@@ -136,6 +136,11 @@ app.get('/healthz', (req, res) => {
   res.status(200).send('OK');
 });
 
+// 404 Handler for unknown routes
+app.use((req, res, next) => {
+  res.status(404).json({ success: false, error: 'Endpoint not found' });
+});
+
 // Error Handler Middleware
 app.use(errorHandler);
 
