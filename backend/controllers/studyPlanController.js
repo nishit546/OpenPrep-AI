@@ -55,12 +55,18 @@ exports.generateAIPlan = async (req, res, next) => {
       const tasks = [];
       for (const t of day.tasks) {
         // Try finding matching Topic using case-insensitive PostgreSQL iLike matching
-        const matchedTopic = await Topic.findOne({
-          where: {
-            name: { [Op.iLike]: t.topicName.trim() },
-            user: req.user.id,
-          },
-        });
+        let matchedTopic;
+        try {
+          matchedTopic = await Topic.findOne({
+            where: {
+              name: { [Op.iLike]: t.topicName.trim() },
+              user: req.user.id,
+            },
+          });
+        } catch (dbErr) {
+          const userTopics = await Topic.findAll({ where: { user: req.user.id } });
+          matchedTopic = userTopics.find((tp) => tp.name.trim().toLowerCase() === t.topicName.trim().toLowerCase());
+        }
 
         tasks.push({
           _id: uuidv4(), // Assign a stable UUID virtual _id to mimic Mongoose subdocument id
@@ -125,8 +131,22 @@ exports.getActivePlan = async (req, res, next) => {
       return res.status(200).json({ success: true, data: null });
     }
 
-    // Perform in-memory join for topic references inside JSONB dailyGoals
-    const topics = await Topic.findAll({ where: { user: req.user.id } });
+    // Extract topic IDs referenced in dailyGoals
+    const topicIds = new Set();
+    plan.dailyGoals.forEach((goal) => {
+      goal.tasks.forEach((task) => {
+        if (task.topic) topicIds.add(task.topic);
+      });
+    });
+
+    // Fetch only the referenced topics for the in-memory join
+    const topics = await Topic.findAll({
+      where: {
+        id: { [Op.in]: Array.from(topicIds) },
+        user: req.user.id,
+      },
+    });
+
     const topicMap = {};
     topics.forEach((t) => {
       topicMap[t.id] = t;

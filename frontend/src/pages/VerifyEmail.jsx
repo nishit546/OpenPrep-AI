@@ -52,8 +52,14 @@ const VerifyEmail = () => {
             </div>
             <h1 className="text-xl font-bold font-playfair text-stone-900">Email Verified!</h1>
             <p className="text-stone-600 mt-2 text-sm">
-              Your email has been verified successfully. You are now being redirected.
+              Your email has been verified successfully. You can now log in to your account.
             </p>
+            <Link
+              to="/login"
+              className="inline-block mt-6 bg-amber-700 hover:bg-amber-800 text-amber-50 font-semibold px-6 py-2.5 rounded-sm transition-colors"
+            >
+              Go to Login
+            </Link>
           </>
         )}
       </div>

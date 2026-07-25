@@ -3,13 +3,13 @@
 <div align="center">
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-yellow)](file:///c:/Users/Nishit/OneDrive/Desktop/ALL%20Projects/OPENPREP%20AI/OpenPrep-AI/CONTRIBUTING.md)
-[![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-2.1-4baaaa.svg)](file:///c:/Users/Nishit/OneDrive/Desktop/ALL%20Projects/OPENPREP%20AI/OpenPrep-AI/CODE_OF_CONDUCT.md)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-yellow)](./CONTRIBUTING.md)
+[![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-2.1-4baaaa.svg)](./CODE_OF_CONDUCT.md)
 [![Hacktoberfest](https://img.shields.io/badge/Hacktoberfest-2026-orange.svg)](https://hacktoberfest.com/)
 
 **OpenPrep AI** is an advanced AI-powered exam preparation platform designed to help students optimize their study habits, analyze previous exam papers, identify knowledge gaps, and study smarter.
 
-[Explore Architecture](file:///c:/Users/Nishit/OneDrive/Desktop/ALL%20Projects/OPENPREP%20AI/OpenPrep-AI/docs/architecture.md) • [Getting Started](file:///c:/Users/Nishit/OneDrive/Desktop/ALL%20Projects/OPENPREP%20AI/OpenPrep-AI/docs/setup-guide.md) • [Contribution Guidelines](file:///c:/Users/Nishit/OneDrive/Desktop/ALL%20Projects/OPENPREP%20AI/OpenPrep-AI/CONTRIBUTING.md) • [API Documentation](file:///c:/Users/Nishit/OneDrive/Desktop/ALL%20Projects/OPENPREP%20AI/OpenPrep-AI/docs/api-reference.md)
+[Explore Architecture](./docs/architecture.md) • [Getting Started](./docs/setup-guide.md) • [Contribution Guidelines](./CONTRIBUTING.md) • [API Documentation](./docs/api-reference.md)
 
 </div>
 
@@ -45,7 +45,7 @@ Most students waste critical preparation hours trying to figure out:
 | ------------------ | ------------------------------------------------------ |
 | **Frontend**       | React, Vite, Tailwind CSS, Redux Toolkit, React Router |
 | **Backend**        | Node.js, Express.js, JWT Authentication                |
-| **Database**       | MongoDB, Mongoose ORM                                  |
+| **Database**       | PostgreSQL, Sequelize ORM                              |
 | **AI Integration** | Gemini API (`gemini-1.5-flash`)                        |
 | **DevOps & CI**    | Docker, Docker Compose, GitHub Actions                 |
 
@@ -57,10 +57,10 @@ Most students waste critical preparation hours trying to figure out:
 OpenPrep-AI/
 ├── .github/             # GitHub actions, templates & labelers
 ├── backend/             # Node.js + Express backend
-│   ├── config/          # MongoDB configuration
+│   ├── config/          # Database configuration
 │   ├── controllers/     # MVC controller logic
 │   ├── middleware/      # Auth, upload, and validation middleware
-│   ├── models/          # Mongoose database schemas
+│   ├── models/          # Sequelize database schemas
 │   ├── routes/          # Express API route declarations
 │   └── services/        # Gemini API integration service
 ├── docs/                # Comprehensive system documentation
@@ -77,11 +77,11 @@ OpenPrep-AI/
 
 ## 🚦 Getting Started
 
-For a step-by-step setup guide with environment variable details, review the [Setup Guide](file:///c:/Users/Nishit/OneDrive/Desktop/ALL%20Projects/OPENPREP%20AI/OpenPrep-AI/docs/setup-guide.md).
+For a step-by-step setup guide with environment variable details, review the [Setup Guide](./docs/setup-guide.md).
 
 ### Quick Launch with Docker
 
-If you have Docker installed, you can spin up the frontend, backend, and MongoDB instances with a single command:
+If you have Docker installed, you can spin up the frontend, backend, and PostgreSQL instances with a single command:
 
 ```bash
 docker-compose up --build
@@ -102,7 +102,7 @@ The React frontend will be available at `http://localhost:5173` and the Express 
    npm install
    # Copy the environment template to create your own configuration
    cp .env.example .env  # Or "copy .env.example .env" on Windows CMD
-   # Open the new .env file and set your own MONGO_URI, JWT_SECRET, etc.
+   # Open the new .env file and set your own DB_URI, JWT_SECRET, etc.
    npm run dev
    ```
 3. **Setup Frontend**:
@@ -121,21 +121,21 @@ The React frontend will be available at `http://localhost:5173` and the Express 
 - **v2.0**: Weakness-adapted scheduling, community note pools, and OCR processing.
 - **v3.0**: Live study battles, AI chat mentors, and React Native mobile client.
 
-For the comprehensive technical roadmap, review [docs/project-roadmap.md](file:///c:/Users/Nishit/OneDrive/Desktop/ALL%20Projects/OPENPREP%20AI/OpenPrep-AI/docs/project-roadmap.md).
+For the comprehensive technical roadmap, review [docs/project-roadmap.md](./docs/project-roadmap.md).
 
 ---
 
 ## 🤝 Contributing
 
-We welcome contributions of all levels! Please check the [Contributing Guide](file:///c:/Users/Nishit/OneDrive/Desktop/ALL%20Projects/OPENPREP%20AI/OpenPrep-AI/CONTRIBUTING.md) to understand how to fork the project, set up formatting rules, and make your first Pull Request.
+We welcome contributions of all levels! Please check the [Contributing Guide](./CONTRIBUTING.md) to understand how to fork the project, set up formatting rules, and make your first Pull Request.
 
-Please also adhere to the community standards in our [Code of Conduct](file:///c:/Users/Nishit/OneDrive/Desktop/ALL%20Projects/OPENPREP%20AI/OpenPrep-AI/CODE_OF_CONDUCT.md).
+Please also adhere to the community standards in our [Code of Conduct](./CODE_OF_CONDUCT.md).
 
 ---
 
 ## 📜 License
 
-This project is licensed under the MIT License. See [LICENSE](file:///c:/Users/Nishit/OneDrive/Desktop/ALL%20Projects/OPENPREP%20AI/OpenPrep-AI/LICENSE) for more details.
+This project is licensed under the MIT License. See [LICENSE](./LICENSE) for more details.
 
 ---
 

@@ -9,12 +9,6 @@ const Note = sequelize.define(
       defaultValue: DataTypes.UUIDV4,
       primaryKey: true,
     },
-    _id: {
-      type: DataTypes.VIRTUAL,
-      get() {
-        return this.id;
-      },
-    },
     title: {
       type: DataTypes.STRING,
       allowNull: false,

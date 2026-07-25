@@ -8,6 +8,7 @@ const errorHandler = require('../../middleware/error');
 const User = require('../../models/User');
 const Subject = require('../../models/Subject');
 const Exam = require('../../models/Exam');
+const PYQ = require('../../models/PYQ');
 
 const app = express();
 app.use(express.json());
@@ -328,6 +329,29 @@ describe('PYQ Controller - Integration Tests', () => {
 
       expect(res.status).toBe(401);
     });
+
+    it('should return 400 when attempting path traversal analysis', async () => {
+      const maliciousPyq = await PYQ.create({
+        title: 'Trapped PYQ',
+        exam: testExam.id,
+        subject: testSubject._id.toString(),
+        year: 2024,
+        fileUrl: '../../.env',
+        analyzed: true,
+        user: testUser.id,
+      });
+
+      const res = await request(app)
+        .post(`/api/pyqs/${maliciousPyq.id}/analyze`)
+        .set('Authorization', `Bearer ${authToken}`);
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+      expect(res.body.error).toBe('Invalid file path');
+
+      // Cleanup
+      await maliciousPyq.destroy();
+    });
   });
 
   // =========================================================================
@@ -387,6 +411,29 @@ describe('PYQ Controller - Integration Tests', () => {
       const res = await request(app).delete(`/api/pyqs/${pyqToDelete.id}`);
 
       expect(res.status).toBe(401);
+    });
+
+    it('should return 400 when attempting path traversal deletion', async () => {
+      const maliciousPyq = await PYQ.create({
+        title: 'Trapped PYQ',
+        exam: testExam.id,
+        subject: testSubject._id.toString(),
+        year: 2024,
+        fileUrl: '../../.env',
+        analyzed: true,
+        user: testUser.id,
+      });
+
+      const res = await request(app)
+        .delete(`/api/pyqs/${maliciousPyq.id}`)
+        .set('Authorization', `Bearer ${authToken}`);
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+      expect(res.body.error).toBe('Invalid file path');
+
+      // Cleanup
+      await maliciousPyq.destroy();
     });
   });
 });

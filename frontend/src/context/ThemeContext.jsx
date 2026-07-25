@@ -26,6 +26,6 @@ export const ThemeProvider = ({ children }) => {
   );
 };
 
-// eslint-disable-next-line react-refresh/only-export-components
+// eslint-disable-next-line
 export const useTheme = () => useContext(ThemeContext);
 

@@ -13,9 +13,9 @@ graph TD
     Request([Client API Request]) --> Routes[API Routes]
     Routes --> Middleware{Middleware}
     Middleware --> |Auth check / Upload / Validation| Controller[Controllers]
-    Controller --> |Query data| Model[Mongoose Models]
+    Controller --> |Query data| Model[Sequelize Models]
     Controller --> |Triggers AI generation| Service[Gemini AI Service]
-    Model <--> DB[(MongoDB)]
+    Model <--> DB[(PostgreSQL)]
     Service <--> GeminiAPI[Google Gemini API]
     Controller --> Response([JSON API Response])
 ```
@@ -29,7 +29,7 @@ backend/
 ├── config/              # Centralized environment configurations (e.g., db.js)
 ├── controllers/         # Handles HTTP requests, extracts parameters, coordinates responses
 ├── middleware/          # Authentication checks, file upload processing, global error handling
-├── models/              # MongoDB collection structures defined via Mongoose ORM
+├── models/              # Sequelize model definitions for PostgreSQL tables
 ├── routes/              # Express Router mapping paths to appropriate controllers
 ├── services/            # Custom business services (specifically Gemini AI API interactions)
 └── server.js            # Entry point establishing DB connection, middleware pipelines, and port listening
@@ -44,7 +44,7 @@ Express middlewares intercept incoming HTTP requests to validate and format para
 ### 1. Authentication Middleware (`middleware/auth.js`)
 * Extracts the Bearer Token from the request header: `Authorization: Bearer <token>`.
 * Verifies the token using `jsonwebtoken` and the `JWT_SECRET`.
-* Finds the user record in MongoDB and appends it to the request context (`req.user`) or rejects the request with a `401 Unauthorized` response.
+* Finds the user record in PostgreSQL and appends it to the request context (`req.user`) or rejects the request with a `401 Unauthorized` response.
 
 ### 2. Upload Middleware (`middleware/upload.js`)
 * Uses `multer` to handle multi-part form data uploads for PYQ PDFs or lecture notes.

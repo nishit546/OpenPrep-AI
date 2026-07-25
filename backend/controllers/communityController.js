@@ -80,6 +80,10 @@ exports.upvoteFeedback = async (req, res, next) => {
       return res.status(404).json({ success: false, error: 'Feedback item not found' });
     }
 
+    if (feedback.user === req.user.id) {
+      return res.status(400).json({ success: false, error: 'You cannot upvote your own feedback' });
+    }
+
     // Toggle upvote in PostgreSQL array
     const upvotes = [...(feedback.upvotes || [])];
     const upvoteIndex = upvotes.indexOf(req.user.id);

@@ -8,6 +8,8 @@ const {
   validateUploadNote,
   validateUploadPYQ,
   validateGenerateAIPlan,
+  validateTrackStudyTime,
+  validateUpdateTopicProgress,
 } = require('../../middleware/validators');
 
 const VALID_UUID = uuidv4();
@@ -296,5 +298,177 @@ describe('Validators - validateGenerateAIPlan', () => {
     });
     expect(res.statusCode).toBe(400);
     expect(res.body.error).toContain('End date');
+  });
+});
+
+describe('Validators - validateTrackStudyTime', () => {
+  it('should pass with valid studyHours', async () => {
+    const { next, res } = await runValidators(validateTrackStudyTime, {
+      studyHours: 1.5,
+    });
+    expect(next).toHaveBeenCalled();
+    expect(res.statusCode).toBeNull();
+  });
+
+  it('should pass with valid studyHours and optional UUIDs', async () => {
+    const { next, res } = await runValidators(validateTrackStudyTime, {
+      studyHours: 2,
+      subjectId: VALID_UUID,
+      topicId: VALID_UUID,
+      description: 'Studied algebra',
+    });
+    expect(next).toHaveBeenCalled();
+    expect(res.statusCode).toBeNull();
+  });
+
+  it('should reject missing studyHours', async () => {
+    const { res } = await runValidators(validateTrackStudyTime, {});
+    expect(res.statusCode).toBe(400);
+    expect(res.body.error).toContain('Study hours');
+  });
+
+  it('should reject zero studyHours', async () => {
+    const { res } = await runValidators(validateTrackStudyTime, {
+      studyHours: 0,
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.body.error).toContain('Study hours');
+  });
+
+  it('should reject negative studyHours', async () => {
+    const { res } = await runValidators(validateTrackStudyTime, {
+      studyHours: -1.5,
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.body.error).toContain('Study hours');
+  });
+
+  it('should reject non-numeric studyHours', async () => {
+    const { res } = await runValidators(validateTrackStudyTime, {
+      studyHours: 'abc',
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.body.error).toContain('Study hours');
+  });
+
+  it('should reject invalid subjectId (non-UUID)', async () => {
+    const { res } = await runValidators(validateTrackStudyTime, {
+      studyHours: 1,
+      subjectId: INVALID_MONGO_ID,
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.body.error).toContain('Subject ID');
+  });
+
+  it('should reject invalid topicId (non-UUID)', async () => {
+    const { res } = await runValidators(validateTrackStudyTime, {
+      studyHours: 1,
+      topicId: INVALID_STRING,
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.body.error).toContain('Topic ID');
+  });
+
+  it('should accept empty optional fields', async () => {
+    const { next, res } = await runValidators(validateTrackStudyTime, {
+      studyHours: 0.5,
+      subjectId: undefined,
+      topicId: undefined,
+      description: '',
+    });
+    expect(next).toHaveBeenCalled();
+    expect(res.statusCode).toBeNull();
+  });
+
+  it('should reject description exceeding max length', async () => {
+    const { res } = await runValidators(validateTrackStudyTime, {
+      studyHours: 1,
+      description: 'x'.repeat(501),
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.body.error).toContain('Description');
+  });
+});
+
+describe('Validators - validateUpdateTopicProgress', () => {
+  it('should pass with valid completionPercentage', async () => {
+    const { next, res } = await runValidators(validateUpdateTopicProgress, {
+      completionPercentage: 75,
+    });
+    expect(next).toHaveBeenCalled();
+    expect(res.statusCode).toBeNull();
+  });
+
+  it('should pass with all valid optional fields', async () => {
+    const { next, res } = await runValidators(validateUpdateTopicProgress, {
+      completionPercentage: 80,
+      studyHours: 5,
+      flashcardsMastered: 10,
+      quizScores: [{ score: 85 }],
+    });
+    expect(next).toHaveBeenCalled();
+    expect(res.statusCode).toBeNull();
+  });
+
+  it('should pass with empty body (all fields optional)', async () => {
+    const { next, res } = await runValidators(validateUpdateTopicProgress, {});
+    expect(next).toHaveBeenCalled();
+    expect(res.statusCode).toBeNull();
+  });
+
+  it('should reject completionPercentage > 100', async () => {
+    const { res } = await runValidators(validateUpdateTopicProgress, {
+      completionPercentage: 101,
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.body.error).toContain('Completion percentage');
+  });
+
+  it('should reject negative completionPercentage', async () => {
+    const { res } = await runValidators(validateUpdateTopicProgress, {
+      completionPercentage: -10,
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.body.error).toContain('Completion percentage');
+  });
+
+  it('should reject negative studyHours', async () => {
+    const { res } = await runValidators(validateUpdateTopicProgress, {
+      studyHours: -5,
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.body.error).toContain('Study hours');
+  });
+
+  it('should reject negative flashcardsMastered', async () => {
+    const { res } = await runValidators(validateUpdateTopicProgress, {
+      flashcardsMastered: -3,
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.body.error).toContain('Flashcards mastered');
+  });
+
+  it('should reject non-integer flashcardsMastered', async () => {
+    const { res } = await runValidators(validateUpdateTopicProgress, {
+      flashcardsMastered: 3.5,
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.body.error).toContain('Flashcards mastered');
+  });
+
+  it('should reject non-array quizScores', async () => {
+    const { res } = await runValidators(validateUpdateTopicProgress, {
+      quizScores: 'not-an-array',
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.body.error).toContain('Quiz scores');
+  });
+
+  it('should accept quizScores as empty array', async () => {
+    const { next, res } = await runValidators(validateUpdateTopicProgress, {
+      quizScores: [],
+    });
+    expect(next).toHaveBeenCalled();
+    expect(res.statusCode).toBeNull();
   });
 });

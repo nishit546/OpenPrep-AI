@@ -14,7 +14,7 @@ import authReducer, {
 } from './authSlice';
 import API from '../../services/api';
 
-const mockUser = { _id: 'user123', name: 'Test User', email: 'test@example.com' };
+const mockUser = { id: 'user123', name: 'Test User', email: 'test@example.com' };
 const mockToken = 'fake-jwt-token';
 const mockRefreshToken = 'fake-refresh-token';
 
@@ -332,21 +332,22 @@ describe('authSlice', () => {
       store = configureStore({ reducer: { auth: authReducer } });
     });
 
-    test('fulfilled should authenticate user', async () => {
+    test('fulfilled should verify email without authenticating', async () => {
       API.post.mockResolvedValue({
-        data: { token: mockToken, refreshToken: mockRefreshToken, user: mockUser },
+        data: { success: true, message: 'Email verified successfully. You can now log in.' },
       });
 
       await store.dispatch(verifyEmail('valid-token'));
 
       const state = store.getState().auth;
       expect(state.loading).toBe(false);
-      expect(state.isAuthenticated).toBe(true);
-      expect(state.token).toBe(mockToken);
-      expect(state.refreshToken).toBe(mockRefreshToken);
-      expect(state.user).toEqual(mockUser);
-      expect(localStorage.getItem('token')).toBe(mockToken);
-      expect(localStorage.getItem('refreshToken')).toBe(mockRefreshToken);
+      expect(state.isAuthenticated).toBe(false);
+      expect(state.token).toBeNull();
+      expect(state.refreshToken).toBeNull();
+      expect(state.user).toBeNull();
+      expect(state.message).toBe('Email verified successfully. You can now log in.');
+      expect(localStorage.getItem('token')).toBeNull();
+      expect(localStorage.getItem('refreshToken')).toBeNull();
     });
 
     test('rejected should set error', async () => {

@@ -70,7 +70,7 @@ describe('ProtectedRoute', () => {
         authState: {
           token: 'fake-token',
           isAuthenticated: true,
-          user: { _id: 'user123', name: 'Test', email: 'test@example.com' },
+          user: { id: 'user123', name: 'Test', email: 'test@example.com' },
           loading: false,
           error: null,
         },

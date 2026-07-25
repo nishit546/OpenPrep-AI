@@ -171,7 +171,7 @@ const Dashboard = () => {
 
   const [toggleError, setToggleError] = useState(null);
   const handleToggleTask = async (taskId) => {
-    const planId = activePlan?.id || activePlan?._id;
+    const planId = activePlan?.id;
     if (!planId) return;
     const task = todayTasks.find((t) => t.id === taskId);
     if (!task) return;
@@ -227,20 +227,20 @@ const Dashboard = () => {
     });
     if (todayGoal?.tasks) {
       return todayGoal.tasks.map((t, i) => ({
-        id: t._id || t.id || `task-${i}`,
+        id: t.id || `task-${i}`,
         text: t.title || t.description || t.topic?.name || 'Untitled task',
         completed: t.completed || false,
-        meta: { taskId: t._id || t.id },
+        meta: { taskId: t.id },
       }));
     }
     // Fallback: show first day's tasks
     const firstDay = activePlan.dailyGoals[0];
     if (firstDay?.tasks) {
       return firstDay.tasks.map((t, i) => ({
-        id: t._id || t.id || `task-${i}`,
+        id: t.id || `task-${i}`,
         text: t.title || t.description || t.topic?.name || 'Untitled task',
         completed: t.completed || false,
-        meta: { taskId: t._id || t.id },
+        meta: { taskId: t.id },
       }));
     }
     return [];
@@ -669,9 +669,7 @@ const Dashboard = () => {
       <CreateNoteModal 
         isOpen={isNoteModalOpen} 
         onClose={() => setIsNoteModalOpen(false)} 
-        onNoteCreated={(note) => {
-          console.log('Note created', note);
-        }}
+        onNoteCreated={() => setIsNoteModalOpen(false)}
       />
 
       {/* --- STUDY PLAN MODAL --- */}

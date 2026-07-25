@@ -6,7 +6,7 @@ const Shimmer = ({ className = '' }) => (
   <div className={`animate-pulse bg-neutral-300/60 rounded ${className}`} />
 );
 
-const FlashcardWidget = ({ flashcard = null, loading = false, error = null, totalDue = 0, onRetry }) => {
+const FlashcardWidget = ({ flashcard = null, loading = false, error = null, totalDue = 0, onRetry, onReview }) => {
   const [isFlipped, setIsFlipped] = useState(false);
 
   // Reset flip state when the flashcard changes (after render, not during)
@@ -62,20 +62,15 @@ const FlashcardWidget = ({ flashcard = null, loading = false, error = null, tota
     );
   }
 
+  const handleRatingClick = (e, quality) => {
+    e.stopPropagation();
+    if (onReview) {
+      onReview(quality);
+    }
+  };
+
   return (
-    <div
-      className="relative w-full h-48 cursor-pointer perspective-1000"
-      role="button"
-      tabIndex={0}
-      aria-label={isFlipped ? 'Flip to front of card' : 'Flip to back of card'}
-      onClick={() => setIsFlipped(!isFlipped)}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          setIsFlipped((prev) => !prev);
-        }
-      }}
-    >
+    <div className="relative w-full h-56 cursor-pointer perspective-1000" onClick={() => setIsFlipped(!isFlipped)}>
       <motion.div
         className="w-full h-full relative preserve-3d"
         initial={false}
@@ -105,17 +100,46 @@ const FlashcardWidget = ({ flashcard = null, loading = false, error = null, tota
 
         {/* Back of Card */}
         <div
-          className="absolute inset-0 bg-yellow-50 dark:bg-yellow-900/30 shadow-md border border-yellow-200 dark:border-yellow-700/50 rounded-sm p-6 flex flex-col justify-center items-center backface-hidden text-center overflow-y-auto"
+          className="absolute inset-0 bg-yellow-50 dark:bg-yellow-900/30 shadow-md border border-yellow-200 dark:border-yellow-700/50 rounded-sm p-5 flex flex-col justify-between items-center text-center overflow-y-auto"
           style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg)' }}
         >
-          <div className="absolute top-2 right-2 flex items-center text-xs text-yellow-600">
-            <ChevronRight className="w-3 h-3" />
-            <span>Click to flip back</span>
+          <div className="w-full flex justify-between items-center text-xs text-yellow-700 dark:text-yellow-400">
+            <span className="font-semibold uppercase tracking-wider">Answer</span>
+            <span className="text-neutral-400 italic">Click to flip back</span>
           </div>
-          <h3 className="text-lg font-bold font-inter text-blue-900 dark:text-blue-300 mb-2">Answer</h3>
-          <p className="text-sm text-neutral-700 dark:text-neutral-200 font-inter leading-relaxed">
+          <p className="text-sm text-neutral-800 dark:text-neutral-200 font-inter leading-relaxed my-2">
             {flashcard.back}
           </p>
+          <div className="w-full grid grid-cols-4 gap-1 mt-1">
+            <button
+              onClick={(e) => handleRatingClick(e, 0)}
+              className="py-1 px-2 text-xs font-semibold text-red-700 bg-red-100 hover:bg-red-200 dark:bg-red-950/60 dark:text-red-300 rounded transition-colors"
+              title="Again (Reset interval)"
+            >
+              Again
+            </button>
+            <button
+              onClick={(e) => handleRatingClick(e, 3)}
+              className="py-1 px-2 text-xs font-semibold text-orange-700 bg-orange-100 hover:bg-orange-200 dark:bg-orange-950/60 dark:text-orange-300 rounded transition-colors"
+              title="Hard"
+            >
+              Hard
+            </button>
+            <button
+              onClick={(e) => handleRatingClick(e, 4)}
+              className="py-1 px-2 text-xs font-semibold text-blue-700 bg-blue-100 hover:bg-blue-200 dark:bg-blue-950/60 dark:text-blue-300 rounded transition-colors"
+              title="Good"
+            >
+              Good
+            </button>
+            <button
+              onClick={(e) => handleRatingClick(e, 5)}
+              className="py-1 px-2 text-xs font-semibold text-green-700 bg-green-100 hover:bg-green-200 dark:bg-green-950/60 dark:text-green-300 rounded transition-colors"
+              title="Easy"
+            >
+              Easy
+            </button>
+          </div>
         </div>
       </motion.div>
     </div>

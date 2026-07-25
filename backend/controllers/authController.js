@@ -17,6 +17,7 @@ const generateAccessToken = (id) => {
 };
 
 // Generate refresh token (7 day expiry) — stores hashed version in DB
+const MAX_ACTIVE_SESSIONS = 10;
 const generateRefreshToken = async (userId) => {
   const rawToken = crypto.randomBytes(40).toString('hex');
   const hashed = crypto.createHash('sha256').update(rawToken).digest('hex');
@@ -25,6 +26,12 @@ const generateRefreshToken = async (userId) => {
   if (!user) throw new Error('User not found');
 
   const tokens = [...(user.refreshTokens || [])];
+
+  // Cap active sessions: keep only the most recent tokens
+  if (tokens.length >= MAX_ACTIVE_SESSIONS) {
+    tokens.splice(0, tokens.length - MAX_ACTIVE_SESSIONS + 1);
+  }
+
   tokens.push(hashed);
   user.refreshTokens = tokens;
   user.refreshTokenExpire = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
@@ -137,14 +144,9 @@ exports.verifyEmail = async (req, res, next) => {
     user.emailVerificationExpire = null;
     await user.save();
 
-    const accessToken = generateAccessToken(user.id);
-    const refreshToken = await generateRefreshToken(user.id);
-
     res.status(200).json({
       success: true,
       message: 'Email verified successfully. You can now log in.',
-      token: accessToken,
-      refreshToken,
     });
   } catch (error) {
     next(error);
@@ -187,15 +189,16 @@ exports.login = async (req, res, next) => {
 
     const isMatch = await user.matchPassword(password);
     if (!isMatch) {
-      // Increment failed login attempts
-      user.loginAttempts += 1;
+      // Atomically increment failed login attempts to prevent TOCTOU race condition
+      await user.increment('loginAttempts', { by: 1 });
+      await user.reload();
 
       // Lock account after 5 consecutive failures
       if (user.loginAttempts >= 5) {
         user.lockoutUntil = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+        await user.save();
       }
 
-      await user.save();
       return res.status(401).json({ success: false, error: 'Invalid credentials' });
     }
 
@@ -359,17 +362,31 @@ exports.resetPassword = async (req, res, next) => {
 exports.refreshToken = async (req, res, next) => {
   try {
     const { refreshToken: rawToken } = req.body;
+    if (!rawToken || typeof rawToken !== 'string') {
+      return res.status(400).json({ success: false, error: 'Refresh token is required' });
+    }
+
     const hashed = crypto.createHash('sha256').update(rawToken).digest('hex');
 
-    // Find user who has this hashed refresh token
-    const user = await User.findOne({
-      where: {
-        refreshTokens: {
-          [Op.contains]: [hashed],
+    // Find user who has this hashed refresh token (supports PostgreSQL Op.contains with DB-agnostic fallback)
+    let user;
+    try {
+      user = await User.findOne({
+        where: {
+          refreshTokens: {
+            [Op.contains]: [hashed],
+          },
+          refreshTokenExpire: { [Op.gt]: new Date() },
         },
-        refreshTokenExpire: { [Op.gt]: new Date() },
-      },
-    });
+      });
+    } catch (dbErr) {
+      const users = await User.findAll({
+        where: {
+          refreshTokenExpire: { [Op.gt]: new Date() },
+        },
+      });
+      user = users.find((u) => Array.isArray(u.refreshTokens) && u.refreshTokens.includes(hashed));
+    }
 
     if (!user) {
       return res.status(401).json({ success: false, error: 'Invalid or expired refresh token' });
@@ -377,6 +394,11 @@ exports.refreshToken = async (req, res, next) => {
 
     // Remove old token (rotation)
     user.refreshTokens = user.refreshTokens.filter((t) => t !== hashed);
+
+    // Prune any tokens beyond the active session limit
+    if (user.refreshTokens.length > MAX_ACTIVE_SESSIONS) {
+      user.refreshTokens = user.refreshTokens.slice(-MAX_ACTIVE_SESSIONS);
+    }
 
     // Generate new pair
     const accessToken = generateAccessToken(user.id);

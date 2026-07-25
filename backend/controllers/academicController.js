@@ -32,11 +32,25 @@ exports.createExam = async (req, res, next) => {
 
 exports.getExams = async (req, res, next) => {
   try {
-    const exams = await Exam.findAll({
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 20));
+    const offset = (page - 1) * limit;
+
+    const { count: total, rows: exams } = await Exam.findAndCountAll({
       where: { user: req.user.id },
       order: [['date', 'ASC']],
+      limit,
+      offset,
     });
-    res.status(200).json({ success: true, count: exams.length, data: exams });
+
+    res.status(200).json({
+      success: true,
+      count: exams.length,
+      total,
+      page,
+      totalPages: Math.ceil(total / limit),
+      data: exams,
+    });
   } catch (error) {
     next(error);
   }
@@ -59,47 +73,34 @@ exports.deleteExam = async (req, res, next) => {
     const subjects = await Subject.findAll({ where: { exam: exam.id } });
     const subjectIds = subjects.map((sub) => sub.id);
 
-    // 1. Delete QuizAttempts for quizzes under these subjects
-    const quizzes = await Quiz.findAll({ where: { subject: { [Op.in]: subjectIds } } });
-    const quizIds = quizzes.map((q) => q.id);
-    if (quizIds.length > 0) {
-      await QuizAttempt.destroy({ where: { quiz: { [Op.in]: quizIds } } });
-    }
+    // Collect all topics for these subjects
+    const topics = await Topic.findAll({ where: { subject: { [Op.in]: subjectIds } }, transaction: t });
+    const topicIds = topics.map((top) => top.id);
 
-    // 2. Delete child records that reference subject or topic
-    await Progress.destroy({ where: { subject: { [Op.in]: subjectIds } } });
-    await Flashcard.destroy({ where: { subject: { [Op.in]: subjectIds } } });
-    await Note.destroy({ where: { subject: { [Op.in]: subjectIds } } });
-
-    // 3. Delete quizzes (after QuizAttempts are removed)
-    await Quiz.destroy({ where: { subject: { [Op.in]: subjectIds } } });
-
-    // 4. Delete topics and subjects
-    await Topic.destroy({ where: { subject: { [Op.in]: subjectIds } } });
-    await Subject.destroy({ where: { exam: exam.id } });
-
-    // 5. Delete exam-level records
-    await StudyPlan.destroy({ where: { exam: exam.id } });
-    await PYQ.destroy({ where: { exam: exam.id } });
-
-    // 6. Delete the exam itself
-    await exam.destroy();
-
+    // 1. Delete QuizAttempts for quizzes under these subjects and topics
     const quizzes = await Quiz.findAll({
       where: { [Op.or]: [{ subject: { [Op.in]: subjectIds } }, { topic: { [Op.in]: topicIds } }] },
       transaction: t,
     });
     const quizIds = quizzes.map((q) => q.id);
 
-    await QuizAttempt.destroy({ where: { quiz: { [Op.in]: quizIds } }, transaction: t });
+    if (quizIds.length > 0) {
+      await QuizAttempt.destroy({ where: { quiz: { [Op.in]: quizIds } }, transaction: t });
+    }
+
+    // 2. Delete quizzes and other related records
     await Quiz.destroy({ where: { [Op.or]: [{ subject: { [Op.in]: subjectIds } }, { topic: { [Op.in]: topicIds } }] }, transaction: t });
     await StudyPlan.destroy({ where: { exam: exam.id }, transaction: t });
     await PYQ.destroy({ where: { [Op.or]: [{ exam: exam.id }, { subject: { [Op.in]: subjectIds } }] }, transaction: t });
     await Note.destroy({ where: { subject: { [Op.in]: subjectIds } }, transaction: t });
     await Flashcard.destroy({ where: { subject: { [Op.in]: subjectIds } }, transaction: t });
     await Progress.destroy({ where: { [Op.or]: [{ subject: { [Op.in]: subjectIds } }, { topic: { [Op.in]: topicIds } }] }, transaction: t });
+
+    // 3. Ensure child Topic records are deleted BEFORE parent Subject records
     await Topic.destroy({ where: { subject: { [Op.in]: subjectIds } }, transaction: t });
     await Subject.destroy({ where: { exam: exam.id }, transaction: t });
+    
+    // 4. Delete the exam itself
     await exam.destroy({ transaction: t });
 
     await t.commit();
@@ -142,8 +143,24 @@ exports.getSubjects = async (req, res, next) => {
     const filter = { user: req.user.id };
     if (examId) filter.exam = examId;
 
-    const subjects = await Subject.findAll({ where: filter });
-    res.status(200).json({ success: true, count: subjects.length, data: subjects });
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 20));
+    const offset = (page - 1) * limit;
+
+    const { count: total, rows: subjects } = await Subject.findAndCountAll({
+      where: filter,
+      limit,
+      offset,
+    });
+
+    res.status(200).json({
+      success: true,
+      count: subjects.length,
+      total,
+      page,
+      totalPages: Math.ceil(total / limit),
+      data: subjects,
+    });
   } catch (error) {
     next(error);
   }

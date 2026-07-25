@@ -166,8 +166,8 @@ describe('Auth Controller - Integration Tests', () => {
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
-      expect(res.body.token).toBeDefined();
-      expect(res.body.refreshToken).toBeDefined();
+      expect(res.body.token).toBeUndefined();
+      expect(res.body.refreshToken).toBeUndefined();
 
       // Verify user was updated
       const updated = await User.findByPk(user.id);

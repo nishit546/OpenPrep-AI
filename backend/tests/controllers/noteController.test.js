@@ -8,6 +8,7 @@ const errorHandler = require('../../middleware/error');
 const User = require('../../models/User');
 const Subject = require('../../models/Subject');
 const Exam = require('../../models/Exam');
+const Note = require('../../models/Note');
 
 const app = express();
 app.use(express.json());
@@ -252,6 +253,28 @@ describe('Note Controller - Integration Tests', () => {
       const res = await request(app).delete(`/api/notes/${noteToDelete.id}`);
 
       expect(res.status).toBe(401);
+    });
+
+    it('should return 400 when attempting path traversal deletion', async () => {
+      const maliciousNote = await Note.create({
+        title: 'Trapped Note',
+        content: 'Dangerous path',
+        subject: testSubject._id.toString(),
+        fileUrl: '../../.env',
+        fileType: 'pdf',
+        user: testUser.id,
+      });
+
+      const res = await request(app)
+        .delete(`/api/notes/${maliciousNote.id}`)
+        .set('Authorization', `Bearer ${authToken}`);
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+      expect(res.body.error).toBe('Invalid file path');
+
+      // Cleanup note
+      await maliciousNote.destroy();
     });
   });
 });

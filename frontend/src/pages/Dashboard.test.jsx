@@ -32,7 +32,7 @@ const renderDashboard = (authState = {}, dashboardState = {}) => {
       auth: {
         token: 'fake-token',
         isAuthenticated: true,
-        user: { _id: 'u1', name: 'Test User', email: 'test@test.com' },
+        user: { id: 'u1', name: 'Test User', email: 'test@test.com' },
         loading: false,
         error: null,
         ...authState,
@@ -183,7 +183,7 @@ describe('Dashboard', () => {
 
   test('shows "Earned" for badges that meet criteria', () => {
     renderDashboard({
-      user: { _id: 'u1', name: 'Test User' },
+      user: { id: 'u1', name: 'Test User' },
     }, {
       stats: {
         attemptsCount: 5,
@@ -200,7 +200,7 @@ describe('Dashboard', () => {
 
   test('shows "Locked" for badges that do not meet criteria', () => {
     renderDashboard({
-      user: { _id: 'u1', name: 'Test User' },
+      user: { id: 'u1', name: 'Test User' },
     }, {
       stats: {
         attemptsCount: 0,
@@ -217,7 +217,7 @@ describe('Dashboard', () => {
 
   test('shows mixed earned/locked based on stats', () => {
     renderDashboard({
-      user: { _id: 'u1', name: 'Test User' },
+      user: { id: 'u1', name: 'Test User' },
     }, {
       stats: {
         attemptsCount: 3,
