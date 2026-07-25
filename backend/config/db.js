@@ -18,15 +18,6 @@ const connectDB = async () => {
   try {
     await sequelize.authenticate();
     console.log('PostgreSQL Connected successfully via Sequelize');
-
-    // Always register models and associations (required for eager loading)
-    require('../models');
-
-    // Sync schema only in non-production (production uses migrations)
-    if (process.env.NODE_ENV !== 'production') {
-      await sequelize.sync({ alter: true });
-      console.log('Database schemas synced successfully');
-    }
   } catch (error) {
     console.error(`Error connecting to PostgreSQL: ${error.message}`);
     process.exit(1);
