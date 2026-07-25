@@ -32,12 +32,12 @@ const noteRoutes = require('./routes/noteRoutes');
 const progressRoutes = require('./routes/progressRoutes');
 const communityRoutes = require('./routes/communityRoutes');
 
-// Connect to Database
-connectDB();
-
-// Connect to Redis
 const redisService = require('./services/redisService');
-redisService.connect();
+
+const initializeConnections = async () => {
+  await connectDB();
+  redisService.connect();
+};
 
 const app = express();
 
@@ -141,6 +141,9 @@ app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
-  console.log(`Server running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
-});
+(async () => {
+  await initializeConnections();
+  app.listen(PORT, () => {
+    console.log(`Server running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
+  });
+})();
