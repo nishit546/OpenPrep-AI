@@ -131,9 +131,12 @@ exports.getActivePlan = async (req, res, next) => {
       return res.status(200).json({ success: true, data: null });
     }
 
+    // Handle null or undefined dailyGoals gracefully
+    const dailyGoals = Array.isArray(plan.dailyGoals) ? plan.dailyGoals : [];
+
     // Extract topic IDs referenced in dailyGoals
     const topicIds = new Set();
-    plan.dailyGoals.forEach((goal) => {
+    dailyGoals.forEach((goal) => {
       goal.tasks.forEach((task) => {
         if (task.topic) topicIds.add(task.topic);
       });
@@ -152,7 +155,7 @@ exports.getActivePlan = async (req, res, next) => {
       topicMap[t.id] = t;
     });
 
-    const resolvedGoals = plan.dailyGoals.map((goal) => ({
+    const resolvedGoals = dailyGoals.map((goal) => ({
       ...goal,
       tasks: goal.tasks.map((task) => ({
         ...task,
