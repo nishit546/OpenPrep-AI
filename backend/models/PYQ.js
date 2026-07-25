@@ -38,12 +38,12 @@ const PYQ = sequelize.define(
     },
     analysisResults: {
       type: DataTypes.JSONB,
-      defaultValue: {
+      defaultValue: () => ({
         chapterWeightage: [],
         importantTopics: [],
         repeatedQuestions: [],
         trendAnalysis: '',
-      },
+      }),
     },
     user: {
       type: DataTypes.UUID,
