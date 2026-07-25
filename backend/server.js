@@ -35,6 +35,9 @@ const communityRoutes = require('./routes/communityRoutes');
 // Connect to Database
 connectDB();
 
+// Initialize all models to ensure they are registered with Sequelize
+require('./models');
+
 // Connect to Redis
 const redisService = require('./services/redisService');
 redisService.connect();
