@@ -137,7 +137,8 @@ exports.getActivePlan = async (req, res, next) => {
     // Extract topic IDs referenced in dailyGoals
     const topicIds = new Set();
     dailyGoals.forEach((goal) => {
-      goal.tasks.forEach((task) => {
+      const tasks = Array.isArray(goal?.tasks) ? goal.tasks : [];
+      tasks.forEach((task) => {
         if (task.topic) topicIds.add(task.topic);
       });
     });
@@ -157,10 +158,10 @@ exports.getActivePlan = async (req, res, next) => {
 
     const resolvedGoals = dailyGoals.map((goal) => ({
       ...goal,
-      tasks: goal.tasks.map((task) => ({
+      tasks: Array.isArray(goal?.tasks) ? goal.tasks.map((task) => ({
         ...task,
         topic: task.topic ? topicMap[task.topic] || null : null,
-      })),
+      })) : [],
     }));
 
     const planJson = plan.toJSON();
@@ -188,9 +189,10 @@ exports.toggleTaskCompletion = async (req, res, next) => {
 
     // Find and update task inside JSONB dailyGoals
     let taskFound = false;
-    const dailyGoals = JSON.parse(JSON.stringify(plan.dailyGoals));
+    const dailyGoals = Array.isArray(plan.dailyGoals) ? JSON.parse(JSON.stringify(plan.dailyGoals)) : [];
     for (const goal of dailyGoals) {
-      const task = goal.tasks.find((t) => t._id === taskId || t.id === taskId);
+      const tasks = Array.isArray(goal?.tasks) ? goal.tasks : [];
+      const task = tasks.find((t) => t._id === taskId || t.id === taskId);
       if (task) {
         task.completed = completed;
         taskFound = true;
