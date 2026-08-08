@@ -1,3 +1,4 @@
+import Skeleton from '../components/dashboard/Skeleton';
 import { useState, useEffect, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
@@ -135,20 +136,17 @@ const achievements = [
   },
 ];
 
-// ── Loading Skeleton ──
-const Shimmer = ({ className = '' }) => (
-  <div className={`animate-pulse bg-neutral-300/60 rounded ${className}`} />
-);
+
 
 // ── Stats Card Skeleton ──
 const StatsCardSkeleton = () => (
   <VintagePaper className="border-t-4 border-t-neutral-400">
     <div className="flex justify-between items-start mb-2">
-      <Shimmer className="h-5 w-28" />
-      <Shimmer className="h-5 w-5" />
+      <Skeleton className="h-5 w-28" />
+      <Skeleton className="h-5 w-5" />
     </div>
-    <Shimmer className="h-9 w-20 mt-2" />
-    <Shimmer className="h-4 w-32 mt-3" />
+    <Skeleton className="h-9 w-20 mt-2" />
+    <Skeleton className="h-4 w-32 mt-3" />
   </VintagePaper>
 );
 
@@ -178,22 +176,6 @@ const EmptyState = ({ icon: Icon = Lightbulb, message = 'No data yet' }) => (
   </div>
 );
 
-// ── Analytics Charts Skeleton (shown while recharts chunk loads) ──
-const AnalyticsChartsFallback = () => (
-  <div className="bg-wood-desk rounded-lg shadow-inner border border-black/50 p-6 relative overflow-hidden grid grid-cols-1 lg:grid-cols-2 gap-8">
-    <div className="absolute inset-0 shadow-[inset_0_0_50px_rgba(0,0,0,0.8)] pointer-events-none" />
-    {[0, 1].map((i) => (
-      <VintagePaper
-        key={i}
-        animate={false}
-        className="w-full h-full p-6 shadow-[0_10px_30px_rgba(0,0,0,0.5)]"
-      >
-        <Shimmer className="h-7 w-48 mb-6" />
-        <Shimmer className="h-64 w-full" />
-      </VintagePaper>
-    ))}
-  </div>
-);
 
 // ── Main Component ──
 const Dashboard = () => {
@@ -377,24 +359,20 @@ const Dashboard = () => {
       };
     });
   })();
+  const regularTasks = todayTasks.filter((t) => !t.isBonus);
+  const completedTasksCount = todayTasks.filter((t) => t.completed).length;
+  const targetTasksCount = regularTasks.length;
 
-  const tasksProgress = (() => {
-    if (todayTasks.length === 0) return 0;
-    const regularTasks = todayTasks.filter((t) => !t.isBonus);
-    const completedTasksCount = todayTasks.filter((t) => t.completed).length;
-    const targetTasksCount = regularTasks.length;
+  const tasksProgress =
+    targetTasksCount > 0
+      ? Math.round((completedTasksCount / targetTasksCount) * 100)
+      : 0;
 
-    let percentage = 0;
-    if (targetTasksCount > 0) {
-      percentage = Math.round((completedTasksCount / targetTasksCount) * 100);
-    } else {
-      const completedBonusCount = todayTasks.filter((t) => t.completed).length;
-      percentage = Math.round((completedBonusCount / todayTasks.length) * 100);
-    }
-    return Math.min(100, Math.max(0, percentage));
-  })();
+  const completedBonusCount = todayTasks.filter(
+    (t) => t.isBonus && t.completed
+  ).length;
 
-  const completedBonusCount = todayTasks.filter((t) => t.isBonus && t.completed).length;
+
 
   const firstDueCard = dueFlashcards.length > 0 ? dueFlashcards[0] : null;
 
@@ -522,9 +500,21 @@ const Dashboard = () => {
                 <Download className="w-4 h-4" /> Export Analytics
               </button>
               <div className="absolute right-0 top-full mt-2 w-40 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all">
-                <button onClick={() => handleExport('7days')} className="w-full text-left block px-4 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700 text-neutral-800 dark:text-neutral-200">Last 7 Days</button>
-                <button onClick={() => handleExport('30days')} className="w-full text-left block px-4 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700 text-neutral-800 dark:text-neutral-200">Last 30 Days</button>
-                <button onClick={() => handleExport('all')} className="w-full text-left block px-4 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700 text-neutral-800 dark:text-neutral-200">All Time</button>
+                <button
+                  onClick={() => handleExportReport('csv')}
+                  className="w-full text-left block px-4 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700 text-neutral-800 dark:text-neutral-200"
+                >
+                  CSV
+                </button>
+
+                <button
+                  onClick={() => handleExportReport('pdf')}
+                  className="w-full text-left block px-4 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700 text-neutral-800 dark:text-neutral-200"
+                >
+                  PDF
+                </button>
+
+
               </div>
             </div>
 
@@ -715,7 +705,7 @@ const Dashboard = () => {
               <div className="h-64 w-full" style={{ minHeight: '250px', minWidth: '100%' }}>
                 {loadingStats ? (
                   <div className="flex items-center justify-center h-full">
-                    <Shimmer className="w-full h-48" />
+                    <Skeleton className="w-full h-48" />
                   </div>
                 ) : errorStats ? (
                   <div className="flex flex-col items-center justify-center h-full text-neutral-500">
@@ -763,7 +753,7 @@ const Dashboard = () => {
               <div className="h-64 w-full" style={{ minHeight: '250px', minWidth: '100%' }}>
                 {loadingSubjects ? (
                   <div className="flex items-center justify-center h-full">
-                    <Shimmer className="w-full h-48" />
+                    <Skeleton className="w-full h-48" />
                   </div>
                 ) : errorSubjects ? (
                   <div className="flex flex-col items-center justify-center h-full text-neutral-500">
@@ -884,8 +874,8 @@ const Dashboard = () => {
               <div className="space-y-6">
                 {[1, 2, 3, 4].map((i) => (
                   <div key={i}>
-                    <Shimmer className="h-4 w-36 mb-1" />
-                    <Shimmer className="h-4 w-full" />
+                    <Skeleton className="h-4 w-36 mb-1" />
+                    <Skeleton className="h-4 w-full" />
                   </div>
                 ))}
               </div>
@@ -926,10 +916,10 @@ const Dashboard = () => {
                 <div className="space-y-4">
                   {[1, 2, 3].map((i) => (
                     <div key={i} className="flex items-center gap-4">
-                      <Shimmer className="w-10 h-10 rounded-full shrink-0" />
+                      <Skeleton className="w-10 h-10 rounded-full shrink-0" />
                       <div className="flex-1">
-                        <Shimmer className="h-5 w-48 mb-1" />
-                        <Shimmer className="h-3 w-24" />
+                        <Skeleton className="h-5 w-48 mb-1" />
+                        <Skeleton className="h-3 w-24" />
                       </div>
                     </div>
                   ))}
