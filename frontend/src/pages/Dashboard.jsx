@@ -428,7 +428,7 @@ const Dashboard = () => {
           icon={Play}
           label="Start Quiz"
           delay={0.1}
-          onClick={() => setComingSoon('Quiz feature coming soon!')}
+          onClick={() => setIsQuizSetupOpen(true)}
         />
         <GoldTabButton
           icon={FileText}
@@ -1083,6 +1083,17 @@ const Dashboard = () => {
         onPlanUpdate={() => dispatch(fetchActivePlan())}
         onPlanCreated={() => dispatch(fetchActivePlan())}
         onBumpTime={handleBumpStudyTime}
+      />
+
+      {/* --- QUIZ SETUP MODAL --- */}
+      <QuizSetupModal
+        isOpen={isQuizSetupOpen}
+        onClose={() => setIsQuizSetupOpen(false)}
+        onQuizGenerated={(quiz) => {
+          if (quiz?.id) {
+            navigate(`/quiz/${quiz.id}`);
+          }
+        }}
       />
 
       {/* --- PYQ ANALYSIS MODAL --- */}

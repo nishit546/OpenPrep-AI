@@ -31,6 +31,11 @@ const Quiz = sequelize.define(
       type: DataTypes.ENUM('AI_Generated', 'Manual'),
       defaultValue: 'AI_Generated',
     },
+    language: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      defaultValue: 'english',
+    },
     createdBy: {
       type: DataTypes.UUID,
       allowNull: false,
