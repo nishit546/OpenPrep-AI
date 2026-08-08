@@ -54,12 +54,15 @@ nextReviewDate: {
       type: DataTypes.JSONB,
       defaultValue: [],
     },
-    difficulty: {
+difficulty: {
       type: DataTypes.ENUM('Easy', 'Medium', 'Hard'),
       allowNull: true,
     },
-  },  {
-    timestamps: true,
+    hint: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+  },  {    timestamps: true,
     indexes: [
       {
         name: 'flashcard_user_idx',

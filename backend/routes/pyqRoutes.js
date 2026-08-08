@@ -7,13 +7,12 @@ const {
   deletePYQ,
   getPYQTrends,
   getUpcomingForecast,
-} = require('../controllers/pyqController');
-const { protect } = require('../middleware/auth');
+  getPYQClusters,
+} = require('../controllers/pyqController');const { protect } = require('../middleware/auth');
 const { strictAiLimiter } = require('../middleware/rateLimiter');
 const { checkQuota } = require('../middleware/quotaMiddleware');
 const upload = require('../middleware/upload');
-const { validateUploadPYQ } = require('../middleware/validators');
-
+const { validateUploadPYQ, validateGetPYQClusters } = require('../middleware/validators');
 const cacheMiddleware = require('../middleware/cache');
 const clearCache = require('../middleware/clearCache');
 
@@ -172,10 +171,43 @@ router.get(
 
 /**
  * @swagger
+ * /api/pyqs/clusters/{subjectId}:
+ *   get:
+ *     summary: Detect near-duplicate PYQ questions across exam years via embedding similarity
+ *     tags: [PYQs]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: subjectId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Subject ID to cluster PYQ questions for
+ *     responses:
+ *       200:
+ *         description: Clustered duplicate question sets retrieved successfully
+ *       401:
+ *         description: Not authenticated
+ *       404:
+ *         description: Subject not found
+ *       429:
+ *         description: Rate limit exceeded
+ */
+router.get(
+  '/clusters/:subjectId',
+  protect,
+  strictAiLimiter,
+  validateGetPYQClusters,
+  getPYQClusters
+);
+
+/**
+ * @swagger
  * /api/pyqs/{id}:
  *   get:
- *     summary: Get PYQ details
- *     tags: [PYQs]
+ *     summary: Get PYQ details *     tags: [PYQs]
  *     security:
  *       - bearerAuth: []
  *     parameters:
