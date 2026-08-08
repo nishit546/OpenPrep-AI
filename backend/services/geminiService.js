@@ -165,7 +165,75 @@ async function generateWithRetry(model, prompt, retries = 3) {
         );
       }
 
-      // Non-retryable error - rethrow
+// Non-retryable error - rethrow
+      throw err;
+    }
+  }
+}
+
+/**
+ * Timeout wrapper for embedding calls (mirrors callWithTimeout, but calls
+ * model.embedContent instead of model.generateContent since the embedding
+ * API has a different call signature).
+ */
+async function callEmbedWithTimeout(model, text, timeoutMs = 15000) {
+  let timeoutId;
+  const timeoutPromise = new Promise((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error('Gemini embedding request timed out')), timeoutMs);
+  });
+
+  try {
+    const result = await Promise.race([model.embedContent(text), timeoutPromise]);
+    return result;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+/**
+ * Retry wrapper with exponential backoff for embedding calls.
+ * Mirrors generateWithRetry's retry/error-classification behaviour.
+ */
+async function generateEmbeddingWithRetry(model, text, retries = 3) {
+  for (let attempt = 0; attempt < retries; attempt++) {
+    try {
+      const result = await callEmbedWithTimeout(model, text);
+      return result;
+    } catch (err) {
+      const status = extractStatusFromError(err);
+      const isRetryable =
+        status === 429 ||
+        (status >= 500 && status < 600) ||
+        err.message === 'Gemini embedding request timed out';
+
+      if (isRetryable && attempt < retries - 1) {
+        const baseDelay = 1000 * Math.pow(2, attempt);
+        const jitter = Math.random() * 1000;
+        const delay = baseDelay + jitter;
+        console.warn(
+          `Gemini embedding attempt ${attempt + 1} failed (status: ${status || 'timeout'}), retrying in ${Math.round(delay)}ms...`
+        );
+        await new Promise((r) => setTimeout(r, delay));
+        continue;
+      }
+
+      if (status === 429) {
+        const retryAfter = err?.response?.headers?.['retry-after']
+          ? parseInt(err.response.headers['retry-after'], 10)
+          : 60;
+        throw new GeminiRateLimitError(
+          'Gemini API rate limit exceeded. Please try again later.',
+          retryAfter
+        );
+      }
+
+      if (status >= 500 && status < 600) {
+        throw new GeminiServerError(
+          `Gemini API server error (${status}). Please try again later.`,
+          status
+        );
+      }
+
       throw err;
     }
   }
@@ -174,7 +242,6 @@ async function generateWithRetry(model, prompt, retries = 3) {
 // ==========================================
 // RESPONSE VALIDATION
 // ==========================================
-
 const RESPONSE_SCHEMAS = {
   pyqAnalysis: {
     chapterWeightage: { type: 'array', itemSchema: { chapterName: 'string', weightage: 'number' } },
@@ -676,15 +743,49 @@ exports.generateFlashcardTags = async (front, back, forceRefresh = false) => {
     if (error instanceof GeminiRateLimitError || error instanceof GeminiServerError) {
       throw error;
     }
-    console.error('Gemini Flashcard Tagging failed:', error);
+console.error('Gemini Flashcard Tagging failed:', error);
     return getMockFlashcardTags();
   }
 };
 
 /**
- * 4c. Review a whole flashcard deck to generate summary tags and description
+ * 4c-embed. Generate a semantic text embedding for a single question, used
+ * by the PYQ similarity clustering / duplicate-detection pipeline.
  */
-exports.reviewFlashcardDeck = async (subjectName, cards = [], forceRefresh = false) => {
+exports.generateEmbedding = async (text, forceRefresh = false) => {
+  if (!text || !text.trim()) return null;
+
+  if (!genAI) {
+    console.warn('Gemini API key not configured. Using deterministic mock embedding.');
+    return getMockEmbedding(text);
+  }
+
+  const cacheKey = hashKey('embedding', text);
+
+  if (!forceRefresh) {
+    const cached = responseCache.get(cacheKey);
+    if (cached) return cached;
+  }
+
+  try {
+    const model = genAI.getGenerativeModel({ model: 'text-embedding-004' });
+    const result = await generateEmbeddingWithRetry(model, text);
+    const embedding = result?.embedding?.values || [];
+
+    responseCache.set(cacheKey, embedding);
+    return embedding;
+  } catch (error) {
+    if (error instanceof GeminiRateLimitError || error instanceof GeminiServerError) {
+      throw error;
+    }
+    console.error('Gemini embedding generation failed:', error);
+    return getMockEmbedding(text);
+  }
+};
+
+/**
+ * 4c. Review a whole flashcard deck to generate summary tags and description
+ */exports.reviewFlashcardDeck = async (subjectName, cards = [], forceRefresh = false) => {
   if (!genAI) {
     console.warn('Gemini API key not configured. Using Mock Data for Deck Review.');
     return {
@@ -1154,8 +1255,19 @@ function getMockFlashcards(subjectName, topicName, count) {
 function getMockFlashcardTags() {
   return { tags: ['General'], difficulty: 'Medium' };
 }
-function getMockRecommendations() {
-  return {
+
+function getMockEmbedding(text) {
+  // Deterministic pseudo-embedding so mock mode still produces stable,
+  // comparable vectors without calling the real Gemini embedding API.
+  const hash = crypto.createHash('sha256').update(text.trim().toLowerCase()).digest();
+  const dims = 32;
+  const vector = [];
+  for (let i = 0; i < dims; i++) {
+    vector.push((hash[i % hash.length] - 128) / 128);
+  }
+  return vector;
+}
+function getMockRecommendations() {  return {
     weakSubjects: ['Computer Architecture', 'Data Structures'],
     recommendations: [
       {

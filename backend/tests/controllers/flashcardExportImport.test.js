@@ -174,15 +174,21 @@ describe('Flashcard Export & Import', () => {
       expect(res.status).toBe(401);
     });
 
-    it('CSV output includes proper header row', async () => {
+it('CSV output includes proper header row', async () => {
+
       const res = await request(app)
+
         .get('/api/flashcards/export?format=csv')
+
         .set(makeAuthHeader(authToken));
 
-      const firstLine = res.text.split(/\r?\n/)[0];
-      expect(firstLine).toBe('front,back,subject,topic');
-    });
 
+
+      const firstLine = res.text.split(/\r?\n/)[0];
+
+      expect(firstLine).toBe('front,back,subject,topic,tags,hint');
+
+    });
     it('CSV escapes fields containing commas', async () => {
       await Flashcard.destroy({ where: { user: testUser.id } });
       await Flashcard.create({

@@ -7,14 +7,18 @@ const {
   getAttemptHistory,
   generateRevisionSheet,
   getCalibrationReport,
+  submitTelemetryBatch,
+  getQuizBookmarks,
+  toggleQuizBookmark,
 } = require('../controllers/quizController');
 const { protect } = require('../middleware/auth');
-const { aiLimiter } = require('../middleware/rateLimiter');
+const telemetryAuth = require('../middleware/telemetryAuth');const { aiLimiter } = require('../middleware/rateLimiter');
 const { checkQuota } = require('../middleware/quotaMiddleware');
 const {
   validateGenerateAIQuiz,
   validateSubmitQuizAttempt,
   validateGenerateRevisionSheet,
+  validateToggleQuizBookmark,
 } = require('../middleware/validators');
 const { validateRequest, submitQuizSchema } = require('../middleware/validate');
 
@@ -99,6 +103,23 @@ const router = express.Router();
 
 router.post('/generate-ai', protect, aiLimiter, checkQuota, validateGenerateAIQuiz, generateAIQuiz);
 
+/**
+ * @swagger
+ * /api/quiz/telemetry/batch:
+ *   post:
+ *     summary: Submit a batch of buffered quiz telemetry events (question views, option selections, flag toggles)
+ *     tags: [Quizzes]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       201:
+ *         description: Telemetry batch accepted
+ *       400:
+ *         description: Missing or invalid events array
+ *       401:
+ *         description: Not authenticated
+ */
+router.post('/telemetry/batch', telemetryAuth, submitTelemetryBatch);
 router.get('/admin/calibration-report', protect, getCalibrationReport);
 
 /**
@@ -382,5 +403,41 @@ router.get('/:id', protect, getQuizDetails);
  */
 
 router.post('/:id/submit', protect, validateRequest(submitQuizSchema), submitQuizAttempt);
+
+/**
+ * @swagger
+ * /api/quizzes/{id}/bookmarks:
+ *   get:
+ *     summary: Get the current user's bookmarked question IDs for a quiz
+ *     tags: [Quizzes]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of bookmarked question IDs
+ *       404:
+ *         description: Quiz not found
+ */
+router.get('/:id/bookmarks', protect, getQuizBookmarks);
+
+/**
+ * @swagger
+ * /api/quizzes/{id}/bookmarks/toggle:
+ *   post:
+ *     summary: Toggle bookmark on a single quiz question
+ *     tags: [Quizzes]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Bookmark removed
+ *       201:
+ *         description: Bookmark added
+ *       400:
+ *         description: Question not found in this quiz
+ *       404:
+ *         description: Quiz not found
+ */
+router.post('/:id/bookmarks/toggle', protect, validateToggleQuizBookmark, toggleQuizBookmark);
 
 module.exports = router;

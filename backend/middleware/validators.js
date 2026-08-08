@@ -136,8 +136,23 @@ const validateGenerateFlashcardsFromNote = [
     .withMessage('Count must be between 1 and 50'),
   handleValidationErrors,
 ];
-const validateCreateFlashcard = [
-  body('front').trim().notEmpty().withMessage('Please provide the front text'),
+
+const validateGenerateFlashcardsFromYouTube = [
+  body('youtubeUrl')
+    .trim()
+    .notEmpty()
+    .withMessage('Please provide a YouTube video URL')
+    .matches(/^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)\/.+/i)
+    .withMessage('Please provide a valid YouTube URL'),
+  body('subjectId').optional().isUUID(4).withMessage('Valid subject ID is required'),
+  body('topicId').optional().isUUID(4).withMessage('Valid topic ID is required'),
+  body('count')
+    .optional()
+    .isInt({ min: 1, max: 50 })
+    .withMessage('Count must be between 1 and 50'),
+  handleValidationErrors,
+];
+const validateCreateFlashcard = [  body('front').trim().notEmpty().withMessage('Please provide the front text'),
   body('back').trim().notEmpty().withMessage('Please provide the back text'),
   body('subjectId').isUUID(4).withMessage('Valid subject ID is required'),
   handleValidationErrors,
@@ -210,6 +225,11 @@ const validateGenerateRevisionSheet = [
   handleValidationErrors,
 ];
 
+const validateToggleQuizBookmark = [
+  body('questionId').notEmpty().withMessage('questionId is required'),
+  handleValidationErrors,
+];
+
 const validateSubmitQuizAttempt = [
   body('answers')
     .isArray({ min: 1 })
@@ -260,9 +280,13 @@ const validateUploadPYQ = [
     .withMessage('Difficulty must be "Easy", "Medium", or "Hard"'),
   handleValidationErrors,
 ];
+
+const validateGetPYQClusters = [
+  param('subjectId').isUUID(4).withMessage('Valid subject ID is required'),
+  handleValidationErrors,
+];
 // ---------------------------------------------------------------------------
-// Study Plan routes
-// ---------------------------------------------------------------------------
+// Study Plan routes// ---------------------------------------------------------------------------
 const validateGenerateAIPlan = [
   body('examId').isUUID(4).withMessage('Valid exam ID is required'),
   body('startDate')
@@ -389,20 +413,22 @@ module.exports = {
   validateCreateTopic,
   validateUpdateTopic,
 // Flashcard
-  validateGenerateAIFlashcards,
+validateGenerateAIFlashcards,
   validateGenerateFlashcardsFromNote,
-validateCreateFlashcard,  validateReviewFlashcard,
+  validateGenerateFlashcardsFromYouTube,validateCreateFlashcard,  validateReviewFlashcard,
   validateAutoTagFlashcard,
   validateExportFlashcards,
   validateImportFlashcards,  // Quiz
   validateGenerateAIQuiz,
   validateGenerateRevisionSheet,
   validateSubmitQuizAttempt,
+  validateToggleQuizBookmark,
 // Note
   validateUploadNote,
   validateImportNotes,
-  // PYQ  validateUploadPYQ,
-// Study Plan
+// PYQ
+  validateUploadPYQ,
+  validateGetPYQClusters,// Study Plan
   validateGenerateAIPlan,
   validateToggleTask,
   validateMoveTaskDate,// Progress

@@ -93,8 +93,16 @@ app.use(cookieParser());
 
 // CSRF protection middleware
 const csrfProtection = csrf({ cookie: true });
-app.use(csrfProtection);
-
+// The batched quiz-telemetry endpoint is flushed via navigator.sendBeacon()
+// on tab close/navigation, which cannot attach a CSRF header. It's already
+// protected by its own JWT-based auth (see middleware/telemetryAuth.js), so
+// CSRF protection is skipped only for this one route.
+app.use((req, res, next) => {
+  if (req.path === '/api/quiz/telemetry/batch' || req.path === '/api/quizzes/telemetry/batch') {
+    return next();
+  }
+  return csrfProtection(req, res, next);
+});
 // CSRF Token Endpoint for frontend clients
 app.get('/api/csrf-token', (req, res) => {
   res.json({ csrfToken: req.csrfToken() });

@@ -8,7 +8,8 @@ const Topic = require('../models/Topic');
 const Note = require('../models/Note');
 const ActivityLog = require('../models/ActivityLog');
 const Progress = require('../models/Progress');
-const geminiService = require('../services/geminiService');
+const QuizTelemetryEvent = require('../models/QuizTelemetryEvent');
+const QuizBookmark = require('../models/QuizBookmark');const geminiService = require('../services/geminiService');
 const { GeminiRateLimitError, GeminiServerError } = require('../services/geminiService');
 const { runCalibration } = require('../services/difficultyCalibrator');
 
@@ -514,13 +515,116 @@ exports.getCalibrationReport = async (req, res, next) => {
       return res.status(403).json({ success: false, error: 'Not authorized as admin' });
     }
 
-    const report = await runCalibration();
+const report = await runCalibration();
     
     if (report.success) {
       res.status(200).json({ success: true, data: report });
     } else {
       res.status(500).json({ success: false, error: report.error });
     }
+  } catch (error) {
+    next(error);
+  }
+};
+
+const TELEMETRY_EVENT_TYPES = ['question_view', 'option_select', 'flag_toggle', 'quiz_submit', 'quiz_exit'];
+const MAX_TELEMETRY_EVENTS_PER_BATCH = 200;
+
+// @desc    Ingest a batch of client-buffered quiz telemetry events (question
+//          views, option selections, flag toggles) in a single request,
+//          instead of one HTTP call per interaction.
+// @route   POST /api/quiz/telemetry/batch
+// @access  Private (Bearer header, or body.token for sendBeacon calls)
+exports.submitTelemetryBatch = async (req, res, next) => {
+  try {
+    const { events } = req.body;
+
+    if (!Array.isArray(events) || events.length === 0) {
+      return res.status(400).json({ success: false, error: 'events must be a non-empty array' });
+    }
+
+    const records = events.slice(0, MAX_TELEMETRY_EVENTS_PER_BATCH).reduce((acc, evt) => {
+      if (!evt || !TELEMETRY_EVENT_TYPES.includes(evt.eventType)) return acc;
+      acc.push({
+        user: req.user.id,
+        quiz: evt.quizId || null,
+        eventType: evt.eventType,
+        questionIndex: Number.isInteger(evt.questionIndex) ? evt.questionIndex : null,
+        payload: {
+          questionId: evt.questionId || null,
+          selectedOption: evt.selectedOption ?? null,
+          timeSpentMs: evt.timeSpentMs ?? null,
+        },
+        clientTimestamp: evt.clientTimestamp ? new Date(evt.clientTimestamp) : new Date(),
+      });
+      return acc;
+    }, []);
+
+    if (records.length === 0) {
+      return res.status(400).json({ success: false, error: 'No valid telemetry events found in the batch' });
+    }
+
+    await QuizTelemetryEvent.bulkCreate(records);
+
+    // One log line per HTTP request covering many buffered client events —
+    // confirms batching is reducing per-interaction network traffic.
+    console.log(`[Quiz Telemetry] Batched ${records.length} event(s) from user ${req.user.id} in a single request`);
+
+    res.status(201).json({ success: true, received: records.length });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get the current user's bookmarked question IDs for a quiz
+// @route   GET /api/quizzes/:id/bookmarks
+// @access  Private
+exports.getQuizBookmarks = async (req, res, next) => {
+  try {
+    const quiz = await Quiz.findOne({ where: { id: req.params.id, createdBy: req.user.id } });
+    if (!quiz) {
+      return res.status(404).json({ success: false, error: 'Quiz not found' });
+    }
+
+    const bookmarks = await QuizBookmark.findAll({
+      where: { user: req.user.id, quiz: quiz.id },
+      attributes: ['questionId'],
+    });
+
+    res.status(200).json({ success: true, data: bookmarks.map((b) => b.questionId) });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Toggle bookmark on a single quiz question (used by Review Mode)
+// @route   POST /api/quizzes/:id/bookmarks/toggle
+// @access  Private
+exports.toggleQuizBookmark = async (req, res, next) => {
+  try {
+    const { questionId } = req.body;
+
+    const quiz = await Quiz.findOne({ where: { id: req.params.id, createdBy: req.user.id } });
+    if (!quiz) {
+      return res.status(404).json({ success: false, error: 'Quiz not found' });
+    }
+
+    const questionExists = (quiz.questions || []).some((q) => String(q._id || q.id) === String(questionId));
+    if (!questionExists) {
+      return res.status(400).json({ success: false, error: 'Question not found in this quiz' });
+    }
+
+    const existing = await QuizBookmark.findOne({
+      where: { user: req.user.id, quiz: quiz.id, questionId },
+    });
+
+    if (existing) {
+      await existing.destroy();
+      return res.status(200).json({ success: true, bookmarked: false });
+    }
+
+    await QuizBookmark.create({ user: req.user.id, quiz: quiz.id, questionId });
+    res.status(201).json({ success: true, bookmarked: true });
   } catch (error) {
     next(error);
   }
