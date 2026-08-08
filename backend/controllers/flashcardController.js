@@ -10,8 +10,23 @@ const User = require('../models/User');
 const Exam = require('../models/Exam');
 const geminiService = require('../services/geminiService');
 const { GeminiRateLimitError, GeminiServerError } = require('../services/geminiService');
-const { default: Exporter } = require('anki-apkg-export');
+const { YoutubeTranscript } = require('youtube-transcript');
+
+/**
+ * Extract an 11-character YouTube video ID from common URL formats
+ * (watch?v=, youtu.be/, embed/, shorts/).
+ * @param {string} url
+ * @returns {string|null}
+ */
+function extractYouTubeVideoId(url) {
+  if (!url) return null;
+  const match = url.match(
+    /(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/
+  );
+  return match ? match[1] : null;
+}const { default: Exporter } = require('anki-apkg-export');
 const { calculateSM2 } = require('../utils/sm2');
+const { parseCSV, validateCSVHeaders } = require('../utils/csvParser');
 
 // @desc    Generate AI Flashcards
 // @route   POST /api/flashcards/generate-ai
@@ -169,6 +184,77 @@ exports.generateFlashcardsFromNote = async (req, res, next) => {  try {
         retryAfter: error.retryAfter,
       });
     }
+if (error instanceof GeminiServerError) {
+      return res.status(503).json({ success: false, error: error.message });
+    }
+    next(error);
+  }
+};
+
+// @desc    Extract a YouTube lecture transcript and preview AI-generated flashcards (not saved)
+// @route   POST /api/flashcards/from-youtube
+// @access  Private
+exports.generateFlashcardsFromYouTube = async (req, res, next) => {
+  try {
+    const { youtubeUrl, subjectId, topicId, count } = req.body;
+
+    const videoId = extractYouTubeVideoId(youtubeUrl);
+    if (!videoId) {
+      return res.status(400).json({ success: false, error: 'Please provide a valid YouTube video URL' });
+    }
+
+    let transcriptItems;
+    try {
+      transcriptItems = await YoutubeTranscript.fetchTranscript(videoId);
+    } catch (err) {
+      return res.status(422).json({
+        success: false,
+        error: 'Could not retrieve a transcript for this video. It may not have captions enabled.',
+      });
+    }
+
+    const transcriptText = (transcriptItems || []).map((item) => item.text).join(' ').trim();
+    if (!transcriptText) {
+      return res.status(422).json({
+        success: false,
+        error: 'This video does not appear to contain any educational transcript content',
+      });
+    }
+
+    let subjectName = 'General';
+    if (subjectId) {
+      const subject = await Subject.findByPk(subjectId);
+      if (subject) subjectName = subject.name;
+    }
+
+    let topicName = 'YouTube Lecture';
+    if (topicId) {
+      const topicObj = await Topic.findByPk(topicId);
+      if (topicObj) topicName = topicObj.name;
+    }
+
+    const cardsList = await geminiService.generateFlashcards(
+      subjectName,
+      topicName,
+      transcriptText,
+      count || 6
+    );
+
+    res.status(200).json({
+      success: true,
+      count: cardsList.length,
+      videoId,
+      subjectId: subjectId || null,
+      data: cardsList,
+    });
+  } catch (error) {
+    if (error instanceof GeminiRateLimitError) {
+      return res.status(429).json({
+        success: false,
+        error: error.message,
+        retryAfter: error.retryAfter,
+      });
+    }
     if (error instanceof GeminiServerError) {
       return res.status(503).json({ success: false, error: error.message });
     }
@@ -176,8 +262,7 @@ exports.generateFlashcardsFromNote = async (req, res, next) => {  try {
   }
 };
 
-// @desc    Create manual Flashcard
-// @route   POST /api/flashcards
+// @desc    Create manual Flashcard// @route   POST /api/flashcards
 // @access  Private
 exports.createFlashcard = async (req, res, next) => {  try {
     const { subjectId, topicId, front, back, tags, difficulty } = req.body;
@@ -392,20 +477,21 @@ exports.exportFlashcards = async (req, res, next) => {
       order: [['createdAt', 'ASC']],
     });
 
-    const payload = cards.map((c) => ({
+const payload = cards.map((c) => ({
       front: c.front,
       back: c.back,
       subject: c.subjectRef ? c.subjectRef.name : null,
       topic: c.topicRef ? c.topicRef.name : null,
+      tags: Array.isArray(c.tags) ? c.tags.join(' ') : '',
+      hint: c.hint || '',
     }));
-
-    if (format === 'csv') {
-      const header = 'front,back,subject,topic';
+if (format === 'csv') {
+      const header = 'front,back,subject,topic,tags,hint';
       const rows = payload.map(
-        (p) => `${csvField(p.front)},${csvField(p.back)},${csvField(p.subject)},${csvField(p.topic)}`
+        (p) =>
+          `${csvField(p.front)},${csvField(p.back)},${csvField(p.subject)},${csvField(p.topic)},${csvField(p.tags)},${csvField(p.hint)}`
       );
       const csv = [header, ...rows].join('\r\n');
-
       res.setHeader('Content-Type', 'text/csv');
       res.setHeader('Content-Disposition', 'attachment; filename="flashcards.csv"');
       return res.status(200).send(csv);
@@ -446,63 +532,7 @@ exports.exportFlashcards = async (req, res, next) => {
 // Import
 // ---------------------------------------------------------------------------
 
-/**
- * Parse a minimal RFC 4180 CSV into an array of objects with keys from the
- * header row.  Handles quoted fields and escaped double-quotes.
- */
-function parseCSV(text) {
-  const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
-  if (lines.length < 2) return [];
-
-  function splitLine(line) {
-    const fields = [];
-    let cur = '';
-    let inQuote = false;
-    for (let i = 0; i < line.length; i++) {
-      const ch = line[i];
-      if (inQuote) {
-        if (ch === '"' && line[i + 1] === '"') {
-          cur += '"';
-          i++;
-        } else if (ch === '"') {
-          inQuote = false;
-        } else {
-          cur += ch;
-        }
-      } else {
-        if (ch === '"') {
-          inQuote = true;
-        } else if (ch === ',') {
-          fields.push(cur);
-          cur = '';
-        } else {
-          cur += ch;
-        }
-      }
-    }
-    fields.push(cur);
-    return fields;
-  }
-
-  const headers = splitLine(lines[0]).map((h) => h.trim().toLowerCase());
-  const records = [];
-
-  for (let i = 1; i < lines.length; i++) {
-    const line = lines[i].trim();
-    if (!line) continue;
-    const values = splitLine(line);
-    const obj = {};
-    headers.forEach((h, idx) => {
-      obj[h] = values[idx] !== undefined ? values[idx].trim() : '';
-    });
-    records.push(obj);
-  }
-
-  return records;
-}
-
-// @desc    Import flashcards from CSV/JSON file or raw JSON body
-// @route   POST /api/flashcards/import
+// @desc    Import flashcards from CSV/JSON file or raw JSON body// @route   POST /api/flashcards/import
 // @access  Private
 exports.importFlashcards = async (req, res, next) => {
   try {
@@ -536,12 +566,16 @@ exports.importFlashcards = async (req, res, next) => {
           return res.status(400).json({ success: false, error: 'Invalid JSON file' });
         }
         records = Array.isArray(parsed) ? parsed : parsed.data || [];
-      } else {
-        // CSV
+} else {
+        // CSV (supports standard Anki CSV exports, including their
+        // leading "#"-prefixed metadata lines)
         records = parseCSV(raw);
+        const csvError = validateCSVHeaders(records);
+        if (csvError) {
+          return res.status(400).json({ success: false, error: csvError });
+        }
       }
-    } else if (req.body && Array.isArray(req.body.cards)) {
-      // Raw JSON body fallback
+    } else if (req.body && Array.isArray(req.body.cards)) {      // Raw JSON body fallback
       records = req.body.cards;
     } else {
       return res.status(400).json({
@@ -554,7 +588,7 @@ exports.importFlashcards = async (req, res, next) => {
     const valid = [];
     const invalid = [];
 
-    for (let i = 0; i < records.length; i++) {
+for (let i = 0; i < records.length; i++) {
       const r = records[i];
       const front = typeof r.front === 'string' ? r.front.trim() : '';
       const back = typeof r.back === 'string' ? r.back.trim() : '';
@@ -568,15 +602,28 @@ exports.importFlashcards = async (req, res, next) => {
         continue;
       }
 
+      // Tags: JSON imports may already provide an array; CSV/Anki exports
+      // provide a single space-separated string (Anki's own tag convention).
+      let tags = [];
+      if (Array.isArray(r.tags)) {
+        tags = r.tags.map((t) => String(t).trim()).filter(Boolean);
+      } else if (typeof r.tags === 'string' && r.tags.trim()) {
+        tags = r.tags.trim().split(/\s+/);
+      }
+
+      const hintRaw = typeof r.hint === 'string' ? r.hint : r.hints;
+      const hint = typeof hintRaw === 'string' && hintRaw.trim() ? hintRaw.trim().slice(0, 1000) : null;
+
       valid.push({
         user: req.user.id,
         subject: subject.id,
         topic: null,
         front,
         back,
+        tags,
+        hint,
       });
     }
-
     if (valid.length === 0) {
       return res.status(400).json({
         success: false,

@@ -27,6 +27,10 @@ const fetchCsrfToken = async () => {
   }
 };
 
+// Exposes the already-fetched CSRF token so callers that can't go through
+// the axios interceptor (e.g. navigator.sendBeacon, which can't set
+// headers) can still include it in their request body.
+export const getCsrfToken = () => csrfToken;
 // Attach access token and CSRF token to every request
 API.interceptors.request.use(async (config) => {
   const token = localStorage.getItem('token');

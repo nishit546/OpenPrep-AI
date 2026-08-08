@@ -7,9 +7,10 @@ const {
   getAttemptHistory,
   generateRevisionSheet,
   getCalibrationReport,
+  submitTelemetryBatch,
 } = require('../controllers/quizController');
 const { protect } = require('../middleware/auth');
-const { aiLimiter } = require('../middleware/rateLimiter');
+const telemetryAuth = require('../middleware/telemetryAuth');const { aiLimiter } = require('../middleware/rateLimiter');
 const { checkQuota } = require('../middleware/quotaMiddleware');
 const {
   validateGenerateAIQuiz,
@@ -99,6 +100,23 @@ const router = express.Router();
 
 router.post('/generate-ai', protect, aiLimiter, checkQuota, validateGenerateAIQuiz, generateAIQuiz);
 
+/**
+ * @swagger
+ * /api/quiz/telemetry/batch:
+ *   post:
+ *     summary: Submit a batch of buffered quiz telemetry events (question views, option selections, flag toggles)
+ *     tags: [Quizzes]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       201:
+ *         description: Telemetry batch accepted
+ *       400:
+ *         description: Missing or invalid events array
+ *       401:
+ *         description: Not authenticated
+ */
+router.post('/telemetry/batch', telemetryAuth, submitTelemetryBatch);
 router.get('/admin/calibration-report', protect, getCalibrationReport);
 
 /**

@@ -2,6 +2,7 @@ const express = require('express');
 const {
   generateAIFlashcards,
   generateFlashcardsFromNote,
+  generateFlashcardsFromYouTube,
   autoTagFlashcard,
   createFlashcard,
   getFlashcards,
@@ -19,9 +20,9 @@ const { aiLimiter } = require('../middleware/rateLimiter');
 const { checkQuota } = require('../middleware/quotaMiddleware');
 const flashcardUpload = require('../middleware/flashcardUpload');
 const {
-  validateGenerateAIFlashcards,
+validateGenerateAIFlashcards,
   validateGenerateFlashcardsFromNote,
-  validateAutoTagFlashcard,
+  validateGenerateFlashcardsFromYouTube,  validateAutoTagFlashcard,
   validateCreateFlashcard,
   validateReviewFlashcard,
   validateExportFlashcards,
@@ -208,10 +209,62 @@ router.post(
   validateGenerateFlashcardsFromNote,
   generateFlashcardsFromNote
 );
+
 /**
  * @swagger
- * /api/flashcards/export:
- *   get:
+ * /api/flashcards/from-youtube:
+ *   post:
+ *     summary: Extract a YouTube video transcript and preview AI-generated flashcards
+ *     tags: [Flashcards]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - youtubeUrl
+ *             properties:
+ *               youtubeUrl:
+ *                 type: string
+ *                 example: "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+ *               subjectId:
+ *                 type: string
+ *                 format: uuid
+ *               topicId:
+ *                 type: string
+ *                 format: uuid
+ *               count:
+ *                 type: integer
+ *                 minimum: 1
+ *                 maximum: 50
+ *                 default: 6
+ *     responses:
+ *       200:
+ *         description: Flashcards generated successfully (preview mode, not saved)
+ *       400:
+ *         description: Invalid or missing YouTube URL
+ *       422:
+ *         description: Transcript unavailable or video not educational
+ *       429:
+ *         description: Rate limit exceeded
+ *       503:
+ *         description: AI service unavailable
+ */
+router.post(
+  '/from-youtube',
+  protect,
+  aiLimiter,
+  checkQuota,
+  validateGenerateFlashcardsFromYouTube,
+  generateFlashcardsFromYouTube
+);
+
+/**
+ * @swagger
+ * /api/flashcards/export: *   get:
  *     summary: Export flashcards as JSON
  *     tags: [Flashcards]
  *     security:

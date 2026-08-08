@@ -11,7 +11,7 @@ import {
 } from 'react-icons/fa';
 import API from '../services/api';
 import MathRenderer from '../components/common/MathRenderer';
-
+import { createQuizTelemetryQueue } from '../utils/quizTelemetry';
 const SECONDS_PER_QUESTION = 60;
 
 const formatTime = (seconds) => {
@@ -48,10 +48,14 @@ const QuizSession = () => {
   const [submitError, setSubmitError] = useState(null);
   const submittingRef = useRef(false);
 
-  // Absolute deadline timestamp reference to prevent background tab timer throttling drift
+// Absolute deadline timestamp reference to prevent background tab timer throttling drift
   const endTimeRef = useRef(null);
   const autoSubmittedRef = useRef(false);
 
+  // Client-side telemetry buffer: batches question timing/option-selection
+  // events instead of sending an HTTP request per interaction.
+  const telemetryRef = useRef(null);
+  const questionEnteredAtRef = useRef(Date.now());
   const handleExportResultsCSV = () => {
     const rows = buildQuizResultRows(quiz, answers);
     exportAsCSV(
@@ -90,7 +94,7 @@ const QuizSession = () => {
     fetchQuiz();
   }, [id]);
 
-  const fetchQuiz = async () => {
+const fetchQuiz = async () => {
     try {
       const res = await API.get(`/quizzes/${id}`);
       const loadedQuiz = res.data.data;
@@ -99,23 +103,41 @@ const QuizSession = () => {
       setTimeLeft(totalSeconds);
       endTimeRef.current = Date.now() + totalSeconds * 1000;
       setLoading(false);
+
+      telemetryRef.current = createQuizTelemetryQueue(id);
+      telemetryRef.current.startAutoFlush();
+      questionEnteredAtRef.current = Date.now();
     } catch (err) {
       setError('Failed to load quiz details.');
       setLoading(false);
     }
   };
-
-  const handleOptionSelect = (questionId, option) => {
+const handleOptionSelect = (questionId, option) => {
     if (submitted || timeElapsed || submitting) return;
     setAnswers((prevAnswers) => ({
       ...prevAnswers,
       [questionId]: option,
     }));
+    telemetryRef.current?.enqueue('option_select', {
+      questionId,
+      questionIndex: currentQuestionIndex,
+      selectedOption: option,
+    });
+  };
+
+  const recordQuestionView = () => {
+    telemetryRef.current?.enqueue('question_view', {
+      questionId: quiz.questions[currentQuestionIndex]?._id,
+      questionIndex: currentQuestionIndex,
+      timeSpentMs: Date.now() - questionEnteredAtRef.current,
+    });
+    questionEnteredAtRef.current = Date.now();
   };
 
   const handleNext = () => {
     if (timeElapsed) return;
     if (currentQuestionIndex < quiz.questions.length - 1) {
+      recordQuestionView();
       setCurrentQuestionIndex(currentQuestionIndex + 1);
     }
   };
@@ -123,11 +145,11 @@ const QuizSession = () => {
   const handlePrevious = () => {
     if (timeElapsed) return;
     if (currentQuestionIndex > 0) {
+      recordQuestionView();
       setCurrentQuestionIndex(currentQuestionIndex - 1);
     }
   };
-
-  const submitQuiz = useCallback(async () => {
+const submitQuiz = useCallback(async () => {
     if (submittingRef.current) return;
     submittingRef.current = true;
     setSubmitting(true);
@@ -139,6 +161,10 @@ const QuizSession = () => {
         selectedAnswer: selected,
       }));
 
+      telemetryRef.current?.enqueue('quiz_submit', { questionIndex: currentQuestionIndex });
+      telemetryRef.current?.stopAutoFlush();
+      telemetryRef.current?.flush();
+
       const res = await API.post(`/quizzes/${id}/submit`, { answers: formattedAnswers });
       setResult(res.data.data);
       setSubmitted(true);
@@ -149,8 +175,7 @@ const QuizSession = () => {
       submittingRef.current = false;
       setSubmitting(false);
     }
-  }, [answers, id]);
-
+  }, [answers, id, currentQuestionIndex]);
   // Countdown using absolute timestamps and visibilitychange recalibration to fix tab-switching throttling (#518)
   useEffect(() => {
     if (!quiz || submitted || !endTimeRef.current) return;
@@ -181,7 +206,7 @@ const QuizSession = () => {
     };
   }, [quiz, submitted]);
 
-  // When the countdown reaches zero, freeze input and submit automatically.
+// When the countdown reaches zero, freeze input and submit automatically.
   useEffect(() => {
     if (!quiz || submitted || timeLeft !== 0) return;
     if (autoSubmittedRef.current) return;
@@ -189,6 +214,29 @@ const QuizSession = () => {
     submitQuiz();
   }, [quiz, submitted, timeLeft, submitQuiz]);
 
+  // Reliably flush buffered telemetry on tab close / navigation using
+  // navigator.sendBeacon (fires-and-forgets even as the page unloads),
+  // plus a best-effort flush on unmount.
+  useEffect(() => {
+    const flushOnExit = () => {
+      telemetryRef.current?.flush({ useBeacon: true });
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        flushOnExit();
+      }
+    };
+
+    window.addEventListener('beforeunload', flushOnExit);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('beforeunload', flushOnExit);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      telemetryRef.current?.stopAutoFlush();
+      telemetryRef.current?.flush();
+    };
+  }, []);
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-900 text-white flex items-center justify-center">

@@ -8,7 +8,10 @@ const Topic = require('../models/Topic');
 const ActivityLog = require('../models/ActivityLog');
 const geminiService = require('../services/geminiService');
 const { GeminiRateLimitError, GeminiServerError } = require('../services/geminiService');
+const { clusterByCosineSimilarity } = require('../utils/vectorUtils');
 
+// Cosine similarity cutoff above which two questions are treated as duplicates
+const PYQ_SIMILARITY_THRESHOLD = 0.85;
 // A simple concurrency limiter to prevent OOM on concurrent large PDF uploads
 class Semaphore {
   constructor(max) {
@@ -164,12 +167,93 @@ const { examId, subjectId, year, title, difficulty } = req.body;
       const filePath = path.join(__dirname, '..', 'uploads', req.file.filename);
       if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
     }
+next(error);
+  }
+};
+
+// @desc    Detect near-duplicate / repeated PYQ questions across exam years
+//          using Gemini text embeddings + cosine similarity clustering
+// @route   GET /api/pyqs/clusters/:subjectId
+// @access  Private
+exports.getPYQClusters = async (req, res, next) => {
+  try {
+    const { subjectId } = req.params;
+
+    const subject = await Subject.findByPk(subjectId);
+    if (!subject) {
+      return res.status(404).json({ success: false, error: 'Subject not found' });
+    }
+
+    const pyqs = await PYQ.findAll({
+      where: { subject: subjectId, user: req.user.id, analyzed: true },
+      order: [['year', 'ASC']],
+    });
+
+    // Flatten every previously-detected repeated question from each paper's
+    // own analysis into one candidate list, tagging each with the years
+    // it's linked to (its paper's year, plus any years Gemini already noted).
+    const candidates = [];
+    for (const pyq of pyqs) {
+      const repeatedQuestions = pyq.analysisResults?.repeatedQuestions || [];
+      for (const rq of repeatedQuestions) {
+        if (!rq?.questionText) continue;
+        const years = new Set(Array.isArray(rq.years) ? rq.years : []);
+        years.add(pyq.year);
+        candidates.push({ questionText: rq.questionText.trim(), years });
+      }
+    }
+
+    if (candidates.length === 0) {
+      return res.status(200).json({
+        success: true,
+        count: 0,
+        data: [],
+        message: 'No repeated question patterns found yet. Upload and analyze more PYQ papers for this subject.',
+      });
+    }
+
+    // Compute (cached) embeddings for each candidate question
+    const embeddedCandidates = [];
+    for (const candidate of candidates) {
+      const embedding = await geminiService.generateEmbedding(candidate.questionText);
+      if (embedding && embedding.length > 0) {
+        embeddedCandidates.push({ ...candidate, embedding });
+      }
+    }
+
+    const clusters = clusterByCosineSimilarity(embeddedCandidates, PYQ_SIMILARITY_THRESHOLD);
+
+    // Only surface clusters genuinely repeated across MULTIPLE distinct years
+    const data = clusters
+      .map((cluster) => {
+        const years = new Set();
+        cluster.forEach((c) => c.years.forEach((y) => years.add(y)));
+        return {
+          questionText: cluster[0].questionText,
+          years: Array.from(years).sort((a, b) => a - b),
+          occurrences: cluster.length,
+        };
+      })
+      .filter((cluster) => cluster.years.length > 1)
+      .sort((a, b) => b.years.length - a.years.length);
+
+    res.status(200).json({ success: true, count: data.length, data });
+  } catch (error) {
+    if (error instanceof GeminiRateLimitError) {
+      return res.status(429).json({
+        success: false,
+        error: error.message,
+        retryAfter: error.retryAfter,
+      });
+    }
+    if (error instanceof GeminiServerError) {
+      return res.status(503).json({ success: false, error: error.message });
+    }
     next(error);
   }
 };
 
-// @desc    Get all PYQs
-// @route   GET /api/pyqs
+// @desc    Get all PYQs for the authenticated user// @route   GET /api/pyqs
 // @access  Private
 exports.getPYQs = async (req, res, next) => {
   try {
