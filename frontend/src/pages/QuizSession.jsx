@@ -11,6 +11,8 @@ import {
 } from 'react-icons/fa';
 import API from '../services/api';
 import MathRenderer from '../components/common/MathRenderer';
+import RevisionSheetModal from '../components/dashboard/RevisionSheetModal';
+import QuestionExplanation from '../components/dashboard/QuestionExplanation';
 
 const SECONDS_PER_QUESTION = 60;
 
@@ -18,6 +20,13 @@ const formatTime = (seconds) => {
   const m = Math.floor(seconds / 60);
   const s = seconds % 60;
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+};
+
+const resolveUserAnswerIndex = (question, rawAnswer) => {
+  if (rawAnswer === undefined || rawAnswer === null) return null;
+  if (typeof rawAnswer === 'number') return rawAnswer;
+  const idx = question.options.indexOf(rawAnswer);
+  return idx === -1 ? null : idx;
 };
 
 const buildQuizResultRows = (quiz, answers) =>
@@ -81,7 +90,7 @@ const QuizSession = () => {
       filename: `quiz-result-${quiz.title}.pdf`,
       image: { type: 'jpeg', quality: 0.98 },
       html2canvas: { scale: 2, useCORS: true },
-      jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
+      jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' },
     };
     html2pdf().from(element).set(opt).save();
   };
@@ -315,7 +324,9 @@ const QuizSession = () => {
                     >
                       {isSelected && <div className="w-2.5 h-2.5 rounded-full bg-indigo-400"></div>}
                     </div>
-                    <span><MathRenderer text={option} /></span>
+                    <span>
+                      <MathRenderer text={option} />
+                    </span>
                   </button>
                 );
               })}
@@ -354,7 +365,10 @@ const QuizSession = () => {
           </div>
         ) : (
           /* Results View */
-          <div id="quiz-results-container" className="bg-slate-800 rounded-xl p-8 shadow-xl border border-slate-700">
+          <div
+            id="quiz-results-container"
+            className="bg-slate-800 rounded-xl p-8 shadow-xl border border-slate-700"
+          >
             <div className="text-center mb-10">
               <div className="inline-flex items-center justify-center w-20 h-20 bg-emerald-500/10 rounded-full mb-4">
                 <FaTrophy className="text-4xl text-emerald-400" />
@@ -395,9 +409,15 @@ const QuizSession = () => {
                 const isCorrect = userAnswer === q.correctAnswer;
 
                 return (
-                  <div key={q._id} className="p-5 bg-slate-900/50 rounded-lg border border-slate-700">
-                    <p className="font-medium text-slate-200 mb-3"><span className="text-slate-400 mr-2">{idx + 1}.</span><MathRenderer text={q.questionText} /></p>
-                    
+                  <div
+                    key={q._id}
+                    className="p-5 bg-slate-900/50 rounded-lg border border-slate-700"
+                  >
+                    <p className="font-medium text-slate-200 mb-3">
+                      <span className="text-slate-400 mr-2">{idx + 1}.</span>
+                      <MathRenderer text={q.questionText} />
+                    </p>
+
                     <div className="space-y-2 mb-4">
                       {q.options.map((opt, oIdx) => {
                         let btnClass =
@@ -413,9 +433,15 @@ const QuizSession = () => {
 
                         return (
                           <div key={oIdx} className={btnClass}>
-                            <span><MathRenderer text={opt} /></span>
-                            {opt === q.correctAnswer && <FaCheckCircle className="text-emerald-400" />}
-                            {opt === userAnswer && !isCorrect && <FaTimesCircle className="text-red-400" />}
+                            <span>
+                              <MathRenderer text={opt} />
+                            </span>
+                            {opt === q.correctAnswer && (
+                              <FaCheckCircle className="text-emerald-400" />
+                            )}
+                            {opt === userAnswer && !isCorrect && (
+                              <FaTimesCircle className="text-red-400" />
+                            )}
                           </div>
                         );
                       })}
@@ -423,9 +449,22 @@ const QuizSession = () => {
 
                     {q.explanation && (
                       <div className="bg-indigo-900/30 p-3 rounded border border-indigo-500/30">
-                        <p className="text-sm text-indigo-200"><span className="font-semibold">Explanation:</span> <MathRenderer text={q.explanation} /></p>
+                        <p className="text-sm text-indigo-200">
+                          <span className="font-semibold">Explanation:</span>{' '}
+                          <MathRenderer text={q.explanation} />
+                        </p>
                       </div>
                     )}
+
+                    <QuestionExplanation
+                      question={q.questionText}
+                      options={q.options}
+                      correctAnswer={q.correctAnswer}
+                      userAnswer={resolveUserAnswerIndex(q, userAnswer)}
+                      explanation={q.explanation || ''}
+                      subjectName={quiz.subject?.name || ''}
+                      topicName={quiz.topic?.name || ''}
+                    />
                   </div>
                 );
               })}

@@ -43,6 +43,7 @@ const progressRoutes = require('./routes/progressRoutes');
 const communityRoutes = require('./routes/communityRoutes');
 const userRoutes = require('./routes/userRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
+const aiRoutes = require('./routes/aiRoutes');
 const { initNotificationCron } = require('./services/notificationService');
 const { initDifficultyCalibratorCron } = require('./services/difficultyCalibrator');
 initNotificationCron();
@@ -129,7 +130,7 @@ app.get('/uploads/:filename', protect, async (req, res, next) => {
   try {
     const filename = req.params.filename;
     const fileUrl = `/uploads/${filename}`;
-    
+
     let record = await Note.findOne({ where: { fileUrl } });
     let isPublic = false;
     let owner = null;
@@ -170,6 +171,7 @@ app.use('/api/notes', noteRoutes);
 app.use('/api/progress', progressRoutes);
 app.use('/api/community', communityRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/ai', aiRoutes);
 app.use('/api/notifications', notificationRoutes);
 
 // Base Route
@@ -183,20 +185,23 @@ app.get('/healthz', (req, res) => {
 });
 
 // Swagger UI Documentation
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
-  customCss: '.swagger-ui .topbar { display: none }',
-  customSiteTitle: 'OpenPrep AI API Documentation',
-  swaggerOptions: {
-    persistAuthorization: true,
-    displayRequestDuration: true,
-  },
-}));
+app.use(
+  '/api-docs',
+  swaggerUi.serve,
+  swaggerUi.setup(swaggerSpec, {
+    customCss: '.swagger-ui .topbar { display: none }',
+    customSiteTitle: 'OpenPrep AI API Documentation',
+    swaggerOptions: {
+      persistAuthorization: true,
+      displayRequestDuration: true,
+    },
+  })
+);
 
 // Error Handler Middleware
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
-
 
 const server = http.createServer(app);
 
@@ -205,7 +210,7 @@ const io = new Server(server, {
     origin: getSocketCorsOrigin(),
     methods: ['GET', 'POST'],
     credentials: true,
-  },  // Longer timeouts tolerate throttled timers in backgrounded/idle browser
+  }, // Longer timeouts tolerate throttled timers in backgrounded/idle browser
   // tabs, so active lobby players aren't disconnected on a missed heartbeat.
   pingTimeout: 60000,
   pingInterval: 25000,

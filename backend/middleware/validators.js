@@ -21,20 +21,30 @@ const handleValidationErrors = (req, res, next) => {
 const validateRegister = [
   body('name')
     .trim()
-    .notEmpty().withMessage('Name is required')
-    .isLength({ min: 2, max: 50 }).withMessage('Name must be between 2 and 50 characters'),
+    .notEmpty()
+    .withMessage('Name is required')
+    .isLength({ min: 2, max: 50 })
+    .withMessage('Name must be between 2 and 50 characters'),
   body('email')
     .trim()
-    .notEmpty().withMessage('Email is required')
-    .isEmail().withMessage('Please provide a valid email address')
+    .notEmpty()
+    .withMessage('Email is required')
+    .isEmail()
+    .withMessage('Please provide a valid email address')
     .normalizeEmail(),
   body('password')
-    .notEmpty().withMessage('Password is required')
-    .isLength({ min: 8 }).withMessage('Password must be at least 8 characters')
-    .matches(/[A-Z]/).withMessage('Password must contain at least one uppercase letter')
-    .matches(/[a-z]/).withMessage('Password must contain at least one lowercase letter')
-    .matches(/[0-9]/).withMessage('Password must contain at least one number')
-    .matches(/[^A-Za-z0-9]/).withMessage('Password must contain at least one special character'),
+    .notEmpty()
+    .withMessage('Password is required')
+    .isLength({ min: 8 })
+    .withMessage('Password must be at least 8 characters')
+    .matches(/[A-Z]/)
+    .withMessage('Password must contain at least one uppercase letter')
+    .matches(/[a-z]/)
+    .withMessage('Password must contain at least one lowercase letter')
+    .matches(/[0-9]/)
+    .withMessage('Password must contain at least one number')
+    .matches(/[^A-Za-z0-9]/)
+    .withMessage('Password must contain at least one special character'),
   handleValidationErrors,
 ];
 
@@ -51,18 +61,23 @@ const validateForgotPassword = [
 
 const validateResetPassword = [
   body('password')
-    .notEmpty().withMessage('Password is required')
-    .isLength({ min: 8 }).withMessage('Password must be at least 8 characters')
-    .matches(/[A-Z]/).withMessage('Password must contain at least one uppercase letter')
-    .matches(/[a-z]/).withMessage('Password must contain at least one lowercase letter')
-    .matches(/[0-9]/).withMessage('Password must contain at least one number')
-    .matches(/[^A-Za-z0-9]/).withMessage('Password must contain at least one special character'),
+    .notEmpty()
+    .withMessage('Password is required')
+    .isLength({ min: 8 })
+    .withMessage('Password must be at least 8 characters')
+    .matches(/[A-Z]/)
+    .withMessage('Password must contain at least one uppercase letter')
+    .matches(/[a-z]/)
+    .withMessage('Password must contain at least one lowercase letter')
+    .matches(/[0-9]/)
+    .withMessage('Password must contain at least one number')
+    .matches(/[^A-Za-z0-9]/)
+    .withMessage('Password must contain at least one special character'),
   handleValidationErrors,
 ];
 
 const validateRefreshToken = [
-  body('refreshToken')
-    .notEmpty().withMessage('Refresh token is required'),
+  body('refreshToken').notEmpty().withMessage('Refresh token is required'),
   handleValidationErrors,
 ];
 
@@ -121,19 +136,13 @@ const validateUpdateTopic = [
 // ---------------------------------------------------------------------------
 const validateGenerateAIFlashcards = [
   body('subjectId').isUUID(4).withMessage('Valid subject ID is required'),
-  body('count')
-    .optional()
-    .isInt({ min: 1, max: 50 })
-    .withMessage('Count must be between 1 and 50'),
+  body('count').optional().isInt({ min: 1, max: 50 }).withMessage('Count must be between 1 and 50'),
   handleValidationErrors,
 ];
 
 const validateGenerateFlashcardsFromNote = [
   body('noteId').isUUID(4).withMessage('Valid note ID is required'),
-  body('count')
-    .optional()
-    .isInt({ min: 1, max: 50 })
-    .withMessage('Count must be between 1 and 50'),
+  body('count').optional().isInt({ min: 1, max: 50 }).withMessage('Count must be between 1 and 50'),
   handleValidationErrors,
 ];
 const validateCreateFlashcard = [
@@ -160,17 +169,16 @@ const validateExportFlashcards = [
     .optional()
     .isIn(['json', 'csv', 'apkg'])
     .withMessage('format must be "json", "csv", or "apkg"'),
-  query('subjectId')
-    .optional()
-    .isUUID(4)
-    .withMessage('subjectId must be a valid UUID'),
+  query('subjectId').optional().isUUID(4).withMessage('subjectId must be a valid UUID'),
   handleValidationErrors,
 ];
 
 const validateImportFlashcards = [
   query('subjectId')
-    .notEmpty().withMessage('subjectId query parameter is required')
-    .isUUID(4).withMessage('subjectId must be a valid UUID'),
+    .notEmpty()
+    .withMessage('subjectId query parameter is required')
+    .isUUID(4)
+    .withMessage('subjectId must be a valid UUID'),
   handleValidationErrors,
 ];
 
@@ -179,41 +187,21 @@ const validateImportFlashcards = [
 // ---------------------------------------------------------------------------
 const validateGenerateAIQuiz = [
   body('subjectId').isUUID(4).withMessage('Valid subject ID is required'),
-  body('count')
-    .optional()
-    .isInt({ min: 1, max: 50 })
-    .withMessage('Count must be between 1 and 50'),
+  body('count').optional().isInt({ min: 1, max: 50 }).withMessage('Count must be between 1 and 50'),
   handleValidationErrors,
 ];
 
 const validateGenerateRevisionSheet = [
-  body('quizAttemptId')
-    .optional()
-    .isUUID()
-    .withMessage('quizAttemptId must be a valid UUID'),
-  body('subjectId')
-    .optional()
-    .isUUID()
-    .withMessage('subjectId must be a valid UUID'),
-  body('topicId')
-    .optional()
-    .isUUID()
-    .withMessage('topicId must be a valid UUID'),
-  body('mistookQuestions')
-    .optional()
-    .isArray()
-    .withMessage('mistookQuestions must be an array'),
-  body('saveToNotes')
-    .optional()
-    .isBoolean()
-    .withMessage('saveToNotes must be a boolean'),
+  body('quizAttemptId').optional().isUUID().withMessage('quizAttemptId must be a valid UUID'),
+  body('subjectId').optional().isUUID().withMessage('subjectId must be a valid UUID'),
+  body('topicId').optional().isUUID().withMessage('topicId must be a valid UUID'),
+  body('mistookQuestions').optional().isArray().withMessage('mistookQuestions must be an array'),
+  body('saveToNotes').optional().isBoolean().withMessage('saveToNotes must be a boolean'),
   handleValidationErrors,
 ];
 
 const validateSubmitQuizAttempt = [
-  body('answers')
-    .isArray({ min: 1 })
-    .withMessage('Answers must be a non-empty array'),
+  body('answers').isArray({ min: 1 }).withMessage('Answers must be a non-empty array'),
   body('answers.*.questionId')
     .notEmpty()
     .withMessage('Each answer must have a questionId')
@@ -226,6 +214,79 @@ const validateSubmitQuizAttempt = [
     .optional()
     .isFloat({ min: 0, max: 86400 })
     .withMessage('timeSpent must be a non-negative number no greater than 86400 (24 hours)'),
+  handleValidationErrors,
+];
+
+// ---------------------------------------------------------------------------
+// AI routes
+// ---------------------------------------------------------------------------
+const validateExplainQuestion = [
+  body('question')
+    .trim()
+    .notEmpty()
+    .withMessage('Question text is required')
+    .isLength({ max: 2000 })
+    .withMessage('Question text must be at most 2000 characters'),
+  body('options')
+    .isArray({ min: 2, max: 6 })
+    .withMessage('Options must be an array of 2 to 6 choices'),
+  body('options.*')
+    .isString()
+    .withMessage('Each option must be a string')
+    .notEmpty()
+    .withMessage('Each option must be non-empty')
+    .isLength({ max: 500 })
+    .withMessage('Each option must be at most 500 characters'),
+  body('correctAnswer')
+    .exists()
+    .withMessage('correctAnswer is required')
+    .custom((value, { req }) => {
+      const options = req.body.options;
+      if (!Array.isArray(options)) return true; // options rule handles this case
+      const idx = typeof value === 'number' ? value : options.indexOf(value);
+      if (!Number.isInteger(idx) || idx < 0 || idx >= options.length) {
+        throw new Error(
+          'correctAnswer must be a valid option index or one of the provided options'
+        );
+      }
+      return true;
+    }),
+  body('userAnswer')
+    .optional({ nullable: true })
+    .custom((value, { req }) => {
+      const options = req.body.options;
+      if (!Array.isArray(options)) return true; // options rule handles this case
+      if (
+        typeof value === 'number' &&
+        Number.isInteger(value) &&
+        value >= 0 &&
+        value < options.length
+      ) {
+        return true;
+      }
+      if (typeof value === 'string' && options.includes(value)) {
+        return true;
+      }
+      throw new Error(
+        'userAnswer must be a valid option index, one of the provided options, or null'
+      );
+    }),
+  body('mode').optional().isIn(['hint', 'full']).withMessage('mode must be "hint" or "full"'),
+  body('explanation')
+    .optional()
+    .trim()
+    .isLength({ max: 2000 })
+    .withMessage('Explanation must be at most 2000 characters'),
+  body('subjectName')
+    .optional()
+    .trim()
+    .isLength({ max: 200 })
+    .withMessage('subjectName must be at most 200 characters'),
+  body('topicName')
+    .optional()
+    .trim()
+    .isLength({ max: 200 })
+    .withMessage('topicName must be at most 200 characters'),
   handleValidationErrors,
 ];
 
@@ -250,10 +311,7 @@ const validateImportNotes = [
 // ---------------------------------------------------------------------------
 const validateUploadPYQ = [
   body('subjectId').isUUID(4).withMessage('Valid subject ID is required'),
-  body('year')
-    .optional()
-    .isInt({ min: 1900, max: 2100 })
-    .withMessage('Year must be a valid year'),
+  body('year').optional().isInt({ min: 1900, max: 2100 }).withMessage('Year must be a valid year'),
   body('difficulty')
     .optional()
     .isIn(['Easy', 'Medium', 'Hard'])
@@ -305,17 +363,9 @@ const validateMoveTaskDate = [
 // Progress routes
 // ---------------------------------------------------------------------------
 const validateTrackStudyTime = [
-  body('studyHours')
-    .isFloat({ min: 0.01 })
-    .withMessage('Study hours must be a positive number'),
-  body('subjectId')
-    .optional()
-    .isUUID(4)
-    .withMessage('Subject ID must be a valid UUID'),
-  body('topicId')
-    .optional()
-    .isUUID(4)
-    .withMessage('Topic ID must be a valid UUID'),
+  body('studyHours').isFloat({ min: 0.01 }).withMessage('Study hours must be a positive number'),
+  body('subjectId').optional().isUUID(4).withMessage('Subject ID must be a valid UUID'),
+  body('topicId').optional().isUUID(4).withMessage('Topic ID must be a valid UUID'),
   body('description')
     .optional()
     .trim()
@@ -336,14 +386,12 @@ const validateFocusSession = [
     .optional()
     .isInt({ min: 0 })
     .withMessage('Interruptions must be a non-negative integer'),
-  body('subjectId')
-    .optional()
-    .isUUID(4)
-    .withMessage('Subject ID must be a valid UUID'),
+  body('subjectId').optional().isUUID(4).withMessage('Subject ID must be a valid UUID'),
   handleValidationErrors,
 ];
 
-const validateUpdateTopicProgress = [  body('completionPercentage')
+const validateUpdateTopicProgress = [
+  body('completionPercentage')
     .optional()
     .isFloat({ min: 0, max: 100 })
     .withMessage('Completion percentage must be between 0 and 100'),
@@ -355,10 +403,7 @@ const validateUpdateTopicProgress = [  body('completionPercentage')
     .optional()
     .isInt({ min: 0 })
     .withMessage('Flashcards mastered must be a non-negative integer'),
-  body('quizScores')
-    .optional()
-    .isArray()
-    .withMessage('Quiz scores must be an array'),
+  body('quizScores').optional().isArray().withMessage('Quiz scores must be an array'),
   handleValidationErrors,
 ];
 
@@ -388,27 +433,31 @@ module.exports = {
   validateCreateSubject,
   validateCreateTopic,
   validateUpdateTopic,
-// Flashcard
+  // Flashcard
   validateGenerateAIFlashcards,
   validateGenerateFlashcardsFromNote,
-validateCreateFlashcard,  validateReviewFlashcard,
+  validateCreateFlashcard,
+  validateReviewFlashcard,
   validateAutoTagFlashcard,
   validateExportFlashcards,
-  validateImportFlashcards,  // Quiz
+  validateImportFlashcards, // Quiz
   validateGenerateAIQuiz,
   validateGenerateRevisionSheet,
   validateSubmitQuizAttempt,
-// Note
+  // AI
+  validateExplainQuestion,
+  // Note
   validateUploadNote,
   validateImportNotes,
-  // PYQ  validateUploadPYQ,
-// Study Plan
+  // PYQ
+  validateUploadPYQ,
+  // Study Plan
   validateGenerateAIPlan,
   validateToggleTask,
-  validateMoveTaskDate,// Progress
+  validateMoveTaskDate, // Progress
   validateTrackStudyTime,
   validateUpdateTopicProgress,
-  validateFocusSession,  // Community
+  validateFocusSession, // Community
   validateSubmitFeedback,
   validateResendVerification,
 };

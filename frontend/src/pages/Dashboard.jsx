@@ -554,14 +554,13 @@ const Dashboard = () => {
             {streakFreezes > 0 && (
               <div className="flex flex-col items-center ml-2">
                 <div className="relative group cursor-pointer" title="Streak Freeze Shield">
-                  <Shield
-                    className="w-10 h-10 text-cyan-400 animate-pulse"
-                    fill="currentColor"
-                  />
+                  <Shield className="w-10 h-10 text-cyan-400 animate-pulse" fill="currentColor" />
                   <div className="absolute inset-0 blur-md bg-cyan-400/30 rounded-full" />
                 </div>
                 <span className="text-cyan-300 font-bold text-xl">{streakFreezes}</span>
-                <span className="text-cyan-200/50 text-[10px] uppercase tracking-widest">Freezes</span>
+                <span className="text-cyan-200/50 text-[10px] uppercase tracking-widest">
+                  Freezes
+                </span>
               </div>
             )}
 

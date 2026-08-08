@@ -880,6 +880,8 @@ formData.append('year', year);
                 )}
               </div>
             )}
+        </div>
+      )}
       </div>
     </LeatherBoard>
   );
