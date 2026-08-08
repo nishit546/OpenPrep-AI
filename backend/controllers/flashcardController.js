@@ -10,7 +10,21 @@ const User = require('../models/User');
 const Exam = require('../models/Exam');
 const geminiService = require('../services/geminiService');
 const { GeminiRateLimitError, GeminiServerError } = require('../services/geminiService');
-const { default: Exporter } = require('anki-apkg-export');
+const { YoutubeTranscript } = require('youtube-transcript');
+
+/**
+ * Extract an 11-character YouTube video ID from common URL formats
+ * (watch?v=, youtu.be/, embed/, shorts/).
+ * @param {string} url
+ * @returns {string|null}
+ */
+function extractYouTubeVideoId(url) {
+  if (!url) return null;
+  const match = url.match(
+    /(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/
+  );
+  return match ? match[1] : null;
+}const { default: Exporter } = require('anki-apkg-export');
 const { calculateSM2 } = require('../utils/sm2');
 
 // @desc    Generate AI Flashcards
@@ -169,6 +183,77 @@ exports.generateFlashcardsFromNote = async (req, res, next) => {  try {
         retryAfter: error.retryAfter,
       });
     }
+if (error instanceof GeminiServerError) {
+      return res.status(503).json({ success: false, error: error.message });
+    }
+    next(error);
+  }
+};
+
+// @desc    Extract a YouTube lecture transcript and preview AI-generated flashcards (not saved)
+// @route   POST /api/flashcards/from-youtube
+// @access  Private
+exports.generateFlashcardsFromYouTube = async (req, res, next) => {
+  try {
+    const { youtubeUrl, subjectId, topicId, count } = req.body;
+
+    const videoId = extractYouTubeVideoId(youtubeUrl);
+    if (!videoId) {
+      return res.status(400).json({ success: false, error: 'Please provide a valid YouTube video URL' });
+    }
+
+    let transcriptItems;
+    try {
+      transcriptItems = await YoutubeTranscript.fetchTranscript(videoId);
+    } catch (err) {
+      return res.status(422).json({
+        success: false,
+        error: 'Could not retrieve a transcript for this video. It may not have captions enabled.',
+      });
+    }
+
+    const transcriptText = (transcriptItems || []).map((item) => item.text).join(' ').trim();
+    if (!transcriptText) {
+      return res.status(422).json({
+        success: false,
+        error: 'This video does not appear to contain any educational transcript content',
+      });
+    }
+
+    let subjectName = 'General';
+    if (subjectId) {
+      const subject = await Subject.findByPk(subjectId);
+      if (subject) subjectName = subject.name;
+    }
+
+    let topicName = 'YouTube Lecture';
+    if (topicId) {
+      const topicObj = await Topic.findByPk(topicId);
+      if (topicObj) topicName = topicObj.name;
+    }
+
+    const cardsList = await geminiService.generateFlashcards(
+      subjectName,
+      topicName,
+      transcriptText,
+      count || 6
+    );
+
+    res.status(200).json({
+      success: true,
+      count: cardsList.length,
+      videoId,
+      subjectId: subjectId || null,
+      data: cardsList,
+    });
+  } catch (error) {
+    if (error instanceof GeminiRateLimitError) {
+      return res.status(429).json({
+        success: false,
+        error: error.message,
+        retryAfter: error.retryAfter,
+      });
+    }
     if (error instanceof GeminiServerError) {
       return res.status(503).json({ success: false, error: error.message });
     }
@@ -176,8 +261,7 @@ exports.generateFlashcardsFromNote = async (req, res, next) => {  try {
   }
 };
 
-// @desc    Create manual Flashcard
-// @route   POST /api/flashcards
+// @desc    Create manual Flashcard// @route   POST /api/flashcards
 // @access  Private
 exports.createFlashcard = async (req, res, next) => {  try {
     const { subjectId, topicId, front, back, tags, difficulty } = req.body;
