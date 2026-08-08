@@ -11,10 +11,29 @@ on:
 jobs:
   validate:
     runs-on: ubuntu-latest
+
     permissions:
       pull-requests: write
+
     steps:
-      - uses: actions/github-script@v7
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Validate PR Title
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: echo "$PR_TITLE" | npx commitlint
+
+      - name: Validate PR Checklist
+        uses: actions/github-script@v7
         with:
           script: |
             const pr = context.payload.pull_request;
@@ -37,12 +56,18 @@ jobs:
               /(?:closes|fixes|resolves|implements|addresses)\s*#\s*\d+/i,
               /issue\s*[#:]\s*\d+/i
             ];
+
             const hasRef = issueRefs.some(r => r.test(body));
+
             if (!hasRef) {
-              missing.push('**Related Issue** is not referenced. Use `Fixes #123`, `Closes #123`, or `Related to #123` in the description.');
+              missing.push(
+                '**Related Issue** is not referenced. Use `Fixes #123`, `Closes #123`, or `Related to #123` in the description.'
+              );
             }
 
-            const bodyText = '## \u26A0\uFE0F PR Checklist Incomplete\n\nThank you for your contribution! Please update your PR to include:\n\n' +
+            const bodyText =
+              '## ⚠️ PR Checklist Incomplete\n\n' +
+              'Thank you for your contribution! Please update your PR to include:\n\n' +
               missing.map(m => '- ' + m).join('\n');
 
             const { data: comments } = await github.rest.issues.listComments({
@@ -53,7 +78,12 @@ jobs:
             });
 
             const bot = 'github-actions[bot]';
-            const existing = comments.find(c => c.user.login === bot && c.body.includes('PR Checklist Incomplete'));
+
+            const existing = comments.find(
+              c =>
+                c.user.login === bot &&
+                c.body.includes('PR Checklist Incomplete')
+            );
 
             if (missing.length === 0) {
               if (existing) {

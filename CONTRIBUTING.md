@@ -92,6 +92,32 @@ Example:
 feat(quiz): add timer component to quiz interface
 ```
 
+#### Pull Request Titles
+
+Pull request titles must also follow the Conventional Commits format:
+
+`<type>(<scope>): <description>`
+
+Examples:
+
+- `feat(auth): add google oauth login`
+- `fix(quiz): repair scoring algorithm`
+- `docs(setup): update docker guide`
+- `chore(ci): update GitHub Actions workflow`
+
+Pull request titles are automatically validated by GitHub Actions. Invalid titles will cause the PR validation check to fail.
+
+Common commit types include:
+
+- `feat`: A new feature
+- `fix`: A bug fix
+- `docs`: Documentation changes
+- `style`: Code style changes
+- `refactor`: Code restructuring without changing behavior
+- `test`: Adding or modifying tests
+- `chore`: Maintenance tasks
+- `ci`: Changes to CI/CD configuration
+
 ### Step 5: Open a Pull Request
 
 1. Push your branch to your fork:
