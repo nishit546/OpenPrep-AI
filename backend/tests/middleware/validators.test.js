@@ -195,6 +195,24 @@ describe('Validators - validateGenerateAIQuiz', () => {
     expect(res.statusCode).toBe(400);
     expect(res.body.error).toContain('subject ID');
   });
+
+  it('should accept supported quiz languages', async () => {
+    const { next, res } = await runValidators(validateGenerateAIQuiz, {
+      subjectId: VALID_UUID,
+      language: 'hindi',
+    });
+    expect(next).toHaveBeenCalled();
+    expect(res.statusCode).toBeNull();
+  });
+
+  it('should reject unsupported quiz languages', async () => {
+    const { res } = await runValidators(validateGenerateAIQuiz, {
+      subjectId: VALID_UUID,
+      language: 'french',
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.body.error).toContain('language');
+  });
 });
 
 describe('Validators - validateUploadNote', () => {

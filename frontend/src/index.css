@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&family=Noto+Sans+Devanagari:wght@400;500;600;700&family=Noto+Sans+Tamil:wght@400;500;600;700&family=Noto+Sans+Telugu:wght@400;500;600;700&family=Noto+Sans+Marathi:wght@400;500;600;700&display=swap');
 
 @import "tailwindcss";
 
@@ -40,6 +40,22 @@
 
 .font-inter {
   font-family: 'Inter', sans-serif;
+}
+
+.font-noto-sans-devanagari {
+  font-family: 'Noto Sans Devanagari', 'Nirmala UI', 'Segoe UI', sans-serif;
+}
+
+.font-tamil {
+  font-family: 'Noto Sans Tamil', 'Noto Sans', 'Nirmala UI', sans-serif;
+}
+
+.font-telugu {
+  font-family: 'Noto Sans Telugu', 'Noto Sans', 'Nirmala UI', sans-serif;
+}
+
+.font-marathi {
+  font-family: 'Noto Sans Marathi', 'Noto Sans', 'Nirmala UI', sans-serif;
 }
 
 /* Custom Scrollbar */

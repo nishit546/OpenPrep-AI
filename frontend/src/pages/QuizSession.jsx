@@ -237,8 +237,18 @@ const QuizSession = () => {
   const timeElapsed = timeLeft === 0 && !submitted;
   const lowTime = timeLeft > 0 && timeLeft <= 30;
 
+  const languageClassName = quiz?.language === 'hindi' || quiz?.language === 'hinglish'
+    ? 'font-noto-sans-devanagari'
+    : quiz?.language === 'tamil'
+      ? 'font-tamil'
+      : quiz?.language === 'telugu'
+        ? 'font-telugu'
+        : quiz?.language === 'marathi'
+          ? 'font-marathi'
+          : 'font-sans';
+
   return (
-    <div className="min-h-screen bg-slate-900 text-white font-sans py-10 px-4 md:px-20">
+    <div className={`min-h-screen bg-slate-900 text-white ${languageClassName} py-10 px-4 md:px-20`}>
       {timeElapsed && !submitted && (
         <div
           role="alert"
@@ -292,7 +302,7 @@ const QuizSession = () => {
         {/* Quiz Content */}
         {!submitted ? (
           <div className="bg-slate-800 rounded-xl p-6 md:p-8 shadow-xl border border-slate-700">
-            <h2 className="text-xl font-semibold mb-6 leading-relaxed">
+            <h2 className="text-xl font-semibold mb-6 leading-relaxed break-words whitespace-pre-wrap">
               <MathRenderer text={currentQuestion.questionText} />
             </h2>
 
@@ -315,7 +325,7 @@ const QuizSession = () => {
                     >
                       {isSelected && <div className="w-2.5 h-2.5 rounded-full bg-indigo-400"></div>}
                     </div>
-                    <span><MathRenderer text={option} /></span>
+                    <span className="break-words whitespace-pre-wrap"><MathRenderer text={option} /></span>
                   </button>
                 );
               })}
@@ -396,7 +406,7 @@ const QuizSession = () => {
 
                 return (
                   <div key={q._id} className="p-5 bg-slate-900/50 rounded-lg border border-slate-700">
-                    <p className="font-medium text-slate-200 mb-3"><span className="text-slate-400 mr-2">{idx + 1}.</span><MathRenderer text={q.questionText} /></p>
+                    <p className="font-medium text-slate-200 mb-3 break-words whitespace-pre-wrap"><span className="text-slate-400 mr-2">{idx + 1}.</span><MathRenderer text={q.questionText} /></p>
                     
                     <div className="space-y-2 mb-4">
                       {q.options.map((opt, oIdx) => {
@@ -413,7 +423,7 @@ const QuizSession = () => {
 
                         return (
                           <div key={oIdx} className={btnClass}>
-                            <span><MathRenderer text={opt} /></span>
+                            <span className="break-words whitespace-pre-wrap"><MathRenderer text={opt} /></span>
                             {opt === q.correctAnswer && <FaCheckCircle className="text-emerald-400" />}
                             {opt === userAnswer && !isCorrect && <FaTimesCircle className="text-red-400" />}
                           </div>
@@ -423,7 +433,7 @@ const QuizSession = () => {
 
                     {q.explanation && (
                       <div className="bg-indigo-900/30 p-3 rounded border border-indigo-500/30">
-                        <p className="text-sm text-indigo-200"><span className="font-semibold">Explanation:</span> <MathRenderer text={q.explanation} /></p>
+                        <p className="text-sm text-indigo-200 break-words whitespace-pre-wrap"><span className="font-semibold">Explanation:</span> <MathRenderer text={q.explanation} /></p>
                       </div>
                     )}
                   </div>

@@ -183,6 +183,10 @@ const validateGenerateAIQuiz = [
     .optional()
     .isInt({ min: 1, max: 50 })
     .withMessage('Count must be between 1 and 50'),
+  body('language')
+    .optional()
+    .isIn(['english', 'hindi', 'hinglish', 'tamil', 'telugu', 'marathi'])
+    .withMessage('language must be one of: english, hindi, hinglish, tamil, telugu, marathi'),
   handleValidationErrors,
 ];
 

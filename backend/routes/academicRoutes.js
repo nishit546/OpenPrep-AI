@@ -126,7 +126,7 @@ router.post('/exams', protect, validateCreateExam, clearCache(req => `exams:${re
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.post('/bundles', protect, clearCache(req => `exams:${req.user.id}:*`), createCompositeBundle);
+router.post('/bundles', protect, clearCache(req => [`exams:${req.user.id}:*`, `subjects:${req.user.id}:*`, `topics:${req.user.id}:*`]), createCompositeBundle);
 
 /**
  * @swagger
@@ -187,7 +187,7 @@ router.post('/bundles', protect, clearCache(req => `exams:${req.user.id}:*`), cr
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.put('/bundles/:examId/weightages', protect, clearCache(req => `subjects:${req.user.id}:*`), updateSubjectWeightages);
+router.put('/bundles/:examId/weightages', protect, clearCache(req => [`subjects:${req.user.id}:*`, `exams:${req.user.id}:*`]), updateSubjectWeightages);
 
 /**
  * @swagger
@@ -250,7 +250,7 @@ router.post(
   upload.single('syllabusFile'),
   aiLimiter,
   checkQuota,
-  clearCache((req) => `exams:${req.user.id}:*`),
+  clearCache((req) => [`exams:${req.user.id}:*`, `subjects:${req.user.id}:*`, `topics:${req.user.id}:*`]),
   importSyllabus
 );
 
@@ -311,9 +311,6 @@ router.post(
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-
-// Exams
-router.post('/exams', protect, validateCreateExam, clearCache(req => `exams:${req.user.id}:*`), createExam);
 
 /**
  * @swagger
@@ -462,7 +459,7 @@ router.delete('/exams/:id', protect, clearCache(req => `exams:${req.user.id}:*`)
  */
 
 // Subjects
-router.post('/subjects', protect, validateCreateSubject, clearCache(req => `exams:${req.user.id}:*`), createSubject);
+router.post('/subjects', protect, validateCreateSubject, clearCache(req => [`exams:${req.user.id}:*`, `subjects:${req.user.id}:*`, `topics:${req.user.id}:*`]), createSubject);
 
 /**
  * @swagger
@@ -495,7 +492,7 @@ router.post('/subjects', protect, validateCreateSubject, clearCache(req => `exam
  *               $ref: '#/components/schemas/Error'
  */
 
-router.get('/subjects', protect, getSubjects); // Subjects might be fetched often, but exams cache is more critical per issue 248. The issue doesn't list GET /api/academic/subjects.
+router.get('/subjects', protect, cacheMiddleware(req => `subjects:${req.user.id}:${req.originalUrl}`), getSubjects);
 
 /**
  * @swagger
@@ -544,7 +541,7 @@ router.get('/subjects', protect, getSubjects); // Subjects might be fetched ofte
  *               $ref: '#/components/schemas/Error'
  */
 
-router.delete('/subjects/:id', protect, clearCache(req => `exams:${req.user.id}:*`), deleteSubject);
+router.delete('/subjects/:id', protect, clearCache(req => [`exams:${req.user.id}:*`, `subjects:${req.user.id}:*`, `topics:${req.user.id}:*`, `pyqs:${req.user.id}:*`]), deleteSubject);
 
 /**
  * @swagger
@@ -616,7 +613,7 @@ router.delete('/subjects/:id', protect, clearCache(req => `exams:${req.user.id}:
  */
 
 // Topics
-router.post('/topics', protect, validateCreateTopic, clearCache(req => `exams:${req.user.id}:*`), createTopic);
+router.post('/topics', protect, validateCreateTopic, clearCache(req => [`topics:${req.user.id}:*`, `subjects:${req.user.id}:*`]), createTopic);
 
 /**
  * @swagger
@@ -649,7 +646,7 @@ router.post('/topics', protect, validateCreateTopic, clearCache(req => `exams:${
  *               $ref: '#/components/schemas/Error'
  */
 
-router.get('/topics', protect, getTopics);
+router.get('/topics', protect, cacheMiddleware(req => `topics:${req.user.id}:${req.originalUrl}`), getTopics);
 
 /**
  * @swagger
@@ -725,7 +722,7 @@ router.get('/topics', protect, getTopics);
  *               $ref: '#/components/schemas/Error'
  */
 
-router.put('/topics/:id', protect, validateUpdateTopic, clearCache(req => `exams:${req.user.id}:*`), updateTopic);
+router.put('/topics/:id', protect, validateUpdateTopic, clearCache(req => [`topics:${req.user.id}:*`, `subjects:${req.user.id}:*`]), updateTopic);
 
 /**
  * @swagger
@@ -774,6 +771,6 @@ router.put('/topics/:id', protect, validateUpdateTopic, clearCache(req => `exams
  *               $ref: '#/components/schemas/Error'
  */
 
-router.delete('/topics/:id', protect, clearCache(req => `exams:${req.user.id}:*`), deleteTopic);
+router.delete('/topics/:id', protect, clearCache(req => [`topics:${req.user.id}:*`, `subjects:${req.user.id}:*`]), deleteTopic);
 
 module.exports = router;

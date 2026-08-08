@@ -1,34 +1,29 @@
-const redisService = require('../services/redisService');
+const cacheService = require('../services/cacheService');
 
-const cacheMiddleware = (keyGenerator, ttlSeconds = 300) => {
+const cacheMiddleware = (keyGenerator, ttlSeconds = parseInt(process.env.CACHE_TTL, 10) || 3600) => {
   return async (req, res, next) => {
-    // If Redis is not connected, just skip caching entirely
-    if (!redisService.isReady) {
-      return next();
-    }
-
     const key = typeof keyGenerator === 'function' ? keyGenerator(req) : keyGenerator;
 
     try {
-      const cachedData = await redisService.get(key);
+      const cachedData = await cacheService.get(key);
       if (cachedData) {
+        res.setHeader('X-Cache', 'HIT');
         return res.json({ success: true, ...cachedData });
       }
 
-      // Intercept res.json to cache the response before sending it
       const originalJson = res.json;
       res.json = function (body) {
         if (body && body.success) {
-          // We only cache the data payload, but strip success so it doesn't get nested if we want.
-          // Actually, caching the whole body minus success is fine, or just cache the whole body.
           const { success, ...rest } = body;
-          redisService.set(key, rest, ttlSeconds);
+          cacheService.set(key, rest, ttlSeconds).catch(() => {});
+          res.setHeader('X-Cache', 'MISS');
         }
         return originalJson.call(this, body);
       };
 
       next();
     } catch (err) {
+      res.setHeader('X-Cache', 'MISS');
       next();
     }
   };

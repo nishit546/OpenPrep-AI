@@ -9,6 +9,7 @@ const User = require('../../models/User');
 const Subject = require('../../models/Subject');
 const Exam = require('../../models/Exam');
 const PYQ = require('../../models/PYQ');
+const cacheService = require('../../services/cacheService');
 
 const app = express();
 app.use(express.json());
@@ -62,6 +63,10 @@ describe('PYQ Controller - Integration Tests', () => {
 
     authToken = jwt.sign({ id: testUser.id, type: 'access' }, process.env.JWT_SECRET);
     otherToken = jwt.sign({ id: otherUser.id, type: 'access' }, process.env.JWT_SECRET);
+  });
+
+  afterEach(async () => {
+    await cacheService.del([`pyqs:${testUser.id}:*`, `pyqs:${otherUser?.id}:*`]);
   });
 
   afterAll(() => {
@@ -203,6 +208,24 @@ describe('PYQ Controller - Integration Tests', () => {
       expect(res.status).toBe(200);
       expect(res.body.count).toBe(0);
       expect(res.body.data).toEqual([]);
+    });
+
+    it('should set X-Cache = MISS on first request and HIT on second request for GET /api/pyqs', async () => {
+      const firstRes = await request(app)
+        .get('/api/pyqs')
+        .set('Authorization', `Bearer ${authToken}`);
+
+      expect(firstRes.status).toBe(200);
+      expect(firstRes.headers['x-cache']).toBe('MISS');
+      expect(firstRes.body.success).toBe(true);
+
+      const secondRes = await request(app)
+        .get('/api/pyqs')
+        .set('Authorization', `Bearer ${authToken}`);
+
+      expect(secondRes.status).toBe(200);
+      expect(secondRes.headers['x-cache']).toBe('HIT');
+      expect(secondRes.body.success).toBe(true);
     });
 
     it('should return 401 without authentication', async () => {

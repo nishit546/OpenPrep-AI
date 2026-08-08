@@ -115,6 +115,13 @@ describe('Gemini Service - Mock Fallbacks', () => {
       expect(Array.isArray(result.questions)).toBe(true);
     });
 
+    it('should localize mock quiz content for Hindi requests', async () => {
+      const result = await geminiService.generateQuiz('Math', 'Algebra', '', 2, false, 'hindi');
+
+      expect(result.questions[0].questionText).toContain('हिंदी');
+      expect(result.questions[0].explanation).toContain('हिंदी');
+    });
+
     it('should return the requested number of questions', async () => {
       const result = await geminiService.generateQuiz('Science', 'Physics', '', 3);
 

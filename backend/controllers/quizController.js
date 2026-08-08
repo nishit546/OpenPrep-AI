@@ -9,7 +9,7 @@ const Note = require('../models/Note');
 const ActivityLog = require('../models/ActivityLog');
 const Progress = require('../models/Progress');
 const geminiService = require('../services/geminiService');
-const { GeminiRateLimitError, GeminiServerError } = require('../services/geminiService');
+const { GeminiRateLimitError, GeminiServerError, normalizeQuizLanguage } = require('../services/geminiService');
 const { runCalibration } = require('../services/difficultyCalibrator');
 
 // Window (ms) during which duplicate quiz submissions for the same quiz are ignored.
@@ -21,7 +21,8 @@ const DUPLICATE_SUBMIT_WINDOW_MS = 5000;
 // @access  Private
 exports.generateAIQuiz = async (req, res, next) => {
   try {
-    const { subjectId, topicId, count } = req.body;
+    const { subjectId, topicId, count, language } = req.body;
+    const normalizedLanguage = normalizeQuizLanguage(language);
 
     const subject = await Subject.findByPk(subjectId);
     if (!subject) {
@@ -45,7 +46,14 @@ exports.generateAIQuiz = async (req, res, next) => {
     }
 
     // Call Gemini Service
-    const aiQuiz = await geminiService.generateQuiz(subject.name, topicName, notesText, count || 5, req.query.refresh === 'true');
+    const aiQuiz = await geminiService.generateQuiz(
+      subject.name,
+      topicName,
+      notesText,
+      count || 5,
+      req.query.refresh === 'true',
+      normalizedLanguage
+    );
 
     // Assign unique question IDs (similar to Mongoose subdocument ids)
     const questionsWithIds = aiQuiz.questions.map((q) => ({
@@ -62,6 +70,7 @@ exports.generateAIQuiz = async (req, res, next) => {
       topic: topicId || null,
       questions: questionsWithIds,
       type: 'AI_Generated',
+      language: normalizedLanguage,
       createdBy: req.user.id,
     });
 
