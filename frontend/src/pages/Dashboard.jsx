@@ -22,10 +22,10 @@ import {
   Upload,
   Settings,
   MessageSquare,
-  Shield,
+Shield,
   Globe,
-} from 'lucide-react';
-import API from '../services/api';
+  Youtube,
+} from 'lucide-react';import API from '../services/api';
 import { toDateOnlyString } from '../utils/dateUtils';
 import {
   LineChart,
@@ -65,7 +65,7 @@ import ThemeToggle from '../components/ThemeToggle';
 import BadgesList from '../components/BadgesList';
 import SM2SettingsModal from '../components/dashboard/SM2SettingsModal';
 import CommunityDecksModal from '../components/dashboard/CommunityDecksModal';
-
+import GenerateFlashcardsFromYouTubeModal from '../components/dashboard/GenerateFlashcardsFromYouTubeModal';
 import {
   fetchDashboardStats,
   fetchSubjectBreakdown,
@@ -279,8 +279,8 @@ const Dashboard = () => {
   };
 
   // ── Note & PYQ Modal State ──
-  const [isNoteModalOpen, setIsNoteModalOpen] = useState(false);
-  const [isStudyPlanOpen, setIsStudyPlanOpen] = useState(false);
+const [isNoteModalOpen, setIsNoteModalOpen] = useState(false);
+  const [isYoutubeFlashcardModalOpen, setIsYoutubeFlashcardModalOpen] = useState(false);  const [isStudyPlanOpen, setIsStudyPlanOpen] = useState(false);
   const [isPyqModalOpen, setIsPyqModalOpen] = useState(false);
   const [isBundleModalOpen, setIsBundleModalOpen] = useState(false);
   const [isSyllabusImportOpen, setIsSyllabusImportOpen] = useState(false);
@@ -815,7 +815,7 @@ const Dashboard = () => {
           <div className="flex justify-center">
             <PomodoroTimer />
           </div>
-          <div>
+<div>
             <FlashcardWidget
               flashcard={firstDueCard}
               loading={loadingFlashcards}
@@ -824,8 +824,13 @@ const Dashboard = () => {
               onRetry={handleRetry(fetchDueFlashcards)}
               onReview={handleReviewCard}
             />
+            <button
+              onClick={() => setIsYoutubeFlashcardModalOpen(true)}
+              className="mt-3 w-full flex items-center justify-center gap-2 text-sm px-4 py-2 rounded-lg border border-red-300 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
+            >
+              <Youtube className="w-4 h-4" /> Generate Flashcards from YouTube
+            </button>
           </div>
-
           {/* BADGES / GAMIFICATION */}
           <div className="md:col-span-2 mt-6">
             <BadgeGrid />
@@ -1064,13 +1069,23 @@ const Dashboard = () => {
           </VintagePaper>
         </div>
       </div>
-      {/* --- CREATE NOTE MODAL --- */}
+{/* --- CREATE NOTE MODAL --- */}
       <CreateNoteModal
         isOpen={isNoteModalOpen}
         onClose={() => setIsNoteModalOpen(false)}
         onNoteCreated={() => setIsNoteModalOpen(false)}
       />
 
+      {/* --- YOUTUBE FLASHCARD DECK MODAL --- */}
+      {isYoutubeFlashcardModalOpen && (
+        <GenerateFlashcardsFromYouTubeModal
+          onClose={() => setIsYoutubeFlashcardModalOpen(false)}
+          onImported={() => {
+            setIsYoutubeFlashcardModalOpen(false);
+            dispatch(fetchDueFlashcards());
+          }}
+        />
+      )}
       {/* --- STUDY PLAN MODAL --- */}
       <StudyPlanModal
         isOpen={isStudyPlanOpen}

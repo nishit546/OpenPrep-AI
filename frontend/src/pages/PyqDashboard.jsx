@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
-  FileText, Upload, AlertCircle, RefreshCw, CheckCircle, PieChart as PieChartIcon,
-  TrendingUp, Award, HelpCircle, Layers, Calendar, Filter, ArrowLeft, ArrowUpRight
-} from 'lucide-react';
-import { useNavigate, Link, useSearchParams } from 'react-router-dom';
+FileText, Upload, AlertCircle, RefreshCw, CheckCircle, PieChart as PieChartIcon,
+  TrendingUp, Award, HelpCircle, Layers, Calendar, Filter, ArrowLeft, ArrowUpRight, Copy
+} from 'lucide-react';import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip as PieTooltip, Legend
 } from 'recharts';
@@ -81,11 +80,39 @@ const [uploadSubjectId, setUploadSubjectId] = useState('');
   const [isTimeout, setIsTimeout] = useState(false);
   const [trendActiveIndex, setTrendActiveIndex] = useState(-1);
 
-  const [activeInsightTab, setActiveInsightTab] = useState('paper');
+const [activeInsightTab, setActiveInsightTab] = useState('paper');
   const [forecastData, setForecastData] = useState(null);
   const [loadingForecast, setLoadingForecast] = useState(false);
   const [forecastError, setForecastError] = useState(null);
 
+  const [clusterData, setClusterData] = useState([]);
+  const [loadingClusters, setLoadingClusters] = useState(false);
+  const [clusterError, setClusterError] = useState(null);
+
+  const fetchClusters = async (forceRefresh = false) => {
+    if (!selectedSubjectId) return;
+    setLoadingClusters(true);
+    setClusterError(null);
+    try {
+      const res = await API.get(`/pyqs/clusters/${selectedSubjectId}`, {
+        params: { refresh: forceRefresh === true },
+      });
+      if (res.data?.success) {
+        setClusterData(res.data.data || []);
+      }
+    } catch (err) {
+      console.error('Failed to load duplicate question clusters:', err);
+      setClusterError(err?.response?.data?.error || 'Could not detect duplicate questions.');
+    } finally {
+      setLoadingClusters(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeInsightTab === 'duplicates' && selectedSubjectId) {
+      fetchClusters();
+    }
+  }, [activeInsightTab, selectedSubjectId]);
   const fetchForecast = async (forceRefresh = false) => {
     if (!selectedSubjectId) return;
     setLoadingForecast(true);
@@ -603,7 +630,7 @@ formData.append('year', year);
               >
                 Paper Insights
               </button>
-              <button
+<button
                 type="button"
                 onClick={() => setActiveInsightTab('forecast')}
                 className={`px-4 py-2 text-sm font-bold font-playfair transition-all border-b-2 ${
@@ -614,8 +641,18 @@ formData.append('year', year);
               >
                 AI Upcoming Forecast
               </button>
+              <button
+                type="button"
+                onClick={() => setActiveInsightTab('duplicates')}
+                className={`px-4 py-2 text-sm font-bold font-playfair transition-all border-b-2 ${
+                  activeInsightTab === 'duplicates'
+                    ? 'border-amber-800 text-amber-900 font-bold'
+                    : 'border-transparent text-neutral-500 hover:text-neutral-800'
+                }`}
+              >
+                Duplicate Detection
+              </button>
             </div>
-
             {activeInsightTab === 'paper' && selectedPyq && (
               <div className="space-y-8">
                 {/* Row 1: Pie Chart & AI Trend Card */}
@@ -876,9 +913,56 @@ formData.append('year', year);
                         ))}
                       </div>
                     </VintagePaper>
-                  </div>
+</div>
                 )}
               </div>
+            )}
+
+            {activeInsightTab === 'duplicates' && (
+              <VintagePaper className="shadow-[0_10px_25px_rgba(0,0,0,0.5)]">
+                <h3 className="text-xl font-bold font-playfair text-neutral-900 mb-4 border-b border-neutral-400 pb-2 flex items-center justify-between gap-2">
+                  <span className="flex items-center gap-2">
+                    <Copy className="w-5 h-5 text-amber-800" /> Repeated Questions Across Years
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => fetchClusters(true)}
+                    disabled={loadingClusters}
+                    className="p-1.5 hover:bg-neutral-200 rounded text-neutral-600 hover:text-neutral-900 transition-colors"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                  </button>
+                </h3>
+
+                {loadingClusters ? (
+                  <div className="flex flex-col items-center justify-center py-16 text-neutral-500 gap-2">
+                    <RefreshCw className="w-8 h-8 animate-spin text-amber-800" />
+                    <p className="text-sm italic">Comparing question embeddings across exam years...</p>
+                  </div>
+                ) : clusterError ? (
+                  <div className="flex flex-col items-center justify-center py-16 text-center text-red-700">
+                    <AlertCircle className="w-8 h-8 mb-2" />
+                    <p>{clusterError}</p>
+                    <button
+                      type="button"
+                      onClick={() => fetchClusters()}
+                      className="mt-3 text-amber-800 hover:text-amber-900 font-semibold text-xs underline"
+                    >
+                      Try Again
+                    </button>
+                  </div>
+                ) : clusterData.length === 0 ? (
+                  <p className="text-sm text-neutral-500 italic text-center py-16">
+                    No cross-year duplicate questions detected yet. Upload and analyze PYQs from multiple years to find repeats.
+                  </p>
+                ) : (
+                  <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
+                    {clusterData.map((cluster, idx) => (
+                      <RepeatedQuestionCard key={idx} rq={cluster} />
+                    ))}
+                  </div>
+                )}
+              </VintagePaper>
             )}
       </div>
     </LeatherBoard>
