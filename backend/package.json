@@ -18,7 +18,7 @@
   "dependencies": {
     "@google/genai": "^2.16.0",
     "@google/generative-ai": "^0.11.4",
-    "@sentry/node": "^8.26.0",
+    "@sentry/node": "^10.70.0",
     "@sentry/profiling-node": "^8.26.0",
     "anki-apkg-export": "^4.0.3",
     "archiver": "^7.0.1",
