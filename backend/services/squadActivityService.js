@@ -4,6 +4,7 @@ const {
   SquadMember,
   User,
 } = require('../models');
+const redisService = require('./redisService');
 
 /**
  * Emojis a member may react with. Anything else is rejected rather than stored,
@@ -66,12 +67,35 @@ async function logSquadActivity(userId, type, message, metadata = {}, deps = {})
     return { posted: 0, skipped: true };
   }
 
+  const lockService = require('./lockService');
+  const lockValue = await lockService.acquireLock(`squad:activity:${userId}`, 5000);
+  if (!lockValue) {
+    return { posted: 0, skipped: true, error: 'Concurrent activity logging locked.' };
+  }
+
   try {
     const memberships = await squadMemberModel.findAll({ where: { userId } });
     if (memberships.length === 0) {
       return { posted: 0, skipped: false };
     }
 
+    // Try storing to Redis Stream CDC first
+    if (redisService.isReady && redisService.client) {
+      try {
+        const eventData = {
+          userId,
+          activityType: type,
+          message,
+          metadata: JSON.stringify(metadata)
+        };
+        await redisService.client.xadd('squad:stream', '*', 'data', JSON.stringify(eventData));
+        return { posted: memberships.length, skipped: false, queued: true };
+      } catch (redisErr) {
+        console.warn('[squadActivityService] Redis Stream push failed. Falling back to DB write.', redisErr.message);
+      }
+    }
+
+    // Local Fallback: Synchronous Database Write
     let posted = 0;
 
     for (const member of memberships) {
@@ -103,6 +127,8 @@ async function logSquadActivity(userId, type, message, metadata = {}, deps = {})
   } catch (error) {
     console.error('Failed to post squad activity:', error.message);
     return { posted: 0, skipped: false, error: error.message };
+  } finally {
+    await lockService.releaseLock(`squad:activity:${userId}`, lockValue);
   }
 }
 

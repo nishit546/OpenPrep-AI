@@ -106,10 +106,15 @@ module.exports = (io) => {
   };
 
   const finishBattle = async (roomCode) => {
-    const room = roomManager.getRoom(roomCode);
-    if (!room) return;
+    const lockService = require('../services/lockService');
+    const lockValue = await lockService.acquireLock(`battle:finish:${roomCode}`, 10000);
+    if (!lockValue) return;
 
-    room.status = 'finished';
+    try {
+      const room = roomManager.getRoom(roomCode);
+      if (!room || room.status === 'finished') return;
+
+      room.status = 'finished';
     if (room.timerInterval) clearInterval(room.timerInterval);
 
     try {
@@ -167,6 +172,9 @@ module.exports = (io) => {
     });
 
     roomManager.removeRoom(roomCode);
+    } finally {
+      await lockService.releaseLock(`battle:finish:${roomCode}`, lockValue);
+    }
   };
 
   io.on('connection', (socket) => {
