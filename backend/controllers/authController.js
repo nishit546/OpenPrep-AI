@@ -241,7 +241,7 @@ const sendPasswordResetOtp = async (user) => {
  */
 exports.register = async (req, res, next) => {
   try {
-    const { name, email, password, role } = req.body;
+    const { name, email, password } = req.body;
 
     let user = await User.findOne({ where: { email } });
     if (user) {
@@ -252,7 +252,7 @@ exports.register = async (req, res, next) => {
       name,
       email,
       password,
-      role: role || 'student',
+      role: 'student',
     });
 
     const accessToken = generateAccessToken(user.id);
