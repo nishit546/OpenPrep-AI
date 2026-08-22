@@ -931,7 +931,7 @@ exports.refreshToken = async (req, res, next) => {
 };
 
 const { OAuth2Client } = require('google-auth-library');
-const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID || '179369126060-lq7unpt173rt6aog2nt93s6m895d6b2i.apps.googleusercontent.com');
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 // ---------------------------------------------------------------------------
 // @desc    Google OAuth Login / Register via credential token
@@ -956,15 +956,10 @@ exports.googleLogin = async (req, res, next) => {
         googleId = payload.sub;
         picture = payload.picture;
       } catch (verifyErr) {
-        // Fallback: decode JWT token
-        const payload = jwt.decode(credential);
-        if (!payload || !payload.email) {
-          return res.status(400).json({ success: false, error: 'Invalid Google credential' });
-        }
-        email = payload.email;
-        name = payload.name || payload.given_name;
-        googleId = payload.sub;
-        picture = payload.picture;
+        return res.status(401).json({
+          success: false,
+          error: 'Invalid Google credential - token verification failed',
+        });
       }
     } else if (access_token) {
       // Access token flow via Google UserInfo API
