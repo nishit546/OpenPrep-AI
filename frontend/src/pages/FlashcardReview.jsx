@@ -20,6 +20,7 @@ import useVoiceControl from '../hooks/useVoiceControl';
 import VoiceModeToggle from '../components/VoiceModeToggle';
 import AudioWaveform from '../components/AudioWaveform';
 import GenerateFlashcardsFromAudioModal from '../components/dashboard/GenerateFlashcardsFromAudioModal';
+import RemediationQuizModal from '../components/flashcards/RemediationQuizModal';
 import KeyboardShortcutsModal from '../components/flashcards/KeyboardShortcutsModal';
 import PomodoroTimer from '../components/dashboard/PomodoroTimer';
 const STORAGE_KEY = 'flashcardReviewSession';
@@ -554,15 +555,6 @@ useEffect(() => {
       clearSession();
     }
   }, [isSessionComplete, noCardsDue]);
-{noCardsDue && (
-  <button
-    onClick={() => setIsAudioGeneratorOpen(true)}
-    className="px-6 py-3 bg-primary-600 text-white font-semibold rounded-lg hover:bg-primary-700 transition-colors flex items-center"
-  >
-    <FileAudio className="w-5 h-5 mr-2" />
-    Create from Audio
-  </button>
-)}
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex flex-col items-center justify-center">
@@ -582,17 +574,6 @@ useEffect(() => {
       </div>
     );
   }
-{isAudioGeneratorOpen && (
-  <GenerateFlashcardsFromAudioModal
-    onClose={() => setIsAudioGeneratorOpen(false)}
-    onImported={async () => {
-      setIsAudioGeneratorOpen(false);
-      setLoading(true);
-      setError(null);
-      await fetchDueCards();
-    }}
-  />
-)}
   // --- Session Summary Screen ---
   if (isSessionComplete || noCardsDue) {
     return (
@@ -653,15 +634,35 @@ useEffect(() => {
               Go to Dashboard
             </button>
             {noCardsDue && (
-              <button 
-                onClick={() => navigate('/pyqs')} // Or subject selection to generate more
-                className="px-6 py-3 bg-primary-600 text-white font-semibold rounded-lg hover:bg-primary-700 transition-colors flex items-center"
-              >
-                <Brain className="w-5 h-5 mr-2" />
-                Generate More
-              </button>
+              <>
+                <button 
+                  onClick={() => navigate('/pyqs')}
+                  className="px-6 py-3 bg-primary-600 text-white font-semibold rounded-lg hover:bg-primary-700 transition-colors flex items-center"
+                >
+                  <Brain className="w-5 h-5 mr-2" />
+                  Generate More
+                </button>
+                <button
+                  onClick={() => setIsAudioGeneratorOpen(true)}
+                  className="px-6 py-3 bg-primary-600 text-white font-semibold rounded-lg hover:bg-primary-700 transition-colors flex items-center"
+                >
+                  <FileAudio className="w-5 h-5 mr-2" />
+                  Create from Audio
+                </button>
+              </>
             )}
           </div>
+          {isAudioGeneratorOpen && (
+            <GenerateFlashcardsFromAudioModal
+              onClose={() => setIsAudioGeneratorOpen(false)}
+              onImported={async () => {
+                setIsAudioGeneratorOpen(false);
+                setLoading(true);
+                setError(null);
+                await fetchDueCards();
+              }}
+            />
+          )}
         </div>
       </div>
     );
