@@ -469,6 +469,9 @@ initStudyReminderCron(io);
 initStreakReminderCron(io);
 initBackupScheduler();
 
+const { startWorker } = require('./workers/squadActivityWorker');
+startWorker();
+
 
 if (process.env.NODE_ENV !== 'test' && !process.env.VERCEL) {
   server.listen(PORT, () => {
@@ -496,6 +499,14 @@ const gracefulShutdown = (signal) => {
   server.close(async () => {
     logger.info('HTTP connections drained, closing resource pools');
     clearTimeout(forceExitTimeout);
+
+    try {
+      const { stopWorker } = require('./workers/squadActivityWorker');
+      stopWorker();
+      logger.info('squad activity worker stopped');
+    } catch (workerErr) {
+      logger.error('error stopping squad activity worker', { err: workerErr });
+    }
 
     try {
       const { sequelize } = require('./config/db');
