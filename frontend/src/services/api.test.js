@@ -139,6 +139,36 @@ describe('API Service Response Interceptor', () => {
 
     axiosPostSpy.mockRestore();
   });
+
+  test('should safely escape HTML in background error toast (XSS defense)', async () => {
+    localStorage.setItem('refreshToken', 'valid-refresh-token');
+    const existing = document.getElementById('security-toast-container');
+    if (existing) existing.remove();
+
+    const originalRequest = {
+      url: '/notes',
+      method: 'post',
+      headers: {},
+      isBackground: true,
+    };
+
+    const error500 = {
+      config: originalRequest,
+      response: { status: 500, data: { error: '<img src=x onerror=alert(1)>' } },
+    };
+
+    const responseErrorInterceptor = API.interceptors.response.handlers[0].rejected;
+
+    await responseErrorInterceptor(error500);
+
+    const toastContainer = document.getElementById('security-toast-container');
+    expect(toastContainer).toBeInTheDocument();
+    
+    const span = toastContainer.querySelector('span');
+    expect(span).toBeInTheDocument();
+    expect(span.textContent).toBe('<img src=x onerror=alert(1)>');
+    expect(span.innerHTML).not.toContain('<img');
+  });
 });
 
 describe('API Service Timeout Configuration', () => {
