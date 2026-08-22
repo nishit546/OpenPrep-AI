@@ -38,6 +38,31 @@ const sequelize = new Sequelize(
   }
 );
 
+const { rlsStorage } = require('../middleware/rlsContext');
+
+sequelize.addHook('beforeQuery', async (options, query) => {
+  // Prevent recursion / infinite loop for SET commands
+  if (options.sql && options.sql.startsWith('SET ')) return;
+  if (query && query.sql && query.sql.startsWith('SET ')) return;
+
+  const store = rlsStorage.getStore();
+  const userId = store ? store.userId : 'system';
+  const isAdmin = store ? store.isAdmin : true; // Background/System tasks bypass RLS
+
+  const conn = options.connection;
+  if (conn && typeof conn.query === 'function') {
+    try {
+      await conn.query(`SET app.current_user_id = '${userId}';`);
+      await conn.query(`SET app.is_admin = '${isAdmin ? 'true' : 'false'}';`);
+    } catch (err) {
+      console.error('[RLS Hook] Failed to set context on database connection:', err.message);
+    }
+  }
+});
+
+const { initializeQueryAudit } = require('../services/queryAuditService');
+initializeQueryAudit(sequelize);
+
 const connectDB = async () => {
   try {
     await sequelize.authenticate();

@@ -50,7 +50,10 @@ exports.protect = async (req, res, next) => {
     }
 
     req.user = user;
-    next();
+    const { rlsStorage } = require('./rlsContext');
+    rlsStorage.run({ userId: user.id, isAdmin: user.role === 'admin' }, () => {
+      next();
+    });
   } catch (err) {
     if (err.name === 'TokenExpiredError') {
       return res.status(401).json({ success: false, message: 'Token expired', error: 'Token expired' });

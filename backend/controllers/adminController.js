@@ -153,10 +153,32 @@ exports.deleteUser = async (req, res, next) => {
 
     res.status(200).json({
       success: true,
-      message: 'User deleted/banned successfully',
+      message: 'User deleted successfully',
     });
   } catch (error) {
     console.error('[adminController.deleteUser] Error:', error);
+    next(error);
+  }
+};
+
+// @desc    Get background task queue status and DLQ list
+// @route   GET /api/admin/queues/status
+// @access  Private/Admin
+exports.getQueueStatus = async (req, res, next) => {
+  try {
+    const queueService = require('../services/queueService');
+    const stats = await queueService.getQueueStats();
+    const recentDlq = await queueService.getDlqJobs(20);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        stats,
+        recentDlq,
+      },
+    });
+  } catch (error) {
+    console.error('[adminController.getQueueStatus] Error:', error);
     next(error);
   }
 };

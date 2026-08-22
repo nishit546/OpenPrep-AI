@@ -43,6 +43,7 @@ const Syllabus = require('./Syllabus');
 const SyllabusTopic = require('./SyllabusTopic');
 const PDFAnnotation = require('./PDFAnnotation');
 const QuizRoom = require('./QuizRoom');
+const AuditLog = require('./AuditLog');
 
 // User associations
 User.hasMany(Exam, { foreignKey: 'user', onDelete: 'CASCADE' });
@@ -292,4 +293,5 @@ module.exports = {  sequelize,  User,  Exam,
   DeckCollaborator,
   PDFAnnotation,
   QuizRoom,
+  AuditLog,
 };
