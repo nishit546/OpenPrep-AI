@@ -1,5 +1,10 @@
+/**
+ * @fileoverview Controller for handling exam readiness analytics, predictions, and projections.
+ */
+
 const { Subject, QuizAttempt, ReadinessSnapshot, StudyPlan } = require('../models');
 const { calculateSubjectReadiness } = require('../services/readinessCalculator');
+const readinessPredictorService = require('../services/readinessPredictorService');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const prompts = require('../config/prompts');
 
@@ -30,7 +35,7 @@ const compileReadinessSummary = async (userId) => {
 
   for (const sub of subjects) {
     const metrics = await calculateSubjectReadiness(userId, sub.id);
-    
+
     // Save/Update snapshot in DB
     let snapshot = await ReadinessSnapshot.findOne({ where: { userId, subjectId: sub.id } });
     if (snapshot) {
@@ -85,7 +90,7 @@ const compileReadinessSummary = async (userId) => {
   const activePlan = await StudyPlan.findOne({ where: { user: userId, status: 'active' } });
   const daysToExam = activePlan ? Math.max(1, Math.ceil((new Date(activePlan.endDate) - new Date()) / (1000 * 60 * 60 * 24))) : 14;
   const trajectory = [];
-  
+
   for (let i = 0; i <= daysToExam; i += Math.max(1, Math.ceil(daysToExam / 6))) {
     const dayOffset = i;
     const projected = Math.min(100, Math.round(overallReadiness + ((100 - overallReadiness) * (dayOffset / daysToExam))));
@@ -119,7 +124,7 @@ exports.getSubjectReadiness = async (req, res, next) => {
     }
 
     const payload = await compileReadinessSummary(userId);
-    
+
     // Cache for 1 hour
     if (!payload.insufficientData) {
       await setCached(cacheKey, payload, 3600);
@@ -204,6 +209,55 @@ exports.getReadinessProjection = async (req, res, next) => {
       data: payload,
     });
   } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Fetches exam readiness analysis based on quiz history, retention rates, and topic performance.
+ * Currently uses mock data pending full database integration.
+ */
+exports.getReadinessAnalysis = async (req, res, next) => {
+  try {
+    const { targetScore } = req.query;
+    const target = targetScore ? parseInt(targetScore, 10) : 80;
+
+    if (isNaN(target) || target < 0 || target > 100) {
+      return res.status(400).json({
+        success: false,
+        message: 'Target score must be a number between 0 and 100.'
+      });
+    }
+
+    // Mock user data retrieval from database
+    // TODO: Replace with actual DB queries using req.user.id
+    const mockUserData = {
+      quizScores: [
+        { date: '2023-10-01', percentage: 65 },
+        { date: '2023-10-15', percentage: 72 },
+        { date: '2023-10-28', percentage: 78 }
+      ],
+      flashcardRetention: [
+        { topic: 'Algorithms', retentionRate: 60 },
+        { topic: 'Data Structures', retentionRate: 85 },
+        { topic: 'Databases', retentionRate: 70 }
+      ],
+      topicData: [
+        { name: 'Algorithms', avgQuizScore: 65, retentionRate: 60, timeSpentMinutes: 120 },
+        { name: 'Data Structures', avgQuizScore: 85, retentionRate: 85, timeSpentMinutes: 300 },
+        { name: 'Databases', avgQuizScore: 70, retentionRate: 70, timeSpentMinutes: 180 },
+        { name: 'Operating Systems', avgQuizScore: 55, retentionRate: 50, timeSpentMinutes: 60 }
+      ]
+    };
+
+    const analysis = readinessPredictorService.calculateReadiness(mockUserData, target);
+
+    res.status(200).json({
+      success: true,
+      data: analysis
+    });
+  } catch (error) {
+    console.error('Error calculating readiness analysis:', error);
     next(error);
   }
 };

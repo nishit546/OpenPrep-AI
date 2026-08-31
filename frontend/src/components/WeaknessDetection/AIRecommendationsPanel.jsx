@@ -11,6 +11,7 @@ import {
   ChevronUp,
   ExternalLink,
   Loader2,
+  CheckCircle,
 } from 'lucide-react';
 
 const typeConfig = {

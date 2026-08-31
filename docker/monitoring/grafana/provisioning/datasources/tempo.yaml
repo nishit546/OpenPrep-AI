@@ -1,0 +1,24 @@
+apiVersion: 1
+
+datasources:
+  - name: Tempo
+    type: tempo
+    access: proxy
+    url: http://tempo:3200
+    isDefault: false
+    editable: true
+    jsonData:
+      httpMethod: GET
+      tracesToLogs:
+        datasourceUid: 'prometheus'
+        tags: ['job', 'instance', 'pod', 'namespace']
+        mappedTags: [{ key: 'service.name', value: 'service' }]
+        mapTagNamesEnabled: false
+        spanStartTimeShift: '-1h'
+        spanEndTimeShift: '1h'
+        filterByTraceID: false
+        filterBySpanID: false
+      nodeGraph:
+        enabled: true
+      search:
+        hide: false

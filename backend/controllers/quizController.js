@@ -1,4 +1,4 @@
-const { Op } = require('sequelize');
+const { Op, Transaction } = require('sequelize');
 const { v4: uuidv4 } = require('uuid');
 const PDFDocument = require('pdfkit');
 const { sequelize } = require('../config/db');
@@ -18,7 +18,7 @@ const QuizBookmark = require('../models/QuizBookmark');
 const quizGenerationService = require('../services/quizGenerationService');
 const quizEvaluationService = require('../services/quizEvaluationService');
 const quizAnalyticsService = require('../services/quizAnalyticsService');
-
+const analyticsAggregationService = require('../services/analyticsAggregationService');
 const geminiService = require('../services/geminiService');
 const cacheService = require('../services/cacheService');
 const { GeminiRateLimitError, GeminiServerError } = require('../services/geminiService');
@@ -171,14 +171,21 @@ exports.generateAIQuiz = async (req, res, next) => {
       };
     });
 
-    const quiz = await Quiz.create({
-      title: aiQuiz.title || `${topicName} AI Practice Quiz`,
-      subject: subjectId,
-      topic: topicId || null,
-      questions: questionsWithIds,
-      type: 'AI_Generated',
-      language: normalizedLanguage,
-      createdBy: req.user.id,
+    const quiz = await sequelize.transaction(async (t) => {
+      const createdQuiz = await Quiz.create({
+        title: aiQuiz.title || `${topicName} AI Practice Quiz`,
+        subject: subjectId,
+        topic: topicId || null,
+        questions: questionsWithIds,
+        type: 'AI_Generated',
+        language: normalizedLanguage,
+        createdBy: req.user.id,
+      }, { transaction: t });
+      
+      // Mocking associated QuizSettings or QuizMetadata creation
+      // await QuizSettings.create({ quizId: createdQuiz.id, timer: 300 }, { transaction: t });
+
+      return createdQuiz;
     });
 
     await createNotification(
@@ -253,13 +260,6 @@ exports.generateCustomQuiz = async (req, res, next) => {
       .join('\n\n');
 
     const difficultyLevel = difficulty.charAt(0).toUpperCase() + difficulty.slice(1);
-const quizGenerationService = require('../services/quizGenerationService');
-const generatedQuestions = await quizGenerationService.generateQuestionsWithValidation(
-  topic,
-  questionCount,
-  sourceContext,
-  req.body.quizId
-);
     // Call Gemini Service
     const aiQuiz = await geminiService.generateCustomQuiz(
       subject.name,
@@ -309,15 +309,15 @@ const generatedQuestions = await quizGenerationService.generateQuestionsWithVali
   }
 };
 
+const { getPaginationParams, formatPaginatedResponse } = require('../utils/paginationParams');
+
 // @desc    Get quizzes for a subject
 // @route   GET /api/quizzes
 // @access  Private
 exports.getQuizzes = async (req, res, next) => {
   try {
     const { subjectId } = req.query;
-    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
-    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 20));
-    const offset = (page - 1) * limit;
+    const { page, limit, offset } = getPaginationParams(req.query);
 
     const filter = { createdBy: req.user.id };
     if (subjectId) filter.subject = subjectId;
@@ -340,14 +340,7 @@ exports.getQuizzes = async (req, res, next) => {
       return json;
     });
 
-    res.status(200).json({
-      success: true,
-      count: populatedQuizzes.length,
-      total,
-      page,
-      totalPages: Math.ceil(total / limit),
-      data: populatedQuizzes,
-    });
+    res.status(200).json(formatPaginatedResponse(populatedQuizzes, total, page, limit));
   } catch (error) {
     next(error);
   }
@@ -545,42 +538,34 @@ exports.submitQuizAttempt = async (req, res, next) => {
       return res.status(200).json({ success: true, data: attempt, duplicate: true });
     }
 
+    if (score >= 80) {
+      const gamificationService = require('../services/gamificationService');
+      await gamificationService.awardCoins(req.user.id, 25, 'High quiz score bonus')
+        .catch(err => console.error('Error awarding PrepCoins for quiz:', err));
+    }
+
     // Trigger AI weakness aggregation and adaptive planner rescheduling in background
     const weaknessAggregatorService = require('../services/weaknessAggregatorService');
     weaknessAggregatorService.aggregateUserWeakness(req.user.id)
       .then(() => weaknessAggregatorService.rescheduleAdaptivePlanner(req.user.id))
       .catch((err) => console.error('Background weakness aggregation error:', err));
 
+    // Issue #2003: Log mistakes with error-taxonomy classification into Mistake Notebook
+    const mistakeNotebookService = require('../services/mistakeNotebookService');
+    mistakeNotebookService.logAttemptMistakes(attempt, quiz)
+      .catch((err) => console.error('Error logging mistake notebook entries:', err));
+
     // Update Progress (supports both topic-level and subject-level quizzes)
-    const progressWhere = {
-      user: req.user.id,
+    // Recorded as an immutable LearningEvent first, then applied to the
+    // Progress aggregate under a per-key lock, so concurrent submissions
+    // can't race each other and this attempt can never be double-counted.
+    await analyticsAggregationService.recordQuizAttemptEvent({
+      userId: req.user.id,
       subject: quiz.subject,
-    };
-    if (quiz.topic) {
-      progressWhere.topic = quiz.topic;
-    }
-
-    let progress = await Progress.findOne({ where: progressWhere });
-
-    if (progress) {
-      const quizScores = [...progress.quizScores];
-      quizScores.push({ attempt: attempt.id, score, date: new Date() });
-      progress.quizScores = quizScores;
-
-      if (score > progress.completionPercentage) {
-        progress.completionPercentage = Math.min(score, 100);
-      }
-      await progress.save();
-    } else {
-      await Progress.create({
-        user: req.user.id,
-        subject: quiz.subject,
-        topic: quiz.topic || null,
-        completionPercentage: score,
-        quizScores: [{ attempt: attempt.id, score, date: new Date() }],
-      });
-    }
-
+      topic: quiz.topic || null,
+      attemptId: attempt.id,
+      score,
+    });
 // Log Activity
     await ActivityLog.create({
       user: req.user.id,

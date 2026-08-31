@@ -1,50 +1,38 @@
-/**
- * @fileoverview Express router for the Study Habit Tracker & Streak Calendar.
- * All routes require JWT authentication via the `protect` middleware.
- */
 const express = require('express');
 const { protect } = require('../middleware/auth');
 const {
   createHabit,
-  listHabits,
+  getHabits,
   getHabit,
   updateHabit,
-  archiveHabit,
   deleteHabit,
   logHabit,
-  batchLogHabits,
-  getLogs,
-  getCalendarHeatmap,
+  useFreeze,
+  getAnalytics,
+  getHabitHistory,
   getWeeklySummary,
   getDashboard,
-  recalculateStreaks,
+  getRecommendations,
 } = require('../controllers/habitTrackerController');
 
 const router = express.Router();
 
-// ── Dashboard ────────────────────────────────────────────────────────────
+// ── Dashboard & Analytics ────────────────────────────────────────────────
 router.get('/dashboard', protect, getDashboard);
-
-// ── Calendar & Analytics ─────────────────────────────────────────────────
-router.get('/calendar', protect, getCalendarHeatmap);
-router.get('/weekly', protect, getWeeklySummary);
-
-// ── Batch Operations ─────────────────────────────────────────────────────
-router.post('/batch-log', protect, batchLogHabits);
-router.post('/streaks/recalculate', protect, recalculateStreaks);
-
-// ── Logs ─────────────────────────────────────────────────────────────────
-router.get('/logs', protect, getLogs);
+router.get('/analytics', protect, getAnalytics);
+router.get('/recommendations', protect, getRecommendations);
+router.get('/summary/weekly', protect, getWeeklySummary);
 
 // ── Habit CRUD ───────────────────────────────────────────────────────────
 router.post('/', protect, createHabit);
-router.get('/', protect, listHabits);
+router.get('/', protect, getHabits);
 router.get('/:id', protect, getHabit);
 router.put('/:id', protect, updateHabit);
-router.delete('/:id', protect, archiveHabit);
+router.delete('/:id', protect, deleteHabit);
 
-// ── Per-Habit Actions ────────────────────────────────────────────────────
+// ── Logging & Streak ─────────────────────────────────────────────────────
 router.post('/:id/log', protect, logHabit);
-router.delete('/:id/permanent', protect, deleteHabit);
+router.post('/:id/freeze', protect, useFreeze);
+router.get('/:id/history', protect, getHabitHistory);
 
 module.exports = router;

@@ -83,6 +83,31 @@ const User = sequelize.define(
       type: DataTypes.INTEGER,
       defaultValue: 0,
     },
+    streakFreezesAvailable: {
+      type: DataTypes.INTEGER,
+      defaultValue: 0,
+      field: 'streak_freezes_available',
+    },
+    prepCoins: {
+      type: DataTypes.INTEGER,
+      defaultValue: 0,
+      field: 'prep_coins',
+    },
+    equippedAvatarFrame: {
+      type: DataTypes.STRING,
+      defaultValue: null,
+      field: 'equipped_avatar_frame',
+    },
+    ownedCosmetics: {
+      type: DataTypes.JSONB,
+      defaultValue: [],
+      field: 'owned_cosmetics',
+    },
+    activeXpBoosterUntil: {
+      type: DataTypes.DATE,
+      defaultValue: null,
+      field: 'active_xp_booster_until',
+    },
     xp: {
       type: DataTypes.INTEGER,
       defaultValue: 0,

@@ -13,6 +13,10 @@ const {
   getSummary,
   buyStreakFreeze,
   useStreakFreeze,
+  getInventory,
+  buyShopItem,
+  openMysteryChest,
+  equipAvatarFrame,
 } = require('../controllers/gamificationController');
 
 const router = express.Router();
@@ -46,5 +50,10 @@ router.post('/streak-freeze/buy', buyStreakFreeze);
  * @access  Private
  */
 router.post('/streak-freeze/use', useStreakFreeze);
+
+router.get('/inventory', getInventory);
+router.post('/shop/buy', buyShopItem);
+router.post('/chest/open', openMysteryChest);
+router.post('/avatar/equip', equipAvatarFrame);
 
 module.exports = router;

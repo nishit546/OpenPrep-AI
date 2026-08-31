@@ -2,10 +2,29 @@ groups:
   - name: openprep_alerts
     rules:
       - alert: HighHTTP5xxErrorRate
-        expr: (sum(rate(http_request_duration_seconds_count{status_code=~"5.."}[5m])) / sum(rate(http_request_duration_seconds_count[5m]))) * 100 > 5
+        expr: (sum(rate(openprep_http_request_duration_seconds_count{status_code=~"5.."}[5m])) / sum(rate(openprep_http_request_duration_seconds_count[5m]))) * 100 > 5
         for: 5m
         labels:
           severity: critical
         annotations:
           summary: "High HTTP 5xx error rate detected (>5%)"
           description: "Over 5% of all HTTP requests in the past 5 minutes resulted in 5xx server errors."
+
+      - alert: HighLatencyP95
+        expr: histogram_quantile(0.95, sum(rate(openprep_http_request_duration_seconds_bucket[5m])) by (le)) > 1.0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High P95 latency detected (>1.0s)"
+          description: "The 95th percentile HTTP request latency exceeded 1.0 second over the last 5 minutes."
+
+      - alert: HighLatencyP99
+        expr: histogram_quantile(0.99, sum(rate(openprep_http_request_duration_seconds_bucket[5m])) by (le)) > 2.5
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Critical P99 latency detected (>2.5s)"
+          description: "The 99th percentile HTTP request latency exceeded 2.5 seconds over the last 5 minutes."
+

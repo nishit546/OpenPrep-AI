@@ -27,5 +27,6 @@ router.post('/respond', protect, respondSession);
  * @access  Private
  */
 router.post('/evaluate', protect, evaluateSession);
+router.post('/finish', protect, evaluateSession);
 
 module.exports = router;

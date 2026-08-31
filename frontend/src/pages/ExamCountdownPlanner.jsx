@@ -1,5 +1,4 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Helmet } from 'react-helmet-async';
 
 /* ─────────────────────── MOCK DATA ─────────────────────── */
 const EXAMS = [
@@ -178,7 +177,7 @@ export default function ExamCountdownPlanner() {
 
   return (
     <>
-      <Helmet><title>Exam Countdown Planner — OpenPrep AI</title></Helmet>
+      <title>Exam Countdown Planner — OpenPrep AI</title>
       <div className="min-h-screen bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 p-4 md:p-8 space-y-6 max-w-6xl mx-auto">
 
         <div className="flex items-center justify-between">

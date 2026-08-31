@@ -701,8 +701,6 @@ exports.exportStudyPlanIcs = async (req, res, next) => {
       });
     }
 
-    const calendarService = require('../services/calendarService');
-
     const icsContent = calendarService.generateStudyPlanIcs(
       plan,
       timeZone

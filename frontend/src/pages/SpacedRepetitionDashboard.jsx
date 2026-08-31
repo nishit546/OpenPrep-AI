@@ -1,15 +1,18 @@
-/**
- * @fileoverview Main dashboard for spaced repetition reviews and forgetting curve analytics.
- */
 import React, { useState, useEffect } from 'react';
+import LeitnerBoxVisualizer from '../components/flashcards/LeitnerBoxVisualizer';
+import ReviewLoadForecast from '../components/flashcards/ReviewLoadForecast';
 import ForgettingCurveChart from '../components/Analytics/ForgettingCurveChart';
 import axios from 'axios';
+import { getLeitnerDistribution, getDueForecast } from '../services/api';
+
 
 const SpacedRepetitionDashboard = () => {
     const [queue, setQueue] = useState([]);
     const [currentIndex, setCurrentIndex] = useState(0);
     const [showAnswer, setShowAnswer] = useState(false);
     const [analytics, setAnalytics] = useState(null);
+    const [leitnerData, setLeitnerData] = useState(null);
+    const [forecastData, setForecastData] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
 
     const API_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
@@ -17,13 +20,17 @@ const SpacedRepetitionDashboard = () => {
     useEffect(() => {
         const fetchData = async () => {
             try {
-                const [queueRes, analyticsRes] = await Promise.all([
-                    axios.get(`${API_URL}/spaced-repetition/queue`),
-                    axios.get(`${API_URL}/spaced-repetition/analytics`)
+                const [queueRes, analyticsRes, leitnerRes, forecastRes] = await Promise.all([
+                    axios.get(`${API_URL}/spaced-repetition/queue`).catch(() => ({ data: { success: false } })),
+                    axios.get(`${API_URL}/spaced-repetition/analytics`).catch(() => ({ data: { success: false } })),
+                    getLeitnerDistribution().catch(() => ({ data: { success: false } })),
+                    getDueForecast().catch(() => ({ data: { success: false } })),
                 ]);
 
-                if (queueRes.data.success) setQueue(queueRes.data.data.queue);
-                if (analyticsRes.data.success) setAnalytics(analyticsRes.data.data);
+                if (queueRes.data && queueRes.data.success) setQueue(queueRes.data.data.queue);
+                if (analyticsRes.data && analyticsRes.data.success) setAnalytics(analyticsRes.data.data);
+                if (leitnerRes.data && leitnerRes.data.success) setLeitnerData(leitnerRes.data.data);
+                if (forecastRes.data && forecastRes.data.success) setForecastData(forecastRes.data.data);
             } catch (error) {
                 console.error('Failed to fetch SR data:', error);
             } finally {
@@ -32,6 +39,7 @@ const SpacedRepetitionDashboard = () => {
         };
         fetchData();
     }, []);
+
 
     const handleDifficultySubmit = async (rating) => {
         const currentItem = queue[currentIndex];
@@ -74,8 +82,15 @@ const SpacedRepetitionDashboard = () => {
                     <p className="text-gray-600 dark:text-gray-400">Optimize your memory retention with predictive scheduling.</p>
                 </div>
 
+                {/* Leitner Box Visualizer Stage */}
+                <LeitnerBoxVisualizer boxes={leitnerData?.boxes} />
+
+                {/* 30-Day Review Forecast Graph */}
+                <ReviewLoadForecast forecastData={forecastData} />
+
                 {/* Analytics Section */}
                 <ForgettingCurveChart data={analytics} />
+
 
                 {/* Review Section */}
                 <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-8">

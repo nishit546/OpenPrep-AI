@@ -151,4 +151,49 @@ export const PALETTE_PRESETS = [
   { name: 'Royal Indigo', primaryHex: '#6366f1', secondaryHex: '#a855f7' },
   { name: 'Rose Gold', primaryHex: '#f43f5e', secondaryHex: '#fb7185' },
   { name: 'Terracotta Sepia', primaryHex: '#7a4b16', secondaryHex: '#c58d57' },
+];
+
+export const COLORBLIND_MODES = [
+  {
+    id: 'none',
+    name: 'Standard (Full Spectrum)',
+    description: 'Default full RGB spectrum display',
+    badge: 'Standard',
+    previewColors: ['#ef4444', '#10b981', '#3b82f6'],
+  },
+  {
+    id: 'protanopia',
+    name: 'Protanopia Filter',
+    description: 'Optimized for red-blindness & red-weak vision',
+    badge: 'Red-Weak',
+    previewColors: ['#0072b2', '#e69f00', '#56b4e9'],
+  },
+  {
+    id: 'deuteranopia',
+    name: 'Deuteranopia Filter',
+    description: 'Optimized for green-blindness & green-weak vision',
+    badge: 'Green-Weak',
+    previewColors: ['#005ab5', '#dc0000', '#f1c40f'],
+  },
+  {
+    id: 'tritanopia',
+    name: 'Tritanopia Filter',
+    description: 'Optimized for blue-blindness & yellow-weak vision',
+    badge: 'Blue-Weak',
+    previewColors: ['#009e73', '#d55e00', '#cc79a7'],
+  },
+  {
+    id: 'achromatopsia',
+    name: 'Achromatopsia Filter',
+    description: 'Monochromacy high-contrast grayscale mode',
+    badge: 'Monochrome',
+    previewColors: ['#ffffff', '#808080', '#000000'],
+  },
+  {
+    id: 'okabe-ito',
+    name: 'Okabe-Ito Palette',
+    description: 'Universal colorblind compliant palette (W3C / WCAG)',
+    badge: 'Universal',
+    previewColors: ['#e69f00', '#56b4e9', '#009e73'],
+  },
 ];

@@ -9,9 +9,12 @@ const {
   updateNote,
   uploadOcrNote,
   exportNotes,
+  verifyNotePdfSignature,
   importNotes,
   shareCollaboration,
   getNote,
+  getNotesGraph,
+  syncNotes,
 } = require('../controllers/noteController');
 const { transcribeAndSummarize } = require('../controllers/audioNoteController');
 const { protect } = require('../middleware/auth');
@@ -315,6 +318,7 @@ router.get(
 );
 
 router.get('/export', protect, exportNotes);
+router.post('/verify-signature', verifyNotePdfSignature);
 
 router.post(
   '/import',
@@ -501,6 +505,9 @@ router.post('/:id/summarize', protect, aiLimiter, checkAiQuota, summarizeNote);
  *       200:
  *         description: Note updated successfully
  */
+router.get('/graph', protect, getNotesGraph);
+router.post('/sync', protect, clearCache('notes:*'), syncNotes);
+
 router.get('/:id', protect, getNote);
 
 router.put('/:id', protect, clearCache('notes:*'), updateNote);

@@ -17,7 +17,7 @@ import {
   Sliders,
 } from 'lucide-react';
 import { useTheme, hslToHex, hexToHsl } from '../context/ThemeContext';
-import { THEME_PRESETS, THEME_PRESET_KEYS, PALETTE_PRESETS } from '../themePresets';
+import { THEME_PRESETS, THEME_PRESET_KEYS, PALETTE_PRESETS, COLORBLIND_MODES } from '../themePresets';
 
 const PRESET_ICONS = {
   light: Sun,
@@ -36,9 +36,11 @@ const ThemeCustomizerDrawer = ({ isOpen, onClose }) => {
     theme,
     resolvedTheme,
     accentColors,
+    colorblindFilter,
     setTheme,
     setAccentColors,
     resetAccentColors,
+    setColorblindFilter,
   } = useTheme();
 
   // Close on ESC key
@@ -252,7 +254,63 @@ const ThemeCustomizerDrawer = ({ isOpen, onClose }) => {
                         {p.name}
                       </span>
                     </button>
-                  ))}
+                </div>
+              </div>
+
+              <hr className="border-neutral-200 dark:border-neutral-800" />
+
+              {/* SECTION 3: COLORBLIND PALETTE FILTER MODES */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-bold text-neutral-800 dark:text-neutral-200 uppercase tracking-wider flex items-center gap-2">
+                    <Eye className="w-4 h-4 text-amber-600 dark:text-amber-400" /> Colorblind Palette Filters
+                  </h3>
+                  <span className="text-xs font-semibold text-amber-700 dark:text-amber-400">
+                    {COLORBLIND_MODES.find((m) => m.id === colorblindFilter)?.badge || 'Standard'}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {COLORBLIND_MODES.map((mode) => {
+                    const isSelected = colorblindFilter === mode.id;
+
+                    return (
+                      <button
+                        key={mode.id}
+                        type="button"
+                        onClick={() => setColorblindFilter(mode.id)}
+                        className={`group relative p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                          isSelected
+                            ? 'border-amber-600 dark:border-amber-400 ring-2 ring-amber-500/40 bg-amber-500/10 dark:bg-amber-950/40'
+                            : 'border-neutral-300 dark:border-neutral-800 bg-neutral-100/60 dark:bg-neutral-900/60 hover:bg-neutral-200/60 dark:hover:bg-neutral-800/60'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="font-semibold text-xs text-neutral-900 dark:text-neutral-100 flex items-center gap-1.5">
+                            {mode.name}
+                          </span>
+                          {isSelected && (
+                            <Check className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                          )}
+                        </div>
+
+                        <p className="text-[11px] text-neutral-600 dark:text-neutral-400 leading-tight mb-2">
+                          {mode.description}
+                        </p>
+
+                        {/* Preview Color Dots */}
+                        <div className="flex items-center gap-1.5 pt-2 border-t border-black/5 dark:border-white/5">
+                          {mode.previewColors.map((colorHex, cIdx) => (
+                            <span
+                              key={cIdx}
+                              className="w-3.5 h-3.5 rounded-full border border-black/20 shadow-xs"
+                              style={{ backgroundColor: colorHex }}
+                            />
+                          ))}
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 

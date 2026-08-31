@@ -37,17 +37,53 @@
 }
 
 /* Midnight OLED Theme (Pure black for battery saving on OLED) */
-[data-theme='oled'] {
+[data-theme='oled'],
+.theme-oled {
     --bg-primary: #000000;
-    --bg-secondary: #0a0a0a;
-    --bg-tertiary: #171717;
+    --bg-secondary: #000000;
+    --bg-tertiary: #0a0a0a;
     --text-primary: #ffffff;
     --text-secondary: #e5e5e5;
     --text-tertiary: #a3a3a3;
-    --border-color: #262626;
-    --accent-primary: #3b82f6;
-    --accent-hover: #60a5fa;
-    --focus-ring: #60a5fa;
+    --border-color: #1f1f1f;
+    --accent-primary: #00f0ff;
+    --accent-hover: #3b82f6;
+    --focus-ring: #00f0ff;
+}
+
+.theme-oled,
+.theme-oled body,
+.theme-oled #root,
+.theme-oled .bg-slate-900,
+.theme-oled .bg-slate-950,
+.theme-oled .bg-neutral-900,
+.theme-oled .bg-neutral-950,
+.theme-oled .bg-gray-900,
+.theme-oled .bg-gray-950 {
+    background-color: #000000 !important;
+}
+
+.theme-oled .border-slate-800,
+.theme-oled .border-neutral-800,
+.theme-oled .border-gray-800 {
+    border-color: #171717 !important;
+}
+
+/* Colorblind Accessibility Filter Modes */
+html[data-colorblind-filter='protanopia'] {
+    filter: url('#protanopia-filter');
+}
+
+html[data-colorblind-filter='deuteranopia'] {
+    filter: url('#deuteranopia-filter');
+}
+
+html[data-colorblind-filter='tritanopia'] {
+    filter: url('#tritanopia-filter');
+}
+
+html[data-colorblind-filter='achromatopsia'] {
+    filter: url('#achromatopsia-filter');
 }
 
 /* Sepia Warm Reading Theme (Reduces eye strain) */

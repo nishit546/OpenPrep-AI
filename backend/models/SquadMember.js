@@ -16,8 +16,13 @@ const SquadMember = sequelize.define('SquadMember', {
     allowNull: false
   },
   role: {
-    type: DataTypes.ENUM('admin', 'member'),
-    defaultValue: 'member',
+    type: DataTypes.ENUM('owner', 'admin', 'moderator', 'contributor', 'viewer'),
+    defaultValue: 'viewer',
+    allowNull: false
+  },
+  permissions: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0,
     allowNull: false
   },
   joinedAt: {

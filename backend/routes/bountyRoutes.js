@@ -1,25 +1,16 @@
 const express = require('express');
-const {
-  createBounty,
-  getBounties,
-  getBountyDetails,
-  submitSolution,
-  acceptSolution,
-  voteSolution
-} = require('../controllers/bountyController');
-const { protect } = require('../middleware/auth');
-const { generalRateLimiter } = require('../middleware/rateLimitMiddleware');
-
 const router = express.Router();
+const bountyController = require('../controllers/bountyController');
+const { protect } = require('../middleware/auth');
 
-// Public / Protected List & Details
-router.get('/', getBounties);
-router.get('/:id', getBountyDetails);
+// Protect all bounty board endpoints
+router.use(protect);
 
-// Protected Actions
-router.post('/', protect, generalRateLimiter, createBounty);
-router.post('/:id/solutions', protect, generalRateLimiter, submitSolution);
-router.post('/:id/accept/:solutionId', protect, acceptSolution);
-router.post('/:id/solutions/:solutionId/vote', protect, voteSolution);
+router.get('/', bountyController.getBounties);
+router.get('/:id', bountyController.getBountyDetails);
+router.post('/', bountyController.createBounty);
+router.post('/:id/answers', bountyController.submitSolution);
+router.put('/:id/accept/:answerId', bountyController.acceptSolution);
+router.post('/answers/:answerId/vote', bountyController.voteSolution);
 
 module.exports = router;

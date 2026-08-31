@@ -13,8 +13,8 @@ const {
   logFocusSession,
   getWeeklyFocusEfficiency,
   getInteractiveAnalytics,
-} = require('../controllers/progressController');
-const { getXPStatus, awardXP, unlockSkillNode, equipStreakFreeze } = require('../controllers/xpController');
+  reconcileMyAnalytics,
+} = require('../controllers/progressController');const { getXPStatus, awardXP, unlockSkillNode, equipStreakFreeze } = require('../controllers/xpController');
 const { protect } = require('../middleware/auth');
 const cacheMiddleware = require('../middleware/cacheMiddleware');
 const {
@@ -573,5 +573,7 @@ router.post('/xp/unlock', protect, unlockSkillNode);
 router.post('/streak-freeze/equip', protect, equipStreakFreeze);
 
 router.get('/analytics', protect, cacheMiddleware(900), getInteractiveAnalytics);
+
+router.post('/reconcile', protect, reconcileMyAnalytics);
 
 module.exports = router;

@@ -8,8 +8,8 @@ const Subject = require('../models/Subject');
 const Exam = require('../models/Exam');
 const Feedback = require('../models/Feedback');
 const { checkAndAwardBadges } = require('../services/achievementService');
-const FocusSession = require('../models/FocusSession');
-const Flashcard = require('../models/Flashcard');
+const analyticsAggregationService = require('../services/analyticsAggregationService');
+const FocusSession = require('../models/FocusSession');const Flashcard = require('../models/Flashcard');
 const StudyPlan = require('../models/StudyPlan');
 const SubjectGoal = require('../models/SubjectGoal');
 const cacheManager = require('../utils/cacheManager');
@@ -1341,3 +1341,23 @@ exports.getInteractiveAnalytics = async (req, res, next) => {
   }
 };
 
+/**
+ * @swagger
+ * /api/progress/reconcile:
+ *   post:
+ *     summary: Rebuild the current user's Progress rows from their LearningEvent history
+ *     tags: [Progress]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Progress rows rebuilt from source events
+ */
+exports.reconcileMyAnalytics = async (req, res, next) => {
+  try {
+    const rebuilt = await analyticsAggregationService.rebuildProgressForUser(req.user.id);
+    res.status(200).json({ success: true, data: { progressRowsRebuilt: rebuilt.length } });
+  } catch (error) {
+    next(error);
+  }
+};

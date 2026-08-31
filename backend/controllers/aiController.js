@@ -1,9 +1,9 @@
 const geminiService = require('../services/geminiService');
 const { GeminiRateLimitError, GeminiServerError } = require('../services/geminiService');
 const llmService = require('../utils/llmService');
+const { ContextIsolationError } = require('../utils/aiContextIsolation');
 const Question = require('../models/Question');
 const Note = require('../models/Note');
-
 // @desc    Generate AI hint / step-by-step explanation for a quiz question
 // @route   POST /api/ai/explain-question
 // @access  Private
@@ -139,10 +139,12 @@ exports.generateQuestions = async (req, res, next) => {
       if (!note) {
         return res.status(404).json({ success: false, error: 'Source note not found' });
       }
+      if (note.user !== req.user.id) {
+        return res.status(403).json({ success: false, error: 'You do not have access to this note' });
+      }
       content = note.content || note.summary || note.title;
       title = title || note.title;
     }
-
     if (!content || typeof content !== 'string' || content.trim().length === 0) {
       return res.status(400).json({
         success: false,
@@ -186,8 +188,47 @@ exports.generateQuestions = async (req, res, next) => {
         retryAfter: error.retryAfter,
       });
     }
+    if (error instanceof ContextIsolationError) {
+      return res.status(400).json({
+        success: false,
+        error: error.message,
+      });
+    }
     next(error);
   }
 };
 
+exports.getArtifactHistory = async (req, res) => {
+  try {
+    const { artifactId } = req.params;
+    const history = await AIContractVersioningService.getArtifactHistory(artifactId);
+    res.json({ success: true, data: history });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
 
+/**
+ * Get cache statistics for current user
+ */
+exports.getCacheStats = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const stats = await AIGenerationCacheService.getCacheStats(userId);
+    res.json({ success: true, data: stats });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+/**
+ * Clear expired cache entries (admin endpoint)
+ */
+exports.clearExpiredCache = async (req, res) => {
+  try {
+    const count = await AIGenerationCacheService.clearExpiredCache();
+    res.json({ success: true, message: `Cleared ${count} expired entries` });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+};

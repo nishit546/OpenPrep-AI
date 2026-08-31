@@ -53,10 +53,11 @@ function collectSourceFiles(root = BACKEND_ROOT, dirs = SOURCE_DIRS) {
       if (entry.isDirectory()) {
         walk(absolute);
       } else if (entry.isFile() && entry.name.endsWith('.js')) {
-        found.push(relative);
+        found.push(relative.replace(/\\/g, '/'));
       }
     }
   };
+
 
   for (const dir of dirs) {
     walk(path.join(root, dir));
@@ -194,22 +195,114 @@ function findUnmountableRouters(relativePath, root = BACKEND_ROOT) {
 }
 
 /**
+ * Blanks out comments, leaving every other byte and all line breaks in place.
+ *
+ * Without this, a `require()` written inside a comment as documentation counts
+ * as a real dependency. middleware/rateLimiter.js explains its two call shapes
+ * in a JSDoc block:
+ *
+ *   * `require('.../rateLimiter')` used directly as app-level middleware, and
+ *   * `const { aiLimiter } = require('.../rateLimiter')` in the route modules.
+ *
+ * `.../rateLimiter` is an ellipsis standing in for a path, not a path. It does
+ * not resolve, so the boot-path check reported the file as broken while the
+ * module was fine — a false positive on a gate whose whole value is that a
+ * failure means something.
+ *
+ * Quotes are tracked so a `//` inside a string literal — every `https://` URL
+ * in the tree — is not mistaken for the start of a comment. Content is replaced
+ * with spaces rather than removed so that offsets and line numbers still line
+ * up with the original source for any caller that reports positions.
+ */
+function stripComments(source) {
+  let out = '';
+  let quote = null;
+  let inLine = false;
+  let inBlock = false;
+
+  for (let i = 0; i < source.length; i += 1) {
+    const char = source[i];
+    const next = source[i + 1];
+
+    if (inLine) {
+      if (char === '\n') {
+        inLine = false;
+        out += char;
+      } else {
+        out += ' ';
+      }
+      continue;
+    }
+
+    if (inBlock) {
+      if (char === '*' && next === '/') {
+        inBlock = false;
+        out += '  ';
+        i += 1;
+      } else {
+        out += char === '\n' ? char : ' ';
+      }
+      continue;
+    }
+
+    if (quote) {
+      out += char;
+      // A backslash escapes the next byte, including the closing quote.
+      if (char === '\\') {
+        out += source[i + 1] ?? '';
+        i += 1;
+      } else if (char === quote) {
+        quote = null;
+      }
+      continue;
+    }
+
+    if (char === '"' || char === "'" || char === '`') {
+      quote = char;
+      out += char;
+      continue;
+    }
+
+    if (char === '/' && next === '/') {
+      inLine = true;
+      out += '  ';
+      i += 1;
+      continue;
+    }
+
+    if (char === '/' && next === '*') {
+      inBlock = true;
+      out += '  ';
+      i += 1;
+      continue;
+    }
+
+    out += char;
+  }
+
+  return out;
+}
+
+/**
  * Literal `require('...')` targets in a module.
  *
  * Only string literals are collected. A computed require - `require(name)` or
  * a template literal - cannot be checked statically and is skipped rather than
- * guessed at.
+ * guessed at. Comments are stripped first so a documented example is not read
+ * as a dependency.
  */
 function requiredSpecifiers(source) {
   const specifiers = [];
 
-  for (const match of source.matchAll(/\brequire\(\s*(['"])([^'"\n]+)\1\s*\)/g)) {
+  for (const match of stripComments(source).matchAll(/\brequire\(\s*(['"])([^'"\n]+)\1\s*\)/g)) {
     const specifier = match[2];
     if (specifier && !specifiers.includes(specifier)) specifiers.push(specifier);
   }
 
   return specifiers;
 }
+
+
 
 /** Node builtins, with or without the `node:` prefix. */
 function isBuiltinModule(specifier) {
@@ -347,13 +440,14 @@ function collectBootReachableFiles(entry = 'server.js', root = BACKEND_ROOT) {
       }
 
       if (resolved.includes(`${path.sep}node_modules${path.sep}`)) continue;
-      const next = path.relative(root, resolved);
+      const next = path.relative(root, resolved).replace(/\\/g, '/');
       if (!next.startsWith('..') && !seen.has(next)) queue.push(next);
     }
   }
 
   return [...seen].sort();
 }
+
 
 /**
  * Relative `require()` targets that do not resolve.
@@ -417,6 +511,7 @@ module.exports = {
   findUnparseableFiles,
   findDuplicateDeclarations,
   findUnboundRouterIdentifiers,
+  stripComments,
   requiredSpecifiers,
   isBuiltinModule,
   findUnresolvableRequires,

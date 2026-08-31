@@ -1,0 +1,82 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: openprep_postgres_chaos
+    restart: unless-stopped
+    ports:
+      - '5432:5432'
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=openprep_chaos
+    networks:
+      - chaos_net
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d openprep_chaos']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: openprep_redis_chaos
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    networks:
+      - chaos_net
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  toxiproxy:
+    image: ghcr.io/shopify/toxiproxy:2.11.0
+    container_name: openprep_toxiproxy_chaos
+    restart: unless-stopped
+    ports:
+      - '8474:8474'   # Toxiproxy Management API
+      - '25432:25432' # Proxied PostgreSQL
+      - '26379:26379' # Proxied Redis
+      - '25000:25000' # Proxied Gemini API
+      - '28000:28000' # Proxied WebSocket / PDF Upload
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - chaos_net
+
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+      target: dev
+    container_name: openprep_backend_chaos
+    restart: unless-stopped
+    ports:
+      - '5000:5000'
+    environment:
+      - PORT=5000
+      - DATABASE_URL=postgres://postgres:postgres@toxiproxy:25432/openprep_chaos
+      - REDIS_URL=redis://toxiproxy:26379
+      - JWT_SECRET=chaos_dev_jwt_secret_12345
+      - NODE_ENV=test
+      - TOXIPROXY_URL=http://toxiproxy:8474
+    depends_on:
+      - toxiproxy
+    networks:
+      - chaos_net
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://localhost:5000/api/v1/health || exit 0']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+networks:
+  chaos_net:
+    driver: bridge

@@ -99,9 +99,16 @@ async function recordProgress(userId, goalId, { value, source, sourceId, note })
 
   // Check completion
   if (goal.currentValue >= goal.targetValue) {
+    const isNewlyCompleted = goal.status !== 'completed';
     goal.status = 'completed';
     goal.completedAt = new Date();
     goal.currentValue = goal.targetValue; // cap at target
+
+    if (isNewlyCompleted) {
+      const gamificationService = require('./gamificationService');
+      await gamificationService.awardCoins(userId, 50, 'Completed daily goal')
+        .catch(err => console.error('Error awarding PrepCoins for goal completion:', err));
+    }
   }
 
   // Check expiry

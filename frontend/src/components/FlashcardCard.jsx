@@ -2,9 +2,11 @@ import React, { useState } from 'react';
 import { Lightbulb, RotateCw, Play, X } from 'lucide-react';
 import MathRenderer from './common/MathRenderer';
 import AudioReader from './AudioReader';
+import FactualityVerificationBadge from './factuality/FactualityVerificationBadge';
 
 const FlashcardCard = ({ flashcard, style, rowIndex, columnIndex, cardIndex }) => {  const [isFlipped, setIsFlipped] = useState(false);
   const [showVideoModal, setShowVideoModal] = useState(false);
+  const [cardBack, setCardBack] = useState(flashcard?.back || '');
 
   const handleFlip = () => {
     setIsFlipped(!isFlipped);
@@ -116,14 +118,25 @@ const FlashcardCard = ({ flashcard, style, rowIndex, columnIndex, cardIndex }) =
             }}
           >
             <div className="w-full flex justify-between items-center text-[10px] font-bold text-yellow-700 dark:text-yellow-400 uppercase tracking-widest font-mono">
-              <span>Answer</span>
+              <span className="flex items-center gap-1.5">
+                Answer
+                <FactualityVerificationBadge
+                  targetType="flashcard"
+                  targetId={flashcard?.id}
+                  front={flashcard?.front}
+                  back={cardBack}
+                  sourceContext={flashcard?.sourceUrl || ''}
+                  size="sm"
+                  onCorrectionApplied={(newText) => setCardBack(newText)}
+                />
+              </span>
               <div onClick={(e) => e.stopPropagation()}>
-                <AudioReader text={flashcard?.back} />
+                <AudioReader text={cardBack} />
               </div>
             </div>
             <div className="text-center text-xs text-neutral-800 dark:text-neutral-200 overflow-y-auto max-h-[70%] bg-transparent">
-              {flashcard?.back ? (
-                <MathRenderer text={flashcard.back} />
+              {cardBack ? (
+                <MathRenderer text={cardBack} />
               ) : (
                 'Empty Back'
               )}

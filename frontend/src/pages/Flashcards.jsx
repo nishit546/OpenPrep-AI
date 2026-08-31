@@ -7,7 +7,7 @@ import CreateFlashcardDeckModal from '../components/flashcards/CreateFlashcardDe
 import YouTubeFlashcardImporter from '../components/flashcards/YouTubeFlashcardImporter';
 import DeckCollaboratorsModal from '../components/flashcards/DeckCollaboratorsModal';
 import MathRenderer from '../components/common/MathRenderer';
-import { Search, Trash2, Plus, ChevronLeft, ChevronRight, PlaySquare as Youtube, Share2, Copy, Check, BookOpen, Layers, Globe, Lock, Users } from 'lucide-react';
+import { Search, Trash2, Plus, ChevronLeft, ChevronRight, PlaySquare as Youtube, Share2, Copy, Check, BookOpen, Layers, Globe, Lock, Users, FileImage } from 'lucide-react';
 
 const Flashcards = () => {
   const dispatch = useDispatch();

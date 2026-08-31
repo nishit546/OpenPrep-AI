@@ -1,357 +1,137 @@
 const PDFDocument = require('pdfkit');
 const crypto = require('crypto');
-const StudyPlan = require('../models/StudyPlan');
-const Exam = require('../models/Exam');
-const User = require('../models/User');
+const { v4: uuidv4 } = require('uuid');
 
-/**
- * Generate a unique certificate number
- * Format: CERT-YYYY-XXXXXXXX
- * @returns {string} Unique certificate number
- */
-const generateCertificateNumber = () => {
-  const year = new Date().getFullYear();
-  const randomBytes = crypto.randomBytes(4).toString('hex').toUpperCase();
-  return `CERT-${year}-${randomBytes}`;
-};
+let QRCode;
+try {
+  QRCode = require('qrcode');
+} catch (e) {
+  QRCode = null;
+}
+let qrImage;
+try {
+  qrImage = require('qr-image');
+} catch (e) {
+  qrImage = null;
+}
 
-/**
- * Certificate templates configuration
- */
-const CERTIFICATE_TEMPLATES = {
-  default: {
-    name: 'default',
-    layout: 'landscape',
-    pageSize: 'A4',
-    backgroundColor: '#ffffff',
-    title: 'Certificate of Achievement',
-    titleFontSize: 40,
-    titleColor: '#1a1a1a',
-    bodyFontSize: 18,
-    bodyColor: '#333333',
-    accentColor: '#4a90e2',
-    borderColor: '#4a90e2',
-    borderWidth: 8,
-  },
-  modern: {
-    name: 'modern',
-    layout: 'landscape',
-    pageSize: 'A4',
-    backgroundColor: '#f8f9fa',
-    title: 'Certificate of Completion',
-    titleFontSize: 36,
-    titleColor: '#2c3e50',
-    bodyFontSize: 16,
-    bodyColor: '#34495e',
-    accentColor: '#3498db',
-    borderColor: '#3498db',
-    borderWidth: 12,
-  },
-  classic: {
-    name: 'classic',
-    layout: 'landscape',
-    pageSize: 'A4',
-    backgroundColor: '#fffef0',
-    title: 'Certificate of Achievement',
-    titleFontSize: 44,
-    titleColor: '#8b4513',
-    bodyFontSize: 20,
-    bodyColor: '#4a4a4a',
-    accentColor: '#daa520',
-    borderColor: '#daa520',
-    borderWidth: 15,
+const SECRET_KEY = process.env.CERTIFICATE_HMAC_SECRET || 'openprep-secret-token-holder';
+
+// In-memory database lookup representation mapping active issue bounds
+const mockCertificateDatabase = {
+  'c8f74211-1963-4063-8a3d-0970abc12345': {
+    id: 'c8f74211-1963-4063-8a3d-0970abc12345',
+    recipientName: 'Aditya Patel',
+    credentialTitle: '30-Day Intensive Data Structures Sprint Mastery',
+    issueDate: '2026-08-31',
   },
 };
 
 /**
- * Validate certificate template
- * @param {string} templateName - Template name to validate
- * @returns {boolean} True if template is valid
+ * Calculates a secure, tamper-proof signature for a certificate payload.
  */
-const validateTemplate = (templateName) => {
-  return CERTIFICATE_TEMPLATES[templateName] !== undefined;
-};
+function computeCertificateSignature(certId, recipientName, credentialTitle) {
+  const hashPayload = `${certId}:${recipientName}:${credentialTitle}`;
+  return crypto.createHmac('sha256', SECRET_KEY).update(hashPayload).digest('hex');
+}
 
 /**
- * Get template configuration
- * @param {string} templateName - Template name
- * @returns {object} Template configuration
+ * Helper to generate QR code PNG buffer.
  */
-const getTemplate = (templateName = 'default') => {
-  return CERTIFICATE_TEMPLATES[templateName] || CERTIFICATE_TEMPLATES.default;
-};
-
-/**
- * Validate certificate data before generation
- * @param {object} data - Certificate data
- * @returns {object} Validation result with isValid and errors
- */
-const validateCertificateData = (data) => {
-  const errors = [];
-
-  if (!data.recipientName || typeof data.recipientName !== 'string' || data.recipientName.trim().length === 0) {
-    errors.push('Recipient name is required');
+async function generateQrPngBuffer(url) {
+  if (QRCode) {
+    return await QRCode.toBuffer(url, { type: 'png', margin: 1 });
   }
-
-  if (!data.courseName || typeof data.courseName !== 'string' || data.courseName.trim().length === 0) {
-    errors.push('Course/program name is required');
+  if (qrImage) {
+    return qrImage.imageSync(url, { type: 'png', margin: 1 });
   }
-
-  if (!data.completionDate || !(data.completionDate instanceof Date)) {
-    errors.push('Valid completion date is required');
-  }
-
-  if (!data.certificateNumber || typeof data.certificateNumber !== 'string') {
-    errors.push('Certificate number is required');
-  }
-
-  return {
-    isValid: errors.length === 0,
-    errors,
-  };
-};
+  return null;
+}
 
 /**
- * Validate study plan completion
- * @param {object} plan - Study plan object
- * @returns {object} Validation result with isValid and errors
+ * Generates a crisp, printable digital PDF credential package using pdfkit.
  */
-const validatePlanCompletion = (plan) => {
-  const errors = [];
+async function generateCertificatePdf(metadata) {
+  const { certId, recipientName, credentialTitle, issueDate, signature } = metadata;
 
-  if (!plan) {
-    errors.push('Study plan not found');
-    return { isValid: false, errors };
-  }
-
-  // Check plan status
-  if (plan.status !== 'completed') {
-    // If status is not completed, check dailyGoals completion
-    if (plan.dailyGoals && plan.dailyGoals.length > 0) {
-      const totalGoals = plan.dailyGoals.length;
-      const completedGoals = plan.dailyGoals.filter(g => g.completed).length;
-      
-      if (totalGoals !== completedGoals) {
-        errors.push(`Study plan is incomplete: ${completedGoals}/${totalGoals} goals completed`);
-      }
-    } else {
-      errors.push('Study plan is not marked as completed and has no goals to verify');
-    }
-  }
-
-  return {
-    isValid: errors.length === 0,
-    errors,
-  };
-};
-
-/**
- * Draw certificate border
- * @param {object} doc - PDFDocument instance
- * @param {object} template - Template configuration
- */
-const drawBorder = (doc, template) => {
-  const { page } = doc;
-  const margin = template.borderWidth / 2;
-  
-  doc.lineWidth(template.borderWidth);
-  doc.strokeColor(template.borderColor);
-  
-  // Draw border rectangle
-  doc.rect(margin, margin, page.width - (margin * 2), page.height - (margin * 2)).stroke();
-  
-  // Draw inner decorative line
-  doc.lineWidth(2);
-  doc.strokeColor(template.accentColor);
-  const innerMargin = margin + 10;
-  doc.rect(innerMargin, innerMargin, page.width - (innerMargin * 2), page.height - (innerMargin * 2)).stroke();
-};
-
-/**
- * Draw certificate header
- * @param {object} doc - PDFDocument instance
- * @param {object} template - Template configuration
- * @param {string} certificateNumber - Certificate number
- */
-const drawHeader = (doc, template, certificateNumber) => {
-  const { page } = doc;
-  
-  // Draw title
-  doc.fontSize(template.titleFontSize);
-  doc.fillColor(template.titleColor);
-  doc.text(template.title, { align: 'center' });
-  
-  doc.moveDown(2);
-  
-  // Draw certificate number
-  doc.fontSize(12);
-  doc.fillColor(template.accentColor);
-  doc.text(`Certificate No: ${certificateNumber}`, { align: 'right' });
-  
-  doc.moveDown();
-};
-
-/**
- * Draw certificate body
- * @param {object} doc - PDFDocument instance
- * @param {object} template - Template configuration
- * @param {object} data - Certificate data
- */
-const drawBody = (doc, template, data) => {
-  doc.fontSize(template.bodyFontSize);
-  doc.fillColor(template.bodyColor);
-  
-  // Recipient line
-  doc.text('This is to certify that', { align: 'center' });
-  doc.moveDown();
-  
-  doc.fontSize(template.bodyFontSize + 8);
-  doc.fillColor(template.titleColor);
-  doc.text(data.recipientName, { align: 'center', underline: true });
-  doc.moveDown();
-  
-  doc.fontSize(template.bodyFontSize);
-  doc.fillColor(template.bodyColor);
-  doc.text('has successfully completed the study plan', { align: 'center' });
-  doc.moveDown();
-  
-  doc.fontSize(template.bodyFontSize + 4);
-  doc.fillColor(template.accentColor);
-  doc.text(data.courseName, { align: 'center' });
-  doc.moveDown(2);
-  
-  // Completion date
-  doc.fontSize(template.bodyFontSize);
-  doc.fillColor(template.bodyColor);
-  doc.text(`Completed on: ${data.completionDate.toLocaleDateString()}`, { align: 'center' });
-};
-
-/**
- * Draw certificate footer
- * @param {object} doc - PDFDocument instance
- * @param {object} template - Template configuration
- */
-const drawFooter = (doc, template) => {
-  const { page } = doc;
-  const footerY = page.height - 80;
-  
-  doc.fontSize(10);
-  doc.fillColor(template.bodyColor);
-  
-  // Left side - issue date
-  doc.text(`Issue Date: ${new Date().toLocaleDateString()}`, 50, footerY, { width: 200 });
-  
-  // Right side - verification text
-  doc.text('This certificate can be verified by the certificate number', page.width - 250, footerY, { width: 200, align: 'right' });
-};
-
-/**
- * Generate certificate PDF
- * @param {object} data - Certificate data
- * @param {string} templateName - Template name
- * @returns {Promise<Buffer>} PDF buffer
- */
-const generateCertificatePDF = async (data, templateName = 'default') => {
-  return new Promise((resolve, reject) => {
+  return new Promise(async (resolve, reject) => {
     try {
-      const template = getTemplate(templateName);
-      const chunks = [];
-      
-      const doc = new PDFDocument({
-        layout: template.layout,
-        size: template.pageSize,
-        margin: 0,
-      });
-      
-      // Collect PDF data
-      doc.on('data', (chunk) => chunks.push(chunk));
-      doc.on('end', () => resolve(Buffer.concat(chunks)));
-      doc.on('error', reject);
-      
-      // Background
-      doc.rect(0, 0, doc.page.width, doc.page.height).fill(template.backgroundColor);
-      
-      // Draw certificate elements
-      drawBorder(doc, template);
-      drawHeader(doc, template, data.certificateNumber);
-      drawBody(doc, template, data);
-      drawFooter(doc, template);
-      
+      const doc = new PDFDocument({ size: 'A4', layout: 'landscape', margin: 0 });
+      const buffers = [];
+      doc.on('data', chunk => buffers.push(chunk));
+      doc.on('end', () => resolve(Buffer.concat(buffers)));
+      doc.on('error', err => reject(err));
+
+      const width = 842;
+      const height = 595;
+
+      // Draw Outer and Inner Borders
+      doc.rect(20, 20, width - 40, height - 40).lineWidth(3).stroke('#1f2937');
+      doc.rect(30, 30, width - 60, height - 60).lineWidth(1).stroke('#d97706');
+
+      // Title & Headers
+      doc.font('Helvetica-Bold').fontSize(16).fillColor('#1f2937').text('OPENPREP AI CREDENTIAL NETWORK', 0, 70, { align: 'center' });
+      doc.font('Helvetica-Bold').fontSize(28).fillColor('#d97706').text('Certificate of Achievement', 0, 120, { align: 'center' });
+
+      doc.font('Helvetica').fontSize(12).fillColor('#6b7280').text('This honors milestone verification is proudly awarded to:', 0, 190, { align: 'center' });
+      doc.font('Helvetica-Bold').fontSize(24).fillColor('#111827').text(recipientName || 'OpenPrep Scholar', 0, 230, { align: 'center' });
+
+      doc.font('Helvetica').fontSize(12).fillColor('#6b7280').text('for successfully mastering the curriculum criteria for:', 0, 290, { align: 'center' });
+      doc.font('Helvetica-Bold').fontSize(16).fillColor('#1f2937').text(credentialTitle || 'Mastery Certification', 0, 330, { align: 'center' });
+
+      // Embed QR code
+      const verificationUrl = `https://openprep.ai/verify/${certId}`;
+      try {
+        const qrBuffer = await generateQrPngBuffer(verificationUrl);
+        if (qrBuffer) {
+          doc.image(qrBuffer, 60, 440, { width: 80, height: 80 });
+          doc.font('Helvetica').fontSize(8).fillColor('#6b7280').text('Scan to Verify Authenticity', 50, 525);
+        }
+      } catch (e) {
+        doc.font('Helvetica').fontSize(8).fillColor('#6b7280').text(`Verify: ${verificationUrl}`, 60, 480);
+      }
+
+      // Footers & Hash Proof
+      const sigHex = signature || computeCertificateSignature(certId, recipientName || '', credentialTitle || '');
+      const formattedDate = issueDate || new Date().toISOString().split('T')[0];
+
+      doc.font('Helvetica').fontSize(10).fillColor('#4b5563').text(`Issue Date: ${formattedDate}`, width - 340, 470, { align: 'right' });
+      doc.font('Helvetica').fontSize(8).fillColor('#9ca3af').text(`Cryptographic Hash: ${sigHex.slice(0, 32)}...`, width - 340, 490, { align: 'right' });
+
       doc.end();
-    } catch (error) {
-      reject(error);
+    } catch (err) {
+      reject(err);
     }
   });
-};
+}
 
 /**
- * Complete certificate generation process
- * @param {string} planId - Study plan ID
- * @param {string} userId - User ID
- * @param {string} templateName - Template name (optional)
- * @returns {Promise<object>} Certificate data with PDF buffer
+ * Mint certificate helper.
  */
-const generateCertificate = async (planId, userId, templateName = 'default') => {
-  // Validate template
-  if (!validateTemplate(templateName)) {
-    throw new Error(`Unsupported certificate template: ${templateName}`);
-  }
-  
-  // Fetch study plan with exam and user details
-  const plan = await StudyPlan.findOne({
-    where: { id: planId, user: userId },
-    include: [
-      {
-        model: Exam,
-        as: 'examRef',
-      },
-      {
-        model: User,
-        as: 'userRef',
-      },
-    ],
-  });
-  
-  // Validate plan completion
-  const completionValidation = validatePlanCompletion(plan);
-  if (!completionValidation.isValid) {
-    throw new Error(completionValidation.errors.join(', '));
-  }
-  
-  // Get exam name for course name
-  const courseName = plan.examDetails?.name || 'Study Plan';
-  
-  // Prepare certificate data
-  const certificateData = {
-    recipientName: plan.user?.name || 'Student',
-    courseName: courseName,
-    completionDate: plan.updatedAt || new Date(),
-    certificateNumber: generateCertificateNumber(),
+function mintCertificate({ certId = uuidv4(), recipientName, credentialTitle, issueDate = new Date().toISOString().split('T')[0] }) {
+  const signature = computeCertificateSignature(certId, recipientName, credentialTitle);
+  const record = {
+    id: certId,
+    recipientName,
+    credentialTitle,
+    issueDate,
+    signature,
   };
-  
-  // Validate certificate data
-  const dataValidation = validateCertificateData(certificateData);
-  if (!dataValidation.isValid) {
-    throw new Error(dataValidation.errors.join(', '));
-  }
-  
-  // Generate PDF
-  const pdfBuffer = await generateCertificatePDF(certificateData, templateName);
-  
-  return {
-    certificateData,
-    pdfBuffer,
-    template: templateName,
-  };
-};
+  mockCertificateDatabase[certId] = record;
+  return record;
+}
+
+/**
+ * Get certificate record from registry.
+ */
+function getCertificateRecord(certId) {
+  return mockCertificateDatabase[certId] || null;
+}
 
 module.exports = {
-  generateCertificate,
-  generateCertificatePDF,
-  generateCertificateNumber,
-  validateTemplate,
-  getTemplate,
-  validateCertificateData,
-  validatePlanCompletion,
-  CERTIFICATE_TEMPLATES,
+  computeCertificateSignature,
+  generateCertificatePdf,
+  mintCertificate,
+  getCertificateRecord,
+  mockCertificateDatabase,
 };

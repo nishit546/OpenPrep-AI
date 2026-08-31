@@ -1,5 +1,4 @@
 import { useState, useMemo } from 'react';
-import { Helmet } from 'react-helmet-async';
 
 /* ─────────────────────── MOCK DATA ─────────────────────── */
 const DRUGS = [
@@ -160,7 +159,7 @@ export default function DrugInteractionChecker() {
 
   return (
     <>
-      <Helmet><title>Drug Interaction Checker — OpenPrep AI</title></Helmet>
+      <title>Drug Interaction Checker — OpenPrep AI</title>
       <div className="min-h-screen bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 p-4 md:p-8 space-y-6 max-w-6xl mx-auto">
 
         <div>

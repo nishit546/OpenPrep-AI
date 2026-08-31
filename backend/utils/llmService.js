@@ -1,4 +1,9 @@
 const geminiService = require('../services/geminiService');
+const {
+  buildIsolatedPrompt,
+  validateGeneratedQuestions,
+  ContextIsolationError,
+} = require('./aiContextIsolation');
 
 /**
  * Utility wrapper for LLM AI Service calls to generate structured Q&A items.
@@ -22,11 +27,9 @@ async function generateQuestionsFromContent({
     throw new Error('Content is required for AI question generation.');
   }
 
-  const prompt = `You are an expert exam generator. Generate ${numQuestions} high-quality ${difficulty} difficulty ${type.replace('_', ' ')} study questions based strictly on the following document text:
+  const instructions = `You are an expert exam generator. Generate ${numQuestions} high-quality ${difficulty} difficulty ${type.replace('_', ' ')} study questions based strictly on the document content provided below.
 
---- DOCUMENT TITLE: ${title} ---
-${content.slice(0, 8000)}
---- END DOCUMENT ---
+Document title: ${title}
 
 Return ONLY a valid JSON array of question objects without codeblock formatting. Each question object must match this schema:
 [
@@ -38,6 +41,15 @@ Return ONLY a valid JSON array of question objects without codeblock formatting.
     "difficulty": "${difficulty}"
   }
 ]`;
+  let prompt;
+  try {
+    prompt = buildIsolatedPrompt({ instructions, untrustedContent: content });
+  } catch (isolationError) {
+    if (isolationError instanceof ContextIsolationError) {
+      throw isolationError;
+    }
+    throw new Error('Failed to prepare AI context.');
+  }
 
   try {
     const rawResponse = await geminiService.generateChatResponse({
@@ -59,17 +71,16 @@ Return ONLY a valid JSON array of question objects without codeblock formatting.
 
     const parsedQuestions = JSON.parse(cleanedText);
 
-    if (!Array.isArray(parsedQuestions)) {
-      throw new Error('Invalid LLM response format: Expected JSON array.');
+    const validatedQuestions = validateGeneratedQuestions(parsedQuestions, {
+      fallbackType: type,
+      fallbackDifficulty: difficulty,
+    });
+
+    if (validatedQuestions.length === 0) {
+      throw new Error('AI response did not contain any valid question objects.');
     }
 
-    return parsedQuestions.map((q, idx) => ({
-      question: q.question || `Generated Question ${idx + 1}`,
-      answer: q.answer || q.correctAnswer || 'Answer provided in text context.',
-      options: Array.isArray(q.options) ? q.options : [],
-      type: q.type || type,
-      difficulty: q.difficulty || difficulty,
-    }));
+    return validatedQuestions;
   } catch (error) {
     console.warn('LLM structured parsing fallback triggered:', error.message);
 
@@ -85,7 +96,6 @@ Return ONLY a valid JSON array of question objects without codeblock formatting.
     ];
   }
 }
-
 module.exports = {
   generateQuestionsFromContent,
 };

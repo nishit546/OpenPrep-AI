@@ -1,7 +1,7 @@
 const { Op } = require('sequelize');
 const fs = require('fs');
-const Flashcard = require('../models/Flashcard');
-const Subject = require('../models/Subject');
+const { v4: uuidv4 } = require('uuid');
+const Flashcard = require('../models/Flashcard');const Subject = require('../models/Subject');
 const Topic = require('../models/Topic');
 const Note = require('../models/Note');
 const ActivityLog = require('../models/ActivityLog');
@@ -14,7 +14,7 @@ const PodcastEpisode = require('../models/PodcastEpisode');
 const audioPodcastService = require('../services/audioPodcastService');
 const { calculateTopicProficiency, getDifficultyLevel } = require('../services/proficiencyService');
 const remediationService = require('../services/remediationService');
-const { checkAndAwardBadges } = require('../services/achievementService');
+const analyticsAggregationService = require('../services/analyticsAggregationService');const { checkAndAwardBadges } = require('../services/achievementService');
 const geminiService = require('../services/geminiService');
 const { GeminiRateLimitError, GeminiServerError } = require('../services/geminiService');
 const { YoutubeTranscript } = require('youtube-transcript');
@@ -678,26 +678,6 @@ exports.reviewFlashcard = async (req, res, next) => {
         .status(400)
         .json({ success: false, error: 'Provide a quality score between 0 and 5' });
     }
-const spacedRepetitionScheduler = require('../services/spacedRepetitionScheduler');
-const DuplicateDetectionService = require('../services/duplicateDetectionService');
-
-// In your review endpoint:
-const submissionToken = req.body.submissionToken || DuplicateDetectionService.generateSubmissionToken(flashcardId);
-const timezone = req.body.timezone || 'UTC';
-const quality = req.body.quality; // 0-5
-
-const reviewResult = await spacedRepetitionScheduler.processReview(
-  flashcardId,
-  quality,
-  submissionToken,
-  timezone
-);
-
-if (!reviewResult.success) {
-  return res.status(400).json(reviewResult);
-}
-
-res.json(reviewResult);
     const card = await Flashcard.findOne({ where: { id: req.params.id, user: req.user.id } });
     if (!card) {
       return res.status(404).json({ success: false, error: 'Flashcard not found' });
@@ -732,34 +712,24 @@ res.json(reviewResult);
     card.nextReviewDate = new Date(Date.now() + card.interval * 24 * 60 * 60 * 1000);
     await card.save();
 
-    // If card is mastered (quality >= 4), increment mastered count in progress
-    // NOTE: progress entries are tracked both for topic-level flashcards (topic: id)
-    //       AND subject-level flashcards (topic: null) — we no longer skip the latter.
-    //       Progress row is atomically upserted via findOrCreate so rows are created
-    //       dynamically even if user reviews cards before ever taking a quiz.
+    // If card is mastered (quality >= 4), record it as a LearningEvent and
+    // apply it to the Progress aggregate under a per-key lock. This is
+    // idempotent (a retried request with the same reviewId is ignored) and
+    // safe under concurrent reviews, including two reviews racing to create
+    // the same Progress row for the first time.
     if (quality >= 4) {
-      const progressTopic = card.topic || null;
-      const [progress] = await Progress.findOrCreate({
-        where: {
-          user: req.user.id,
-          subject: card.subject,
-          topic: progressTopic,
-        },
-        defaults: {
-          user: req.user.id,
-          subject: card.subject,
-          topic: progressTopic,
-          flashcardsMastered: 0,
-          completionPercentage: 0,
-          studyHours: 0,
-        },
+      await analyticsAggregationService.recordFlashcardReviewEvent({
+        userId: req.user.id,
+        subject: card.subject,
+        topic: card.topic || null,
+        reviewId: uuidv4(),
+        mastered: true,
       });
-      progress.flashcardsMastered += 1;
-      await progress.save();
     }
-
     const gamificationService = require('../services/gamificationService');
     const progression = await gamificationService.awardXP(req.user.id, 30, 'flashcard_review');
+    await gamificationService.awardCoins(req.user.id, 10, 'Flashcard review reward')
+      .catch(err => console.error('Error awarding PrepCoins for flashcard review:', err));
 
     const timeZoneParam = req.headers['x-timezone'] || (req.headers['x-timezone-offset'] !== undefined ? Number(req.headers['x-timezone-offset']) : null);
     await gamificationService.updateStreak(req.user.id, timeZoneParam);
@@ -1700,3 +1670,10 @@ exports.getPodcastEpisodeById = async (req, res, next) => {
     next(error);
   }
 };
+
+// @desc    Generate AI flashcards from YouTube lecture video transcript
+// @route   POST /api/flashcards/generate-from-youtube, POST /api/flashcards/from-youtube
+// @access  Private
+const { generateFromYoutube: youtubeGen } = require('./youtubeFlashcardController');
+exports.generateFlashcardsFromYouTube = youtubeGen;
+

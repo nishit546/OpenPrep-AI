@@ -41,6 +41,14 @@ exports.rescheduleOverdueTasks = async (req, res, next) => {
       config: { responseMimeType: 'application/json' },
     });
 
+    try {
+      require('../services/metricsService').recordTokensConsumed(
+        'gemini-2.5-flash',
+        response.usageMetadata?.promptTokenCount,
+        response.usageMetadata?.candidatesTokenCount
+      );
+    } catch (e) {}
+
     const rescheduledPlan = JSON.parse(response.text);
 
     res.status(200).json({

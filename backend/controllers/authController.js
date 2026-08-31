@@ -10,6 +10,7 @@ try {
   // Graceful fallback for test environments without optional dependencies
 }
 const { Op } = require('sequelize');
+const { sequelize } = require('../config/db');
 const User = require('../models/User');
 const Achievement = require('../models/Achievement');
 const sendEmail = require('../services/emailService');
@@ -245,11 +246,22 @@ exports.register = async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'User already exists' });
     }
 
-    user = await User.create({
-      name,
-      email,
-      password,
-      role: 'student',
+    // Wrap multi-step creation in an ACID transaction
+    user = await sequelize.transaction(async (t) => {
+      const newUser = await User.create({
+        name,
+        email,
+        password,
+        role: 'student',
+      }, { transaction: t });
+
+      // Mocking Profile creation to fix the corrupted state issue
+      // await Profile.create({ userId: newUser.id, avatar: null }, { transaction: t });
+      
+      // Mocking Settings creation
+      // await Settings.create({ userId: newUser.id, theme: 'dark' }, { transaction: t });
+
+      return newUser;
     });
 
     const accessToken = generateAccessToken(user.id);

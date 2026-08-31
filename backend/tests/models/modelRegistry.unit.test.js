@@ -27,23 +27,39 @@ function importedModelNames(source) {
   // Matching only the first shape made this check fail on main: Bounty,
   // BountySolution and BountySolutionVote were counted as exported-but-never-
   // imported, so the assertion could not pass however tidy the registry was.
+  //
+  // A third shape is the `(sequelize, DataTypes)` factory, which is invoked at
+  // the point of import:
+  //
+  //   const StudyHabit = require('./StudyHabit')(sequelize, DataTypes);
+  //
+  // Requiring the line to end at `');` skipped every one of those, so the
+  // factory-backed models read as exported-but-never-imported too.
   return [
     ...source.matchAll(
-      /^const\s+(?:(\w+)|\{\s*(\w+)\s*(?:,[^}]*)?\})\s*=\s*require\('\.\/(\w+)'\);$/gm
+      /^const\s+(?:(\w+)|\{\s*(\w+)\s*(?:,[^}]*)?\})\s*=\s*require\('\.\/(\w+)'\)(?:\([^)]*\))?;$/gm
     ),
   ].map((match) => match[1] || match[2]);
 }
 
 /**
+ * Registry keys that are deliberately not models.
+ *
+ * `sequelize` is the instance. `Sequelize` is the library namespace, exported
+ * so consumers can build operators as `db.Sequelize.Op.gte` without a second
+ * require — aiUsageBudgetService does exactly that.
+ */
+const NON_MODEL_EXPORTS = new Set(['sequelize', 'Sequelize']);
+
+/**
  * Model names listed inside the trailing `module.exports = { ... }` literal.
- * `sequelize` is exported alongside the models but is not one of them.
  */
 function exportedNames(source) {
   const start = source.indexOf('module.exports');
   expect(start).toBeGreaterThan(-1);
   return [...source.slice(start).matchAll(/^\s{2}(\w+),$/gm)]
     .map((match) => match[1])
-    .filter((name) => name !== 'sequelize');
+    .filter((name) => !NON_MODEL_EXPORTS.has(name));
 }
 
 describe('model registry', () => {

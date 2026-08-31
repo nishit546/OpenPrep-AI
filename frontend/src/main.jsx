@@ -2,33 +2,24 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import { Provider } from 'react-redux'
-import * as Sentry from '@sentry/react'
 import { store } from './store'
 import { ThemeProvider } from './context/ThemeContext'
 import { SyncProvider } from './context/SyncContext'
 import { PomodoroProvider } from './context/PomodoroContext'
 import { SessionTimerProvider } from './context/SessionTimerContext'
-import ErrorBoundary from './components/common/ErrorBoundary'
+import SentryErrorBoundary from './components/common/SentryErrorBoundary'
 import './index.css'
+import './styles/rtl.css';
 import './i18n';
+
 import App from './App.jsx'
 import { GoogleOAuthProvider } from '@react-oauth/google';
-import { unregisterLegacyServiceWorker } from './utils/pushNotifications';
+import { initSentry } from './utils/sentry'
+import { initFrontendTelemetry } from './config/telemetry'
 
-if (import.meta.env.MODE !== 'test' && import.meta.env.VITE_SENTRY_DSN) {
-  Sentry.init({
-    dsn: import.meta.env.VITE_SENTRY_DSN,
-    environment: import.meta.env.VITE_SENTRY_ENVIRONMENT || import.meta.env.MODE,
-    integrations: [
-      Sentry.browserTracingIntegration(),
-      Sentry.replayIntegration(),
-    ],
-    tracesSampleRate: 0.2, // 20% traces sampling
-    replaysSessionSampleRate: 0.1, // 10% session replays
-    replaysOnErrorSampleRate: 1.0, // 100% replays on error
-  });
-  console.log('✅ Sentry React Monitoring initialized successfully.');
-}
+// Initialize monitoring & telemetry
+initSentry();
+initFrontendTelemetry();
 
 // Catch Vite chunk load errors when a new deployment updates JS assets
 window.addEventListener('unhandledrejection', (event) => {
@@ -64,7 +55,7 @@ const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '179369126060-
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <ErrorBoundary>
+    <SentryErrorBoundary>
       <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
         <Provider store={store}>
           <ThemeProvider>
@@ -80,6 +71,6 @@ createRoot(document.getElementById('root')).render(
           </ThemeProvider>
         </Provider>
       </GoogleOAuthProvider>
-    </ErrorBoundary>
+    </SentryErrorBoundary>
   </StrictMode>,
 )

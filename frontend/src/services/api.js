@@ -114,6 +114,14 @@ API.interceptors.request.use(async (config) => {
     /* ignore */
   }
 
+  // Issue #2211: Inject W3C Trace Context traceparent header for distributed tracing
+  try {
+    const { getW3CTraceParent } = await import('../config/telemetry.js');
+    config.headers['traceparent'] = getW3CTraceParent();
+  } catch (_e) {
+    /* ignore */
+  }
+
   return config;
 }, (error) => {
   return Promise.reject(error);
@@ -354,6 +362,13 @@ API.interceptors.response.use(
 export const getReadinessProjection = (params) => API.get('/dashboard/readiness-projection', { params });
 
 /**
+ * Explain a molecular structure in plain language.
+ * POST /api/molecular/explain
+ * @param {{ structureId?: string, smiles?: string, question?: string }} payload
+ */
+export const explainMolecularStructure = (payload) => API.post('/molecular/explain', payload);
+
+/**
  * Generate a targeted AI diagnostic quiz from forgotten flashcard concepts.
  * POST /api/quizzes/generate-remediation
  * @param {{ deckId: string, failedCardIds: string[], count?: number }} payload
@@ -401,7 +416,64 @@ export const sendDoubtMessage = (sessionId, message) =>
  * Reveal the next progressive hint for a doubt session.
  * POST /api/doubts/:id/reveal-step
  */
-export const revealDoubtStep = (sessionId) =>
-  API.post(`/doubts/${sessionId}/reveal-step`);
+export const revealDoubtStep = (sessionId) => API.post(`/doubts/${sessionId}/reveal-step`);
+
+// ── Spaced Repetition Flashcard Analytics APIs ──────────────────────────
+export const getLeitnerDistribution = (deckId = null) =>
+  API.get('/flashcards/analytics/leitner-distribution', { params: { deckId } });
+
+export const getDueForecast = (deckId = null) =>
+  API.get('/flashcards/analytics/due-forecast', { params: { deckId } });
+
+// ── Smart Focus Pomodoro APIs ───────────────────────────────────────────
+// Consumed by components/timer/PomodoroWidget.jsx, which renders for every
+// signed-in user. Both calls were imported from here and never exported, so
+// the production build failed with MISSING_EXPORT and nothing deployed.
+// Paths follow backend/routes/smartFocusPomodoroRoutes.js.
+
+/**
+ * Suggested focus/break lengths for this user, derived from their session
+ * history.
+ * GET /api/smart-focus/recommendation
+ */
+export const getAdaptiveFocusRecommendation = () => API.get('/smart-focus/recommendation');
+
+/**
+ * Record a completed focus session.
+ * POST /api/smart-focus/sessions
+ * @param {{ durationMinutes: number, mode: string, taskType: string, ambientAudio?: string }} payload
+ */
+export const logFocusSession = (payload) => API.post('/smart-focus/sessions', payload);
+
+// ── Two-Way Calendar Sync APIs ──────────────────────────────────────────
+// Consumed by components/calendar/TwoWayCalendarSyncManager.jsx, rendered on
+// the Settings page. Paths follow backend/routes/calendarSyncRoutes.js.
+
+/**
+ * Which calendars are linked, and the Apple iCal webcal feed URL.
+ * GET /api/calendar-sync/status
+ */
+export const getCalendarSyncStatus = () => API.get('/calendar-sync/status');
+
+/**
+ * Exchange an OAuth code for a linked Outlook calendar.
+ * POST /api/calendar-sync/outlook/link
+ * @param {{ code: string }} payload
+ */
+export const linkOutlookCalendar = (payload) => API.post('/calendar-sync/outlook/link', payload);
+
+/**
+ * Check proposed study blocks against existing calendar events.
+ * POST /api/calendar-sync/check-conflicts
+ * @param {{ proposedEvents: object[], existingEvents: object[] }} payload
+ */
+export const checkCalendarConflicts = (payload) =>
+  API.post('/calendar-sync/check-conflicts', payload);
+
+// ── Micro-Learning Study Companion APIs ────────────────────────────────
+export const getNextDueMicroCard = () => API.get('/micro/next-due-card');
+export const submitMicroAnswer = (payload) => API.post('/micro/submit-answer', payload);
 
 export default API;
+
+

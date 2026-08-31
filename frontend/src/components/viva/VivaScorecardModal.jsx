@@ -53,9 +53,11 @@ export default function VivaScorecardModal({ isOpen, onClose, scorecard, onResta
             
             <div className="space-y-3">
               {[
-                { label: 'Conceptual Depth', score: scorecard.conceptualDepth },
+                { label: 'Conceptual Clarity', score: scorecard.conceptualDepth },
                 { label: 'Technical Accuracy', score: scorecard.technicalAccuracy },
                 { label: 'Communication Clarity', score: scorecard.communicationClarity },
+                { label: 'Vocabulary Precision', score: scorecard.vocabularyPrecision },
+                { label: 'Answer Conciseness', score: scorecard.answerConciseness },
               ].map((rubric) => (
                 <div key={rubric.label} className="space-y-1">
                   <div className="flex justify-between text-xs font-semibold text-stone-300">

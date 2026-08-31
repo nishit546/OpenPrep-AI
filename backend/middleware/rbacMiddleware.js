@@ -1,94 +1,44 @@
 /**
- * Granular Role-Based Access Control (RBAC) Middleware & Permissions Matrix
+ * @fileoverview Granular hierarchical Role-Based Access Control (RBAC) middleware.
  */
 
-const ROLES = {
-  SUPER_ADMIN: 'SUPER_ADMIN',
-  INSTITUTION_ADMIN: 'INSTITUTION_ADMIN',
-  EDUCATOR: 'EDUCATOR',
-  TEACHING_ASSISTANT: 'TEACHING_ASSISTANT',
-  STUDENT: 'STUDENT',
-};
-
-const PERMISSIONS = {
-  [ROLES.SUPER_ADMIN]: ['*'],
-  [ROLES.INSTITUTION_ADMIN]: [
-    'canManageInstitution',
-    'canCreateClassroom',
-    'canManageRoster',
-    'canAssignQuiz',
-    'canViewAnalytics',
-    'canDispatchAssignment',
-  ],
-  [ROLES.EDUCATOR]: [
-    'canCreateClassroom',
-    'canManageRoster',
-    'canAssignQuiz',
-    'canViewAnalytics',
-    'canDispatchAssignment',
-  ],
-  [ROLES.TEACHING_ASSISTANT]: [
-    'canManageRoster',
-    'canViewAnalytics',
-    'canDispatchAssignment',
-    'canGradeAssignment',
-  ],
-  [ROLES.STUDENT]: [
-    'canEnrollClassroom',
-    'canSubmitAssignment',
-    'canViewOwnAnalytics',
-  ],
+// Hierarchy levels mapping roles to integer ranks
+const ROLE_HIERARCHY = {
+  STUDENT: 1,
+  STUDY_LEADER: 2,
+  MENTOR: 3,
+  INSTITUTION_ADMIN: 4,
+  SUPERADMIN: 5,
 };
 
 /**
- * Authorize user based on one or more allowed roles
+ * Enforces hierarchical role checks. User's role rank must be >= requiredRole rank.
+ * @param {string} requiredRole - Role required to access route
  */
-const authorizeRoles = (...allowedRoles) => {
+const requireRole = (requiredRole) => {
   return (req, res, next) => {
-    if (!req.user) {
-      return res.status(401).json({ success: false, error: 'Authentication required.' });
+    if (!req.user || !req.user.role) {
+      return res.status(401).json({ success: false, message: 'Unauthorized: Authentication context missing' });
     }
 
-    const userRole = (req.user.role || ROLES.STUDENT).toUpperCase();
+    const userRole = req.user.role.toUpperCase();
+    const targetRole = requiredRole.toUpperCase();
 
-    // SUPER_ADMIN has access to all role-restricted routes
-    if (userRole === ROLES.SUPER_ADMIN || allowedRoles.includes(userRole)) {
+    const userRank = ROLE_HIERARCHY[userRole] || 1;
+    const requiredRank = ROLE_HIERARCHY[targetRole] || 1;
+
+    if (userRank >= requiredRank) {
       return next();
     }
 
     return res.status(403).json({
       success: false,
-      error: `Forbidden: Role '${userRole}' does not have access to this resource. Required roles: ${allowedRoles.join(', ')}`,
-    });
-  };
-};
-
-/**
- * Require specific granular permission for endpoint
- */
-const requirePermission = (permissionName) => {
-  return (req, res, next) => {
-    if (!req.user) {
-      return res.status(401).json({ success: false, error: 'Authentication required.' });
-    }
-
-    const userRole = (req.user.role || ROLES.STUDENT).toUpperCase();
-    const userPermissions = PERMISSIONS[userRole] || [];
-
-    if (userRole === ROLES.SUPER_ADMIN || userPermissions.includes('*') || userPermissions.includes(permissionName)) {
-      return next();
-    }
-
-    return res.status(403).json({
-      success: false,
-      error: `Forbidden: Missing required permission '${permissionName}'.`,
+      message: `Forbidden: Insufficient privileges. Required role: ${requiredRole}`,
     });
   };
 };
 
 module.exports = {
-  ROLES,
-  PERMISSIONS,
-  authorizeRoles,
-  requirePermission,
+  requireRole,
+  ROLE_HIERARCHY,
 };

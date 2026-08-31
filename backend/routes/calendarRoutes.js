@@ -1,9 +1,13 @@
+/**
+ * @fileoverview API routes for Calendar Integration and Syncing.
+ */
 const express = require('express');
 const router = express.Router();
 
 const { protect } = require('../middleware/auth');
 
 const calendarService = require('../services/calendarService');
+const calendarSyncService = require('../services/calendarSyncService');
 const StudyPlan = require('../models/StudyPlan');
 const User = require('../models/User');
 
@@ -261,9 +265,7 @@ router.get(
   }
 );
 
-const calendarSyncService = require('../services/calendarSyncService');
-
-// Mock route for syncing timetable to Google Calendar
+// Mock route for syncing timetable to Google Calendar (Legacy MVP)
 router.post('/sync', async (req, res) => {
   try {
     const { events } = req.body;
@@ -328,6 +330,102 @@ router.post('/webhook', async (req, res) => {
       success: false,
       error: error.message,
     });
+  }
+});
+
+/**
+ * @route   GET /api/calendar/oauth-url
+ * @desc    Get OAuth2 authorization URL for Google or Outlook
+ * @access  Private
+ */
+router.get('/oauth-url', protect, async (req, res) => {
+  try {
+    const { provider } = req.query;
+    if (!provider || (provider !== 'google' && provider !== 'outlook')) {
+      return res.status(400).json({ success: false, error: 'Provider must be google or outlook' });
+    }
+
+    const url = calendarSyncService.getOAuthUrl(provider, req.user.id);
+    res.status(200).json({ success: true, url });
+  } catch (error) {
+    console.error('OAuth URL Error:', error);
+    res.status(500).json({ success: false, error: 'Failed to generate OAuth URL' });
+  }
+});
+
+/**
+ * @route   POST /api/calendar/exchange-token
+ * @desc    Exchange authorization code for access token
+ * @access  Private
+ */
+router.post('/exchange-token', protect, async (req, res) => {
+  try {
+    const { provider, code } = req.body;
+    if (!provider || !code) {
+      return res.status(400).json({ success: false, error: 'Provider and code are required' });
+    }
+
+    const tokens = await calendarSyncService.exchangeCodeForToken(provider, code);
+
+    // TODO: Save tokens to User model in production
+    res.status(200).json({ success: true, data: tokens });
+  } catch (error) {
+    console.error('Token Exchange Error:', error);
+    res.status(500).json({ success: false, error: 'Failed to exchange token' });
+  }
+});
+
+/**
+ * @route   POST /api/calendar/sync-events
+ * @desc    Sync spaced repetition events to external calendar
+ * @access  Private
+ */
+router.post('/sync-events', protect, async (req, res) => {
+  try {
+    const { provider, accessToken, dueFlashcards, daysInAdvance } = req.body;
+
+    if (!provider || !accessToken || !dueFlashcards) {
+      return res.status(400).json({ success: false, error: 'Missing required fields' });
+    }
+
+    const result = await calendarSyncService.syncEventsToCalendar(
+      provider,
+      accessToken,
+      dueFlashcards,
+      daysInAdvance || 7
+    );
+
+    res.status(200).json(result);
+  } catch (error) {
+    console.error('Event Sync Error:', error);
+    res.status(500).json({ success: false, error: 'Failed to sync events' });
+  }
+});
+
+/**
+ * @route   PATCH /api/calendar/update-event
+ * @desc    Update or dismiss a calendar event
+ * @access  Private
+ */
+router.patch('/update-event', protect, async (req, res) => {
+  try {
+    const { provider, accessToken, eventId, status } = req.body;
+
+    if (!provider || !accessToken || !eventId || !status) {
+      return res.status(400).json({ success: false, error: 'Missing required fields' });
+    }
+
+    const result = await calendarSyncService.updateCalendarEvent(
+      provider,
+      accessToken,
+      eventId,
+      status
+    );
+
+    res.status(200).json(result);
+  } catch (error) {
+    console.error('Event Update Error:', error);
+    res.status(500).json({ success: false, error: 'Failed to update event' });
   }
 });
 

@@ -20,17 +20,17 @@ import NotificationBell from './notifications/NotificationBell';
 import ThemeToggle from './ThemeToggle';
 
 const NAV_LINKS = [
-  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, preload: () => import('../pages/Dashboard') },
-  { to: '/study-planner', label: 'Study Planner', icon: Calendar, preload: () => import('../pages/StudyPlanner') },
-  { to: '/flashcards/review', label: 'Flashcards', icon: Layers, preload: () => import('../pages/FlashcardReview') },
-  { to: '/battle', label: 'Battle Arena', icon: Swords, preload: () => import('../pages/BattleArena') },
-  { to: '/study-group', label: 'Study Group', icon: MessageSquare, preload: () => import('../pages/StudyGroupChat') },
-  { to: '/squads', label: 'Study Squads', icon: Users, preload: () => import('../pages/SquadsPage') },
-  { to: '/ai-assistant', label: 'AI Mentor Chat', icon: Bot, preload: () => import('../pages/AiAssistant') },
-  { to: '/community/decks', label: 'Community Library', icon: Library, preload: () => import('../pages/CommunityDecks') },
-  { to: '/pyqs', label: 'PYQ Intelligence', icon: FileSpreadsheet, preload: () => import('../pages/PyqDashboard') },
-  { to: '/pyq-analytics', label: 'PYQ Trend Analyzer', icon: LineChart, preload: () => import('../pages/PYQAnalytics') },
-  { to: '/settings', label: 'Settings', icon: Settings, preload: () => import('../pages/Settings') },
+  { to: '/dashboard', label: 'Dashboard', preload: () => import('../pages/Dashboard') },
+  { to: '/study-planner', label: 'Study Planner', preload: () => import('../pages/StudyPlanner') },
+  { to: '/flashcards/review', label: 'Flashcards', preload: () => import('../pages/FlashcardReview') },
+  { to: '/battle', label: 'Battle Arena', preload: () => import('../pages/BattleArena') },
+  { to: '/study-group', label: 'Study Group', preload: () => import('../pages/StudyGroupChat') },
+  { to: '/squads', label: 'Study Squads', preload: () => import('../pages/SquadsPage') },
+  { to: '/bounties', label: 'Bounty Board', preload: () => import('../pages/BountyBoardPage') },
+  { to: '/code/sandbox', label: 'Code Sandbox', preload: () => import('../pages/code/CodeSandboxPage') },
+  { to: '/ai-assistant', label: 'AI Mentor Chat', preload: () => import('../pages/AiAssistant') },
+  { to: '/community/decks', label: 'Community Library', preload: () => import('../pages/CommunityDecks') },
+  { to: '/settings', label: 'Settings', preload: () => import('../pages/Settings') },
 ];
 
 const MobileNavDrawer = () => {

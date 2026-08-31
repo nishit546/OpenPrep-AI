@@ -1,10 +1,15 @@
 import { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
 import { useDispatch, useSelector } from 'react-redux';
 import { Link, useNavigate } from 'react-router-dom';
-import { Mail, User, Lock, Eye, EyeOff, AlertCircle, CheckCircle } from 'lucide-react';
+import { Mail, User, Lock, Eye, EyeOff, AlertCircle, CheckCircle, BookOpen } from 'lucide-react';
 import { registerUser, clearError, clearRegistrationSuccess } from '../store/slices/authSlice';
 import { useReCaptcha } from '../hooks/useReCaptcha';
 import LazyImage from '../components/common/LazyImage';
+import ThemeToggle from '../components/ThemeToggle';
+import SoundToggle from '../components/SoundToggle';
+import GoogleLoginButton from '../components/auth/GoogleLoginButton';
+import GitHubLoginButton from '../components/auth/GitHubLoginButton';
 
 // Password validation criteria (synced with backend validators.js)
 const PASSWORD_CRITERIA = [

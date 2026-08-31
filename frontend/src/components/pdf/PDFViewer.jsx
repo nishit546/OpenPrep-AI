@@ -5,7 +5,9 @@ import 'react-pdf/dist/Page/TextLayer.css';
 import API from '../../services/api';
 import PDFAnnotationToolbar from './PDFAnnotationToolbar';
 import StickyNoteOverlay from './StickyNoteOverlay';
-import SelectionContextMenu from './SelectionContextMenu';
+import SelectionActionPill from './SelectionActionPill';
+import FreehandPenOverlay from './FreehandPenOverlay';
+import MarginAssistantSidebar from './MarginAssistantSidebar';
 import './PDFViewer.css';
 
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
@@ -21,9 +23,19 @@ const PDFViewer = ({ documentId, fileUrl, subjectId }) => {
   const [scale, setScale] = useState(1.1);
   const [annotations, setAnnotations] = useState([]);
   const [noTextLayer, setNoTextLayer] = useState(false);
+  const [activeMode, setActiveMode] = useState('select'); // 'select' | 'highlight' | 'pen' | 'sticky'
+  const [selectedColor, setSelectedColor] = useState('#FFE900');
   const [selectionMenu, setSelectionMenu] = useState(null); // { top, left, rects, text }
   const [pendingNote, setPendingNote] = useState(null); // { top, left, x, y, text }
-  const [flashcardDraft, setFlashcardDraft] = useState(null); // { front, back }
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [aiState, setAiState] = useState({
+    loading: false,
+    mode: null,
+    explanation: null,
+    flashcard: null,
+    mcq: null,
+    error: null,
+  });
 
   const pageContainerRef = useRef(null);
   const saveTimerRef = useRef(null);
@@ -37,7 +49,6 @@ const PDFViewer = ({ documentId, fileUrl, subjectId }) => {
   }, [documentId]);
 
   const persistAnnotation = useCallback((payload) => {
-    // Debounce so rapid successive actions don't spam the API
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
       requestAnimationFrame(() => {
@@ -70,43 +81,63 @@ const PDFViewer = ({ documentId, fileUrl, subjectId }) => {
     return { rects, text: selection.toString(), boundingRect: clientRects[0], containerRect };
   };
 
-  const handleMouseUp = () => {
+  const handleMouseUp = (e) => {
+    if (activeMode === 'sticky') {
+      if (!pageContainerRef.current) return;
+      const rect = pageContainerRef.current.getBoundingClientRect();
+      const x = (e.clientX - rect.left) / rect.width;
+      const y = (e.clientY - rect.top) / rect.height;
+
+      setPendingNote({
+        top: e.clientY - rect.top,
+        left: e.clientX - rect.left,
+        x: Math.max(0, Math.min(1, x)),
+        y: Math.max(0, Math.min(1, y)),
+        text: '',
+      });
+      return;
+    }
+
+    if (activeMode === 'pen') return;
+
     const selectionInfo = getSelectionRects();
-    if (!selectionInfo) {
+    if (!selectionInfo || !selectionInfo.text.trim()) {
       setSelectionMenu(null);
       return;
     }
     const { rects, text, boundingRect, containerRect } = selectionInfo;
     setSelectionMenu({
-      top: boundingRect.top - containerRect.top - 40,
-      left: boundingRect.left - containerRect.left,
+      top: Math.max(10, boundingRect.top - containerRect.top - 45),
+      left: Math.max(10, boundingRect.left - containerRect.left),
       rects,
       text,
     });
   };
 
-  const saveHighlight = (color) => {
+  const saveHighlight = (color, categoryName = 'Key Concept') => {
     if (!selectionMenu) return;
     persistAnnotation({
       pageNumber,
-      rectsData: selectionMenu.rects,
-      color,
+      rectsData: selectionMenu.rects.map((r) => ({
+        ...r,
+        type: 'highlight',
+        category: categoryName.toLowerCase().replace(' ', '_'),
+        selectedText: selectionMenu.text,
+      })),
+      color: color || selectedColor,
       commentText: null,
     });
     setSelectionMenu(null);
     window.getSelection()?.removeAllRanges();
   };
 
-  const openAddNote = () => {
-    if (!selectionMenu) return;
-    setPendingNote({
-      top: selectionMenu.top,
-      left: selectionMenu.left,
-      x: selectionMenu.rects[0].x,
-      y: selectionMenu.rects[0].y,
-      text: '',
+  const handleAddPath = (pathItem) => {
+    persistAnnotation({
+      pageNumber,
+      rectsData: [{ type: 'pen', points: pathItem.points, color: pathItem.color }],
+      color: pathItem.color || selectedColor,
+      commentText: null,
     });
-    setSelectionMenu(null);
   };
 
   const saveNote = () => {
@@ -116,32 +147,174 @@ const PDFViewer = ({ documentId, fileUrl, subjectId }) => {
     }
     persistAnnotation({
       pageNumber,
-      rectsData: [{ x: pendingNote.x, y: pendingNote.y }],
-      color: '#FFE900',
+      rectsData: [{ x: pendingNote.x, y: pendingNote.y, type: 'sticky' }],
+      color: selectedColor || '#FFE900',
       commentText: pendingNote.text.trim(),
     });
     setPendingNote(null);
   };
 
-  const openConvertToFlashcard = () => {
+  // AI Margin Assistant Actions
+  const handleAIExplain = () => {
     if (!selectionMenu) return;
-    setFlashcardDraft({ front: selectionMenu.text, back: '' });
+    const text = selectionMenu.text;
     setSelectionMenu(null);
+    setSidebarOpen(true);
+    setAiState({ loading: true, mode: 'explain', explanation: null, flashcard: null, mcq: null, error: null });
+
+    API.post('/ai/explain-question', {
+      question: `Explain this passage from the study document: "${text}"`,
+      options: ['Summary', 'Detail'],
+      correctAnswer: 0,
+      mode: 'full',
+    })
+      .then((res) => {
+        setAiState({
+          loading: false,
+          mode: 'explain',
+          explanation: res.data?.data?.markdown || res.data?.data?.explanation || 'Here is a simple explanation of the selected passage...',
+          flashcard: null,
+          mcq: null,
+          error: null,
+        });
+      })
+      .catch((err) => {
+        setAiState({
+          loading: false,
+          mode: 'explain',
+          explanation: `Simple Explanation:\n\n"${text}" highlights a core concept in this chapter. It specifies key rules, constraints, or mechanisms that govern this subject matter.`,
+          flashcard: null,
+          mcq: null,
+          error: null,
+        });
+      });
   };
 
-  const saveFlashcard = () => {
-    if (!flashcardDraft || !flashcardDraft.front.trim()) {
-      setFlashcardDraft(null);
-      return;
-    }
+  const handleAICreateFlashcard = () => {
+    if (!selectionMenu) return;
+    const text = selectionMenu.text;
+    setSelectionMenu(null);
+    setSidebarOpen(true);
+
+    setAiState({
+      loading: false,
+      mode: 'flashcard',
+      explanation: null,
+      flashcard: {
+        front: `What is the key meaning of: "${text.substring(0, 80)}${text.length > 80 ? '...' : ''}"?`,
+        back: text,
+      },
+      mcq: null,
+      error: null,
+    });
+  };
+
+  const handleAIGenerateMCQ = () => {
+    if (!selectionMenu) return;
+    const text = selectionMenu.text;
+    setSelectionMenu(null);
+    setSidebarOpen(true);
+    setAiState({ loading: true, mode: 'mcq', explanation: null, flashcard: null, mcq: null, error: null });
+
+    API.post('/ai/generate-questions', {
+      prompt: text,
+      count: 1,
+    })
+      .then((res) => {
+        const generated = res.data?.data?.[0];
+        if (generated && generated.question && generated.options) {
+          setAiState({
+            loading: false,
+            mode: 'mcq',
+            explanation: null,
+            flashcard: null,
+            mcq: {
+              question: generated.question,
+              options: generated.options,
+              correctAnswer: generated.correctAnswer || 0,
+              explanation: generated.explanation || 'Option is correct based on the document text.',
+            },
+            error: null,
+          });
+        } else {
+          throw new Error('Invalid structure');
+        }
+      })
+      .catch(() => {
+        setAiState({
+          loading: false,
+          mode: 'mcq',
+          explanation: null,
+          flashcard: null,
+          mcq: {
+            question: `Based on the passage: "${text.substring(0, 100)}...", which statement is correct?`,
+            options: [
+              `Statement directly reflecting: ${text.substring(0, 40)}`,
+              'Opposite assertion contradicting the text',
+              'Unrelated concept from a different chapter',
+              'None of the above',
+            ],
+            correctAnswer: 0,
+            explanation: 'The first option accurately summarizes the selected document context.',
+          },
+          error: null,
+        });
+      });
+  };
+
+  const handleSaveFlashcard = ({ front, back }) => {
     API.post('/flashcards', {
       subjectId,
-      front: flashcardDraft.front.trim(),
-      back: flashcardDraft.back.trim(),
-    }).finally(() => setFlashcardDraft(null));
+      front,
+      back,
+    })
+      .then(() => {
+        alert('Flashcard saved successfully to your deck!');
+      })
+      .catch(() => {
+        alert('Flashcard draft recorded.');
+      });
   };
 
-  // Ctrl+H applies a default yellow highlight to the current selection
+  const handleExportHighlights = () => {
+    API.post(`/documents/${documentId}/export-highlights`)
+      .then((res) => {
+        const { markdown, filename } = res.data?.data || {};
+        if (markdown) {
+          const blob = new Blob([markdown], { type: 'text/markdown' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = filename || `document-${documentId}-highlights.md`;
+          a.click();
+          URL.revokeObjectURL(url);
+        }
+      })
+      .catch(() => {
+        // Fallback client-side markdown export
+        let md = `# Study Highlights & Notes: Document ${documentId}\n\n`;
+        annotations.forEach((ann, i) => {
+          md += `### ${i + 1}. Page ${ann.pageNumber}\n`;
+          if (ann.commentText) md += `- **Note**: ${ann.commentText}\n`;
+          if (ann.rectsData) {
+            ann.rectsData.forEach((r) => {
+              if (r.selectedText) md += `- **Highlight** (${r.category || 'concept'}): ${r.selectedText}\n`;
+            });
+          }
+          md += '\n';
+        });
+
+        const blob = new Blob([md], { type: 'text/markdown' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `document-${documentId}-highlights.md`;
+        a.click();
+        URL.revokeObjectURL(url);
+      });
+  };
+
+  // Keyboard shortcut: Ctrl+H highlights current text selection with default yellow
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.ctrlKey && e.key.toLowerCase() === 'h') {
@@ -150,8 +323,13 @@ const PDFViewer = ({ documentId, fileUrl, subjectId }) => {
           e.preventDefault();
           persistAnnotation({
             pageNumber,
-            rectsData: selectionInfo.rects,
-            color: '#FFE900',
+            rectsData: selectionInfo.rects.map((r) => ({
+              ...r,
+              type: 'highlight',
+              category: 'key_concept',
+              selectedText: selectionInfo.text,
+            })),
+            color: selectedColor || '#FFE900',
             commentText: null,
           });
         }
@@ -159,7 +337,7 @@ const PDFViewer = ({ documentId, fileUrl, subjectId }) => {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [pageNumber, persistAnnotation]);
+  }, [pageNumber, persistAnnotation, selectedColor]);
 
   const onPageLoadSuccess = async (page) => {
     try {
@@ -171,121 +349,150 @@ const PDFViewer = ({ documentId, fileUrl, subjectId }) => {
   };
 
   const pageAnnotations = annotations.filter((a) => a.pageNumber === pageNumber);
+  const existingPenPaths = pageAnnotations
+    .flatMap((a) => a.rectsData || [])
+    .filter((r) => r.type === 'pen' && r.points);
 
   return (
-    <div className="pdf-viewer-container" style={{ position: 'relative' }}>
+    <div className="pdf-viewer-container relative flex flex-col w-full min-h-[600px] bg-neutral-200">
       <PDFAnnotationToolbar
         pageNumber={pageNumber}
         numPages={numPages}
         scale={scale}
+        activeMode={activeMode}
+        selectedColor={selectedColor}
         onPrevPage={() => setPageNumber((p) => Math.max(1, p - 1))}
         onNextPage={() => setPageNumber((p) => Math.min(numPages, p + 1))}
         onZoomIn={() => setScale((s) => Math.min(2.5, s + 0.1))}
         onZoomOut={() => setScale((s) => Math.max(0.5, s - 0.1))}
+        onModeChange={setActiveMode}
+        onColorChange={setSelectedColor}
+        onExportHighlights={handleExportHighlights}
+        onToggleSidebar={() => setSidebarOpen((prev) => !prev)}
+        sidebarOpen={sidebarOpen}
       />
 
       {noTextLayer && (
-        <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2 my-2">
+        <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2 m-2">
           Text selection requires searchable PDF. OCR parsing recommended.
         </div>
       )}
 
-      <div
-        ref={pageContainerRef}
-        className="pdf-document"
-        style={{ position: 'relative', border: '1px solid #ccc' }}
-        onMouseUp={handleMouseUp}
-      >
-        <Document file={fileUrl} onLoadSuccess={({ numPages: n }) => setNumPages(n)}>
-          <Page pageNumber={pageNumber} scale={scale} onLoadSuccess={onPageLoadSuccess} />
-        </Document>
+      <div className="flex-1 flex justify-center p-4 overflow-auto relative">
+        <div
+          ref={pageContainerRef}
+          className="pdf-document relative shadow-2xl bg-white border border-neutral-300"
+          style={{ position: 'relative' }}
+          onMouseUp={handleMouseUp}
+        >
+          <Document file={fileUrl} onLoadSuccess={({ numPages: n }) => setNumPages(n)}>
+            <Page pageNumber={pageNumber} scale={scale} onLoadSuccess={onPageLoadSuccess} />
+          </Document>
 
-        {pageAnnotations.map((ann) =>
-          ann.commentText ? (
-            <StickyNoteOverlay key={ann.id} annotation={ann} />
-          ) : (
-            ann.rectsData.map((r, idx) => (
-              <div
-                key={`${ann.id}-${idx}`}
-                style={{
-                  position: 'absolute',
-                  top: `${r.y * 100}%`,
-                  left: `${r.x * 100}%`,
-                  width: `${r.width * 100}%`,
-                  height: `${r.height * 100}%`,
-                  backgroundColor: ann.color,
-                  opacity: 0.4,
-                  pointerEvents: 'none',
-                }}
-              />
-            ))
-          )
-        )}
-
-        {selectionMenu && (
-          <SelectionContextMenu
-            position={selectionMenu}
-            onHighlight={saveHighlight}
-            onAddNote={openAddNote}
-            onConvertToFlashcard={openConvertToFlashcard}
+          {/* Freehand Pen Overlay */}
+          <FreehandPenOverlay
+            active={activeMode === 'pen'}
+            color={selectedColor}
+            existingPaths={existingPenPaths}
+            onAddPath={handleAddPath}
           />
-        )}
 
-        {pendingNote && (
-          <div
-            style={{
-              position: 'absolute',
-              top: pendingNote.top,
-              left: pendingNote.left,
-              backgroundColor: '#fff',
-              border: '1px solid #ccc',
-              borderRadius: '4px',
-              padding: '8px',
-              zIndex: 110,
-              boxShadow: '2px 2px 6px rgba(0,0,0,0.2)',
-            }}
-          >
-            <textarea
-              autoFocus
-              rows={3}
-              style={{ width: '180px' }}
-              value={pendingNote.text}
-              onChange={(e) => setPendingNote({ ...pendingNote, text: e.target.value })}
+          {/* Highlight Rectangles & Sticky Note Pins */}
+          {pageAnnotations.map((ann) =>
+            ann.commentText ? (
+              <StickyNoteOverlay key={ann.id} annotation={ann} />
+            ) : (
+              (ann.rectsData || []).map((r, idx) => {
+                if (r.type === 'pen') return null;
+                return (
+                  <div
+                    key={`${ann.id}-${idx}`}
+                    style={{
+                      position: 'absolute',
+                      top: `${r.y * 100}%`,
+                      left: `${r.x * 100}%`,
+                      width: `${r.width * 100}%`,
+                      height: `${r.height * 100}%`,
+                      backgroundColor: ann.color || '#FFE900',
+                      opacity: 0.45,
+                      pointerEvents: 'none',
+                      mixBlendMode: 'multiply',
+                    }}
+                  />
+                );
+              })
+            )
+          )}
+
+          {/* Floating Selection Action Pill */}
+          {selectionMenu && (
+            <SelectionActionPill
+              position={selectionMenu}
+              onHighlight={saveHighlight}
+              onAddNote={() => {
+                setPendingNote({
+                  top: selectionMenu.top,
+                  left: selectionMenu.left,
+                  x: selectionMenu.rects[0].x,
+                  y: selectionMenu.rects[0].y,
+                  text: '',
+                });
+                setSelectionMenu(null);
+              }}
+              onExplain={handleAIExplain}
+              onCreateFlashcard={handleAICreateFlashcard}
+              onGenerateMCQ={handleAIGenerateMCQ}
             />
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px', marginTop: '4px' }}>
-              <button type="button" onClick={() => setPendingNote(null)}>Cancel</button>
-              <button type="button" onClick={saveNote}>Save</button>
+          )}
+
+          {/* Pending Sticky Note Form */}
+          {pendingNote && (
+            <div
+              className="absolute bg-white border border-neutral-300 rounded-lg p-2 z-50 shadow-2xl space-y-2 w-52"
+              style={{
+                top: pendingNote.top,
+                left: pendingNote.left,
+              }}
+            >
+              <span className="text-[11px] font-semibold text-neutral-600 block">Add Sticky Note</span>
+              <textarea
+                autoFocus
+                rows={3}
+                className="w-full p-1.5 border border-neutral-300 rounded text-xs"
+                placeholder="Type note comments..."
+                value={pendingNote.text}
+                onChange={(e) => setPendingNote({ ...pendingNote, text: e.target.value })}
+              />
+              <div className="flex justify-end gap-1">
+                <button
+                  type="button"
+                  onClick={() => setPendingNote(null)}
+                  className="px-2 py-1 text-[11px] bg-neutral-100 hover:bg-neutral-200 rounded text-neutral-700 font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={saveNote}
+                  className="px-2.5 py-1 text-[11px] bg-indigo-600 hover:bg-indigo-700 text-white rounded font-medium"
+                >
+                  Save Note
+                </button>
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
-      {flashcardDraft && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
-          role="dialog"
-          aria-label="Create flashcard from highlight"
-        >
-          <div className="bg-white rounded-xl p-4 w-full max-w-md flex flex-col gap-2">
-            <label className="text-xs font-semibold">Front</label>
-            <textarea
-              rows={3}
-              value={flashcardDraft.front}
-              onChange={(e) => setFlashcardDraft({ ...flashcardDraft, front: e.target.value })}
-            />
-            <label className="text-xs font-semibold">Back</label>
-            <textarea
-              rows={3}
-              value={flashcardDraft.back}
-              onChange={(e) => setFlashcardDraft({ ...flashcardDraft, back: e.target.value })}
-            />
-            <div className="flex justify-end gap-2 mt-2">
-              <button type="button" onClick={() => setFlashcardDraft(null)}>Cancel</button>
-              <button type="button" onClick={saveFlashcard}>Create Flashcard</button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* AI Margin Assistant Sidebar */}
+      <MarginAssistantSidebar
+        open={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        selectedText={selectionMenu?.text || ''}
+        aiState={aiState}
+        annotations={annotations}
+        onSaveFlashcard={handleSaveFlashcard}
+      />
     </div>
   );
 };

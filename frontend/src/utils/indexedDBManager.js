@@ -3,7 +3,8 @@
  */
 const DB_NAME = 'OpenPrepOfflineDB';
 const DB_VERSION = 1;
-const STORES = {
+// Imported by hooks/useOfflineSync.js and pages/OfflineStudyMode.jsx.
+export const STORES = {
     FLASHCARDS: 'flashcards',
     SYNC_QUEUE: 'syncQueue',
 };

@@ -12,6 +12,8 @@ const { summarizeNoteText, transcribeAndSummarizeAudio } = require('../services/
 const { GeminiRateLimitError, GeminiServerError } = require('../services/geminiService');
 const { extractTextFromImage, extractTextFromPDF } = require('../services/ocrService');
 const { loadEnv } = require('../config/env');
+const pdfExportService = require('../services/pdfExportService');
+const { verifyDigitalSignature } = require('../services/signatureService');
 
 // Helper to escape regex special characters if regex search is used anywhere
 const escapeRegex = (string) => {
@@ -44,7 +46,7 @@ exports.exportNotes = async (req, res, next) => {
       return res.status(500).json({ success: false, error: 'Configuration could not be loaded.' });
     }
     
-    const limit = config.NOTE_EXPORT_LIMIT;
+    const limit = config.NOTE_EXPORT_LIMIT || 500;
     const noteCount = await Note.count({ where: { user: req.user.id } });
     
     if (noteCount > limit) {
@@ -54,24 +56,89 @@ exports.exportNotes = async (req, res, next) => {
       });
     }
 
-    const format = req.query.format === 'zip' ? 'zip' : 'json';
+    const format = req.query.format || 'json';
+
+    // Build filter criteria
+    const whereClause = { user: req.user.id };
+    if (req.query.subjectId) {
+      whereClause.subject = req.query.subjectId;
+    }
+
+    if (req.query.topicIds) {
+      const topicIdsArray = Array.isArray(req.query.topicIds)
+        ? req.query.topicIds
+        : req.query.topicIds.split(',').map((id) => id.trim()).filter(Boolean);
+      if (topicIdsArray.length > 0) {
+        whereClause.topic = { [Op.in]: topicIdsArray };
+      }
+    }
 
     const notes = await Note.findAll({
-      where: { user: req.user.id },
-      include: [{ model: Subject, as: 'subjectRef', attributes: ['name'] }],
+      where: whereClause,
+      include: [
+        { model: Subject, as: 'subjectRef', attributes: ['name'] },
+        { model: Topic, as: 'topicRef', attributes: ['name', 'title'] },
+      ],
       order: [['createdAt', 'DESC']],
     });
 
     if (format === 'json') {
       const data = notes.map((n) => ({
+        id: n.id,
         title: n.title,
         content: n.content,
         subject: n.subjectRef?.name || null,
+        topic: n.topicRef?.name || n.topicRef?.title || null,
         category: n.category,
+        tags: n.tags,
+        aiSummary: n.aiSummary,
         createdAt: n.createdAt,
       }));
       res.setHeader('Content-Disposition', 'attachment; filename="openprep-notes.json"');
       return res.status(200).json({ success: true, data });
+    }
+
+    if (format === 'pdf') {
+      // Fetch user profile info for dynamic watermark & digital signature
+      const userObj = await User.findByPk(req.user.id, { attributes: ['id', 'name', 'email'] });
+      const studentName = userObj?.name || 'OpenPrep Explorer';
+      const userEmail = userObj?.email || '';
+
+      // Group notes by Topic (Chapter) or Subject/Category fallback
+      const chapterMap = new Map();
+
+      notes.forEach((note) => {
+        const chapterKey = note.topicRef?.name || note.topicRef?.title || note.subjectRef?.name || note.category || 'General Study Notes';
+        if (!chapterMap.has(chapterKey)) {
+          chapterMap.set(chapterKey, {
+            title: chapterKey,
+            subjectName: note.subjectRef?.name || '',
+            topicName: note.topicRef?.name || note.topicRef?.title || '',
+            notes: [],
+          });
+        }
+        chapterMap.get(chapterKey).notes.push(note);
+      });
+
+      const chapters = Array.from(chapterMap.values());
+
+      const pdfOptions = {
+        title: req.query.title || 'Custom Study Notes Digest',
+        studentName,
+        userEmail,
+        userId: req.user.id,
+        institution: req.query.institution || 'OpenPrep AI',
+        includeToc: req.query.includeToc !== 'false',
+        includeSignature: req.query.includeSignature !== 'false',
+        watermarkText: req.query.watermarkText || '',
+        watermarkOpacity: req.query.watermarkOpacity ? parseFloat(req.query.watermarkOpacity) : 0.06,
+      };
+
+      const pdfBuffer = await pdfExportService.generateChapterWiseNotesPdf(chapters, pdfOptions);
+
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', 'attachment; filename="openprep-study-notes.pdf"');
+      return res.status(200).send(pdfBuffer);
     }
 
     // ZIP export — one .md file per note with a small metadata header
@@ -101,6 +168,37 @@ exports.exportNotes = async (req, res, next) => {
     next(error);
   }
 };
+
+/**
+ * @desc Verify PDF digital signature authenticity seal
+ * @route POST /api/notes/verify-signature
+ * @access Public / Protected
+ */
+exports.verifyNotePdfSignature = async (req, res, next) => {
+  try {
+    const { payloadData, signatureHash } = req.body;
+
+    if (!payloadData || !signatureHash) {
+      return res.status(400).json({
+        success: false,
+        error: 'Both payloadData and signatureHash are required for verification.',
+      });
+    }
+
+    const isValid = verifyDigitalSignature(payloadData, signatureHash);
+
+    return res.status(200).json({
+      success: true,
+      valid: isValid,
+      message: isValid
+        ? 'Digital signature is authentic, verified, and un-tampered.'
+        : 'Digital signature verification failed. Document payload or signature hash is invalid.',
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 
 /**
  * @swagger
@@ -238,6 +336,10 @@ exports.uploadNote = async (req, res, next) => {
       activityType: 'note_upload',
       description: `Uploaded new study notes: "${note.title}"`,
     });
+
+    // Index wiki-links
+    const { indexNoteLinks } = require('../services/noteGraphService');
+    await indexNoteLinks(note.id, note.content);
 
     res.status(201).json({ success: true, data: note });
   } catch (error) {
@@ -757,6 +859,11 @@ exports.updateNote = async (req, res, next) => {
     if (tags !== undefined) note.tags = typeof tags === 'string' ? tags.split(',').map(t => t.trim()).filter(Boolean) : (Array.isArray(tags) ? tags : []);
 
     await note.save();
+
+    // Index wiki-links
+    const { indexNoteLinks } = require('../services/noteGraphService');
+    await indexNoteLinks(note.id, note.content);
+
     res.status(200).json({ success: true, data: note });
   } catch (error) {
     next(error);
@@ -835,6 +942,60 @@ exports.getNote = async (req, res, next) => {
     }
 
     res.status(200).json({ success: true, data: note });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.getNotesGraph = async (req, res, next) => {
+  try {
+    const { getKnowledgeGraph } = require('../services/noteGraphService');
+    const graphData = await getKnowledgeGraph(req.user.id);
+    res.status(200).json({ success: true, data: graphData });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.syncNotes = async (req, res, next) => {
+  try {
+    const { notes } = req.body;
+    if (!Array.isArray(notes)) {
+      return res.status(400).json({ success: false, error: 'Payload must contain a "notes" array' });
+    }
+
+    const { indexNoteLinks } = require('../services/noteGraphService');
+    const syncedNotes = [];
+
+    for (const item of notes) {
+      let note = null;
+      if (item.id) {
+        note = await Note.findOne({ where: { id: item.id, user: req.user.id } });
+      }
+
+      if (note) {
+        if (item.title !== undefined) note.title = item.title;
+        if (item.content !== undefined) note.content = item.content;
+        if (item.category !== undefined) note.category = item.category;
+        if (item.tags !== undefined) note.tags = item.tags;
+        await note.save();
+      } else {
+        note = await Note.create({
+          id: item.id || undefined,
+          title: item.title || 'Untitled Note',
+          content: item.content || '',
+          subject: item.subjectId || item.subject,
+          category: item.category || 'Lecture Notes',
+          tags: item.tags || [],
+          user: req.user.id,
+        });
+      }
+
+      await indexNoteLinks(note.id, note.content);
+      syncedNotes.push(note);
+    }
+
+    res.status(200).json({ success: true, data: syncedNotes });
   } catch (error) {
     next(error);
   }

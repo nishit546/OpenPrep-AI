@@ -159,6 +159,40 @@ export async function flushMutationsQueue() {
   return { flushed, retained, discarded, status };
 }
 
+/**
+ * Replays queued mutations to backend endpoints when online connection is active.
+ */
+export async function replayMutations() {
+  return flushMutationsQueue();
+}
+
+/**
+ * Initializes sync manager events (window online/offline and SW sync trigger).
+ */
+export function initSyncManager(onSyncStatusChange) {
+  if (typeof window === 'undefined') return;
+
+  const handleOnline = () => {
+    if (onSyncStatusChange) onSyncStatusChange({ isOnline: true });
+    replayMutations().catch(err => console.error('[SyncManager] Replay error:', err));
+  };
+
+  const handleOffline = () => {
+    if (onSyncStatusChange) onSyncStatusChange({ isOnline: false });
+  };
+
+  window.addEventListener('online', handleOnline);
+  window.addEventListener('offline', handleOffline);
+
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.addEventListener('message', (event) => {
+      if (event.data && event.data.type === 'TRIGGER_SYNC') {
+        replayMutations().catch(err => console.error('[SyncManager] SW Sync error:', err));
+      }
+    });
+  }
+}
+
 // Flush automatically when the browser reports the connection is back.
 if (typeof window !== 'undefined') {
   window.addEventListener('online', () => {
@@ -167,3 +201,4 @@ if (typeof window !== 'undefined') {
     );
   });
 }
+

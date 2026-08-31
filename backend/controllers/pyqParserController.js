@@ -29,6 +29,14 @@ exports.parsePyqPdf = async (req, res, next) => {
       config: { responseMimeType: 'application/json' },
     });
 
+    try {
+      require('../services/metricsService').recordTokensConsumed(
+        'gemini-2.5-flash',
+        response.usageMetadata?.promptTokenCount,
+        response.usageMetadata?.candidatesTokenCount
+      );
+    } catch (e) {}
+
     const parsedData = JSON.parse(response.text);
 
     // Store extracted questions in draft review queue

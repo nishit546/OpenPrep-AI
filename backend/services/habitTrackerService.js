@@ -1,776 +1,609 @@
-/**
- * @fileoverview Service layer for the Study Habit Tracker & Streak Calendar.
- * Manages habit definitions, daily completion logs, streak calculation,
- * calendar heatmap data generation, and weekly habit summaries.
- */
-const { Op, fn, col, literal } = require('sequelize');
+const { Op } = require('sequelize');
 const { sequelize } = require('../config/db');
 const StudyHabit = require('../models/StudyHabit');
 const HabitLog = require('../models/HabitLog');
 const HabitStreak = require('../models/HabitStreak');
-const User = require('../models/User');
-const ActivityLog = require('../models/ActivityLog');
+const Subject = require('../models/Subject');
 
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
+// ── Constants ────────────────────────────────────────────────────────────
 
-const GRACE_PERIOD_HOURS = 28; // Allow logging up to 28h after midnight
-const MAX_CALENDAR_MONTHS = 12; // Maximum months of heatmap data
-const WEEKDAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-const MONTH_NAMES = [
-  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
-];
+const HABIT_CATEGORIES = {
+  REVIEW: 'review',
+  PRACTICE: 'practice',
+  READING: 'reading',
+  QUIZ: 'quiz',
+  FLASHCARDS: 'flashcards',
+  NOTES: 'notes',
+  DISCUSSION: 'discussion',
+  CUSTOM: 'custom',
+};
 
-// ---------------------------------------------------------------------------
-// Habit CRUD
-// ---------------------------------------------------------------------------
+const MOOD_WEIGHTS = {
+  great: 1.2,
+  good: 1.0,
+  okay: 0.8,
+  tired: 0.6,
+  stressed: 0.5,
+};
 
-/**
- * Create a new trackable habit for a user.
- */
-async function createHabit(userId, habitData) {
-  const {
-    name,
-    description,
-    iconEmoji,
-    color,
-    category,
-    frequency,
-    specificDays,
-    targetMinutes,
-    targetCount,
-    reminderTime,
-    sortOrder,
-    metadata,
-  } = habitData;
+const CONSISTENCY_WINDOW_DAYS = 30;
+const FREEZE_LIMIT_PER_MONTH = 3;
 
-  if (!name) {
-    throw new Error('Habit name is required');
-  }
+// ── Habit CRUD ───────────────────────────────────────────────────────────
 
+async function createHabit(userId, data) {
   const habit = await StudyHabit.create({
     userId,
-    name,
-    description: description || '',
-    iconEmoji: iconEmoji || '✅',
-    color: color || '#4F46E5',
-    category: category || 'custom',
-    frequency: frequency || 'daily',
-    specificDays: specificDays || [],
-    targetMinutes: targetMinutes || null,
-    targetCount: targetCount || 1,
-    reminderTime: reminderTime || null,
-    sortOrder: sortOrder || 0,
-    metadata: metadata || {},
+    name: data.name,
+    description: data.description,
+    subject: data.subject,
+    habitType: data.habitType || 'daily',
+    frequency: data.frequency || 1,
+    frequencyPeriod: data.frequencyPeriod || 'day',
+    targetMinutes: data.targetMinutes || 30,
+    category: data.category || 'custom',
+    priority: data.priority || 'medium',
+    startDate: data.startDate || new Date().toISOString().split('T')[0],
+    endDate: data.endDate,
+    reminderTime: data.reminderTime,
+    tags: data.tags || [],
   });
 
-  // Initialize the streak record
+  // Initialize streak record
   await HabitStreak.create({
     userId,
     habitId: habit.id,
     currentStreak: 0,
-    longestStreak: 0,
+    bestStreak: 0,
     totalCompletions: 0,
-    totalSkips: 0,
-    completionRate: 0,
   });
 
   return habit;
 }
 
-/**
- * Get a habit definition by ID (with ownership check).
- */
-async function getHabitById(userId, habitId) {
-  return StudyHabit.findOne({ where: { id: habitId, userId } });
-}
-
-/**
- * Get all habits for a user, optionally filtered.
- */
-async function listHabits(userId, { category, isActive, includeArchived = false } = {}) {
+async function getUserHabits(userId, { status, category, habitType, page = 1, limit = 20 } = {}) {
   const where = { userId };
+  if (status) where.status = status;
   if (category) where.category = category;
-  if (isActive !== undefined) {
-    where.isActive = isActive;
-  } else if (!includeArchived) {
-    where.isArchived = false;
-  }
+  if (habitType) where.habitType = habitType;
 
-  return StudyHabit.findAll({
+  const offset = (Math.max(1, page) - 1) * limit;
+
+  const { count, rows: habits } = await StudyHabit.findAndCountAll({
     where,
-    order: [['sortOrder', 'ASC'], ['createdAt', 'ASC']],
+    order: [['createdAt', 'DESC']],
+    offset,
+    limit,
   });
+
+  // Enrich with streak data
+  const habitIds = habits.map((h) => h.id);
+  const streaks = await HabitStreak.findAll({
+    where: { habitId: { [Op.in]: habitIds } },
+  });
+  const streakMap = {};
+  streaks.forEach((s) => { streakMap[s.habitId] = s; });
+
+  const enriched = habits.map((h) => {
+    const json = h.toJSON();
+    const streak = streakMap[h.id];
+    json.streak = streak
+      ? {
+          current: streak.currentStreak,
+          best: streak.bestStreak,
+          totalCompletions: streak.totalCompletions,
+          consistencyScore: streak.consistencyScore,
+        }
+      : null;
+    return json;
+  });
+
+  return {
+    habits: enriched,
+    pagination: {
+      total: count,
+      page,
+      totalPages: Math.ceil(count / limit),
+      limit,
+    },
+  };
 }
 
-/**
- * Update a habit definition.
- */
+async function getHabitById(userId, habitId) {
+  const habit = await StudyHabit.findOne({ where: { id: habitId, userId } });
+  if (!habit) return null;
+
+  const streak = await HabitStreak.findOne({ where: { habitId } });
+  const json = habit.toJSON();
+  json.streak = streak
+    ? {
+        current: streak.currentStreak,
+        best: streak.bestStreak,
+        totalCompletions: streak.totalCompletions,
+        totalMinutesLogged: streak.totalMinutesLogged,
+        consistencyScore: streak.consistencyScore,
+        averageQuality: streak.averageQuality,
+        lastCompletedDate: streak.lastCompletedDate,
+        freezesUsed: streak.freezesUsed || [],
+      }
+    : null;
+
+  return json;
+}
+
 async function updateHabit(userId, habitId, updates) {
   const habit = await StudyHabit.findOne({ where: { id: habitId, userId } });
   if (!habit) return null;
-  if (habit.isArchived) {
-    throw new Error('Cannot modify an archived habit');
-  }
 
-  const allowed = [
-    'name', 'description', 'iconEmoji', 'color', 'category',
-    'frequency', 'specificDays', 'targetMinutes', 'targetCount',
-    'reminderTime', 'isActive', 'sortOrder', 'metadata',
+  const allowedFields = [
+    'name', 'description', 'subject', 'habitType', 'frequency',
+    'frequencyPeriod', 'targetMinutes', 'category', 'priority',
+    'status', 'reminderTime', 'tags', 'endDate',
   ];
-  for (const key of allowed) {
-    if (updates[key] !== undefined) {
-      habit[key] = updates[key];
+
+  for (const field of allowedFields) {
+    if (updates[field] !== undefined) {
+      habit[field] = updates[field];
     }
   }
+
   await habit.save();
   return habit;
 }
 
-/**
- * Archive a habit (soft-delete that preserves history).
- */
-async function archiveHabit(userId, habitId) {
-  const habit = await StudyHabit.findOne({ where: { id: habitId, userId } });
-  if (!habit) return null;
-  habit.isArchived = true;
-  habit.archivedAt = new Date();
-  habit.isActive = false;
-  await habit.save();
-  return habit;
-}
-
-/**
- * Permanently delete a habit and all its logs and streaks.
- */
 async function deleteHabit(userId, habitId) {
   const habit = await StudyHabit.findOne({ where: { id: habitId, userId } });
-  if (!habit) return null;
-  await HabitLog.destroy({ where: { habitId: habit.id } });
-  await HabitStreak.destroy({ where: { habitId: habit.id } });
+  if (!habit) return false;
+
+  await HabitLog.destroy({ where: { habitId } });
+  await HabitStreak.destroy({ where: { habitId } });
   await habit.destroy();
   return true;
 }
 
-// ---------------------------------------------------------------------------
-// Habit Logging
-// ---------------------------------------------------------------------------
+// ── Habit Logging ────────────────────────────────────────────────────────
 
-/**
- * Log a habit completion for a specific date. Creates or updates the
- * log entry and recalculates the streak.
- *
- * @param {string} userId
- * @param {string} habitId
- * @param {Object} logData
- * @param {string} logData.date - YYYY-MM-DD (defaults to today)
- * @param {number} logData.completionCount - Times completed (default 1)
- * @param {number} logData.durationMinutes - Time spent
- * @param {number} logData.qualityRating - 1-5 quality
- * @param {string} logData.note - Optional note
- * @param {string} logData.source - Origin of the entry
- * @param {string} logData.sourceId - Source entity ID
- */
-async function logHabit(userId, habitId, logData = {}) {
+async function logHabitCompletion(userId, habitId, data) {
   const habit = await StudyHabit.findOne({ where: { id: habitId, userId } });
   if (!habit) throw new Error('Habit not found');
-  if (habit.isArchived) throw new Error('Cannot log to an archived habit');
+  if (habit.status !== 'active') throw new Error('Cannot log a paused or archived habit');
 
-  const date = logData.date || new Date().toISOString().split('T')[0];
-  const completionCount = logData.completionCount || 1;
+  const logDate = data.logDate || new Date().toISOString().split('T')[0];
 
-  // Upsert the log entry
-  const [log, created] = await HabitLog.findOrCreate({
-    where: { userId, habitId, date },
-    defaults: {
-      completed: true,
-      completionCount,
-      durationMinutes: logData.durationMinutes || null,
-      qualityRating: logData.qualityRating || null,
-      note: logData.note || null,
-      source: logData.source || 'manual',
-      sourceId: logData.sourceId || null,
-      metadata: logData.metadata || {},
-    },
+  // Check for duplicate log on same date
+  const existing = await HabitLog.findOne({
+    where: { habitId, logDate, completed: true },
   });
-
-  if (!created) {
-    // Update existing entry
-    log.completionCount = (log.completionCount || 0) + completionCount;
-    log.completed = log.completionCount >= (habit.targetCount || 1);
-    if (logData.durationMinutes) {
-      log.durationMinutes = (log.durationMinutes || 0) + logData.durationMinutes;
-    }
-    if (logData.qualityRating) {
-      log.qualityRating = logData.qualityRating;
-    }
-    if (logData.note) {
-      log.note = logData.note;
-    }
-    await log.save();
+  if (existing) {
+    throw new Error('Habit already logged for this date');
   }
 
-  // Recalculate streak
-  const streak = await recalculateStreak(userId, habitId);
-
-  return { log, streak, created };
-}
-
-/**
- * Batch-log habits for multiple dates (useful for catch-up or import).
- */
-async function batchLogHabits(userId, entries) {
-  if (!Array.isArray(entries) || entries.length === 0) {
-    throw new Error('entries must be a non-empty array');
-  }
-  if (entries.length > 100) {
-    throw new Error('Maximum 100 entries per batch');
-  }
-
-  const results = [];
-  const errors = [];
-
-  for (const entry of entries) {
-    try {
-      const result = await logHabit(userId, entry.habitId, {
-        date: entry.date,
-        completionCount: entry.completionCount,
-        durationMinutes: entry.durationMinutes,
-        qualityRating: entry.qualityRating,
-        note: entry.note,
-        source: entry.source || 'batch',
-        sourceId: entry.sourceId,
-      });
-      results.push({ habitId: entry.habitId, date: entry.date, status: 'success' });
-    } catch (err) {
-      errors.push({ habitId: entry.habitId, date: entry.date, error: err.message });
-    }
-  }
-
-  return { results, errors };
-}
-
-/**
- * Get all logs for a user within a date range.
- */
-async function getLogsForRange(userId, startDate, endDate, { habitId } = {}) {
-  const where = {
+  const log = await HabitLog.create({
     userId,
-    date: { [Op.between]: [startDate, endDate] },
-  };
-  if (habitId) where.habitId = habitId;
-
-  return HabitLog.findAll({
-    where,
-    include: [
-      {
-        model: StudyHabit,
-        as: 'habitRef',
-        attributes: ['id', 'name', 'iconEmoji', 'color', 'category'],
-      },
-    ],
-    order: [['date', 'ASC']],
+    habitId,
+    logDate,
+    completed: data.completed !== false,
+    actualMinutes: data.actualMinutes || 0,
+    quality: data.quality,
+    notes: data.notes,
+    mood: data.mood,
   });
+
+  // Update streak
+  await updateStreak(habit, log);
+
+  return log;
 }
 
-// ---------------------------------------------------------------------------
-// Streak Calculation
-// ---------------------------------------------------------------------------
+async function updateStreak(habit, log) {
+  let streak = await HabitStreak.findOne({ where: { habitId: habit.id } });
 
-/**
- * Recalculate the streak for a habit based on its log history.
- * This is the core streak algorithm that walks backward from today
- * (or the last completed date) counting qualifying days.
- */
-async function recalculateStreak(userId, habitId) {
-  const habit = await StudyHabit.findByPk(habitId);
-  if (!habit) return null;
+  if (!streak) {
+    streak = await HabitStreak.create({
+      userId: habit.userId,
+      habitId: habit.id,
+    });
+  }
 
-  const streak = await HabitStreak.findOne({ where: { userId, habitId } });
-  if (!streak) return null;
-
-  // Get all completed dates for this habit, ordered most recent first
-  const logs = await HabitLog.findAll({
-    where: { userId, habitId, completed: true },
-    attributes: ['date'],
-    order: [['date', 'DESC']],
-  });
-
-  if (logs.length === 0) {
-    streak.currentStreak = 0;
-    streak.totalCompletions = 0;
-    streak.lastCompletedDate = null;
-    streak.lastStreakStartDate = null;
-    streak.lastEvaluatedAt = new Date();
-    await streak.save();
+  if (!log.completed) {
+    // Don't update streak for incomplete logs, but still record
     return streak;
   }
 
-  const completedDates = logs.map((l) => l.date).sort().reverse();
-  const totalCompletions = completedDates.length;
-  streak.totalCompletions = totalCompletions;
-  streak.lastCompletedDate = completedDates[0];
+  const today = new Date(log.logDate);
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
 
-  // Calculate current streak by walking backward from the most recent date
-  const today = new Date().toISOString().split('T')[0];
-  const yesterday = new Date(Date.now() - 86400000)
-    .toISOString()
-    .split('T')[0];
+  const lastCompleted = streak.lastCompletedDate
+    ? new Date(streak.lastCompletedDate)
+    : null;
 
-  let currentStreak = 0;
-  let streakStartDate = completedDates[0];
+  // Check if streak continues or resets
+  if (lastCompleted) {
+    const lastStr = lastCompleted.toISOString().split('T')[0];
+    const todayStr = log.logDate;
+    const yesterdayStr = yesterday.toISOString().split('T')[0];
 
-  // The streak must include today or yesterday to be "active"
-  if (completedDates[0] !== today && completedDates[0] !== yesterday) {
-    currentStreak = 0;
-  } else {
-    const dateSet = new Set(completedDates);
-    let checkDate = new Date(completedDates[0]);
-
-    while (true) {
-      const dateStr = checkDate.toISOString().split('T')[0];
-      if (dateSet.has(dateStr)) {
-        currentStreak++;
-        streakStartDate = dateStr;
-        checkDate.setDate(checkDate.getDate() - 1);
-      } else {
-        break;
-      }
+    if (lastStr === todayStr) {
+      // Already completed today — no streak change
+    } else if (lastStr === yesterdayStr) {
+      // Consecutive day — extend streak
+      streak.currentStreak += 1;
+    } else if (lastStr < yesterdayStr) {
+      // Streak broken
+      streak.currentStreak = 1;
+      streak.streakStartDate = log.logDate;
     }
+  } else {
+    // First completion
+    streak.currentStreak = 1;
+    streak.streakStartDate = log.logDate;
   }
 
-  streak.currentStreak = currentStreak;
-  streak.lastStreakStartDate = streakStartDate;
-
-  if (currentStreak > streak.longestStreak) {
-    streak.longestStreak = currentStreak;
+  // Update best streak
+  if (streak.currentStreak > streak.bestStreak) {
+    streak.bestStreak = streak.currentStreak;
   }
 
-  // Calculate total skips (days between first log and today that aren't completed)
-  const firstLogDate = completedDates[completedDates.length - 1];
-  const daysSinceFirst = Math.floor(
-    (new Date(today) - new Date(firstLogDate)) / 86400000
-  ) + 1;
-  streak.totalSkips = Math.max(0, daysSinceFirst - totalCompletions);
-  streak.completionRate =
-    daysSinceFirst > 0
-      ? Math.round((totalCompletions / daysSinceFirst) * 100 * 10) / 10
-      : 0;
+  streak.totalCompletions += 1;
+  streak.totalMinutesLogged += log.actualMinutes || 0;
+  streak.lastCompletedDate = log.logDate;
 
-  streak.lastEvaluatedAt = new Date();
+  // Update quality average
+  if (log.quality) {
+    const totalLogs = streak.totalCompletions;
+    streak.averageQuality = totalLogs > 0
+      ? Math.round(((streak.averageQuality * (totalLogs - 1) + log.quality) / totalLogs) * 10) / 10
+      : log.quality;
+  }
+
+  // Update average minutes
+  streak.averageMinutes = streak.totalCompletions > 0
+    ? Math.round((streak.totalMinutesLogged / streak.totalCompletions) * 10) / 10
+    : 0;
+
+  // Recalculate consistency score
+  streak.consistencyScore = await computeConsistencyScore(habit.userId, habit.id);
+
   await streak.save();
   return streak;
 }
 
-/**
- * Recalculate streaks for ALL active habits of a user.
- */
-async function recalculateAllStreaks(userId) {
-  const habits = await StudyHabit.findAll({
-    where: { userId, isActive: true, isArchived: false },
-  });
+async function computeConsistencyScore(userId, habitId) {
+  const cutoffDate = new Date();
+  cutoffDate.setDate(cutoffDate.getDate() - CONSISTENCY_WINDOW_DAYS);
+  const cutoffStr = cutoffDate.toISOString().split('T')[0];
 
-  const streaks = [];
-  for (const habit of habits) {
-    const streak = await recalculateStreak(userId, habit.id);
-    if (streak) streaks.push(streak);
-  }
-  return streaks;
-}
-
-// ---------------------------------------------------------------------------
-// Calendar Heatmap Data
-// ---------------------------------------------------------------------------
-
-/**
- * Generate calendar heatmap data for a user over a specified number of
- * months. Returns a dense map of date → completion data suitable for
- * rendering a GitHub-style contribution heatmap.
- *
- * @param {string} userId
- * @param {number} months - Number of months to include (default 6)
- * @returns {{ heatmap: Object, summary, habitBreakdown }}
- */
-async function getCalendarHeatmap(userId, months = 6) {
-  const clamped = Math.min(Math.max(1, months), MAX_CALENDAR_MONTHS);
-  const endDate = new Date();
-  const startDate = new Date();
-  startDate.setMonth(startDate.getMonth() - clamped);
-
-  const startStr = startDate.toISOString().split('T')[0];
-  const endStr = endDate.toISOString().split('T')[0];
-
-  // Fetch all logs in range
   const logs = await HabitLog.findAll({
     where: {
       userId,
-      date: { [Op.between]: [startStr, endStr] },
+      habitId,
+      completed: true,
+      logDate: { [Op.gte]: cutoffStr },
     },
-    include: [
-      {
-        model: StudyHabit,
-        as: 'habitRef',
-        attributes: ['id', 'name', 'iconEmoji', 'color'],
-      },
-    ],
+    attributes: ['logDate'],
   });
 
-  // Build heatmap
-  const heatmap = {};
-  const dayTotals = {};
-  const habitCounts = {};
-
-  for (const log of logs) {
-    const date = log.date;
-    if (!heatmap[date]) {
-      heatmap[date] = {
-        date,
-        count: 0,
-        durationMinutes: 0,
-        habits: [],
-        completedHabits: [],
-      };
-    }
-    heatmap[date].count += log.completionCount || 1;
-    heatmap[date].durationMinutes += log.durationMinutes || 0;
-    heatmap[date].habits.push({
-      habitId: log.habitId,
-      name: log.habitRef?.name,
-      icon: log.habitRef?.iconEmoji,
-      count: log.completionCount,
-    });
-    if (log.completed) {
-      heatmap[date].completedHabits.push(log.habitId);
-    }
-
-    // Day-of-week stats
-    const dayOfWeek = new Date(date).getDay();
-    const dayName = WEEKDAY_NAMES[dayOfWeek];
-    dayTotals[dayName] = (dayTotals[dayName] || 0) + (log.completionCount || 1);
-
-    // Per-habit counts
-    const hName = log.habitRef?.name || 'Unknown';
-    habitCounts[hName] = (habitCounts[hName] || 0) + (log.completionCount || 1);
-  }
-
-  // Calculate summary
-  const totalDays = Object.keys(heatmap).length;
-  const totalEntries = logs.length;
-  const totalDuration = Object.values(heatmap).reduce(
-    (sum, d) => sum + d.durationMinutes, 0
-  );
-  const totalCompletions = Object.values(heatmap).reduce(
-    (sum, d) => sum + d.count, 0
-  );
-
-  // Find best day of week
-  let bestDay = null;
-  let bestDayCount = 0;
-  for (const [day, count] of Object.entries(dayTotals)) {
-    if (count > bestDayCount) {
-      bestDay = day;
-      bestDayCount = count;
-    }
-  }
-
-  // Find most active habit
-  let topHabit = null;
-  let topHabitCount = 0;
-  for (const [habit, count] of Object.entries(habitCounts)) {
-    if (count > topHabitCount) {
-      topHabit = habit;
-      topHabitCount = count;
-    }
-  }
-
-  return {
-    heatmap,
-    summary: {
-      dateRange: { start: startStr, end: endStr },
-      months: clamped,
-      activeDays: totalDays,
-      totalEntries,
-      totalCompletions,
-      totalDurationMinutes: totalDuration,
-      averageDailyCompletions: totalDays > 0
-        ? Math.round((totalCompletions / totalDays) * 10) / 10
-        : 0,
-      bestDayOfWeek: bestDay ? { name: bestDay, totalCompletions: bestDayCount } : null,
-      topHabit: topHabit ? { name: topHabit, totalCompletions: topHabitCount } : null,
-      dayOfWeekBreakdown: dayTotals,
-    },
-    habitBreakdown: Object.entries(habitCounts)
-      .map(([name, count]) => ({ name, totalCompletions: count }))
-      .sort((a, b) => b.totalCompletions - a.totalCompletions),
-  };
+  const uniqueDays = new Set(logs.map((l) => l.logDate));
+  const score = Math.round((uniqueDays.size / CONSISTENCY_WINDOW_DAYS) * 100);
+  return Math.min(100, Math.max(0, score));
 }
 
-// ---------------------------------------------------------------------------
-// Weekly Summary
-// ---------------------------------------------------------------------------
+// ── Streak Freeze ────────────────────────────────────────────────────────
 
-/**
- * Generate a weekly habit summary for the current week (or a specified week).
- *
- * @param {string} userId
- * @param {string} weekStart - YYYY-MM-DD (optional, defaults to this Monday)
- * @returns {{ week, habits, overallScore, streaks }}
- */
-async function getWeeklySummary(userId, weekStart) {
-  // Calculate week boundaries
-  let start;
-  if (weekStart) {
-    start = new Date(weekStart);
-  } else {
-    start = new Date();
-    const day = start.getDay();
-    const diff = start.getDate() - day + (day === 0 ? -6 : 1); // Monday
-    start.setDate(diff);
-  }
-  start.setHours(0, 0, 0, 0);
+async function useStreakFreeze(userId, habitId) {
+  const streak = await HabitStreak.findOne({ where: { habitId, userId } });
+  if (!streak) throw new Error('Streak record not found');
 
-  const end = new Date(start);
-  end.setDate(end.getDate() + 6);
-  end.setHours(23, 59, 59, 999);
+  const now = new Date();
+  const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
-  const startStr = start.toISOString().split('T')[0];
-  const endStr = end.toISOString().split('T')[0];
+  // Count freezes used this month
+  const freezesThisMonth = (streak.freezesUsed || []).filter((d) => {
+    return d.startsWith(currentMonth);
+  }).length;
 
-  // Get all active habits
-  const habits = await StudyHabit.findAll({
-    where: { userId, isActive: true, isArchived: false },
-    order: [['sortOrder', 'ASC']],
-  });
-
-  // Get all logs for the week
-  const logs = await HabitLog.findAll({
-    where: {
-      userId,
-      date: { [Op.between]: [startStr, endStr] },
-    },
-    order: [['date', 'ASC']],
-  });
-
-  // Build per-habit summaries
-  const habitSummaries = [];
-  let totalScore = 0;
-
-  for (const habit of habits) {
-    const habitLogs = logs.filter((l) => l.habitId === habit.id);
-    const daysCompleted = new Set(
-      habitLogs.filter((l) => l.completed).map((l) => l.date)
-    ).size;
-    const totalCount = habitLogs.reduce((sum, l) => sum + (l.completionCount || 1), 0);
-    const totalDuration = habitLogs.reduce((sum, l) => sum + (l.durationMinutes || 0), 0);
-
-    // Calculate expected days
-    let expectedDays = 7;
-    if (habit.frequency === 'weekdays') expectedDays = 5;
-    else if (habit.frequency === 'specific_days') {
-      expectedDays = (habit.specificDays || []).length || 7;
-    }
-
-    const completionRate = expectedDays > 0
-      ? Math.round((daysCompleted / expectedDays) * 100)
-      : 0;
-
-    totalScore += completionRate;
-
-    // Daily breakdown for this habit
-    const dailyBreakdown = [];
-    const iterDate = new Date(start);
-    for (let i = 0; i < 7; i++) {
-      const dateStr = iterDate.toISOString().split('T')[0];
-      const dayLog = habitLogs.find((l) => l.date === dateStr);
-      dailyBreakdown.push({
-        date: dateStr,
-        day: WEEKDAY_NAMES[iterDate.getDay()],
-        completed: dayLog ? dayLog.completed : false,
-        count: dayLog ? dayLog.completionCount : 0,
-        duration: dayLog ? dayLog.durationMinutes : 0,
-      });
-      iterDate.setDate(iterDate.getDate() + 1);
-    }
-
-    habitSummaries.push({
-      habit,
-      daysCompleted,
-      expectedDays,
-      completionRate,
-      totalCount,
-      totalDuration,
-      dailyBreakdown,
-    });
+  if (freezesThisMonth >= FREEZE_LIMIT_PER_MONTH) {
+    throw new Error(`Streak freeze limit reached for this month (${FREEZE_LIMIT_PER_MONTH} max)`);
   }
 
-  const overallScore =
-    habitSummaries.length > 0
-      ? Math.round(totalScore / habitSummaries.length)
-      : 0;
+  if (streak.currentStreak === 0) {
+    throw new Error('No active streak to freeze');
+  }
 
-  // Get current streaks
-  const streaks = await HabitStreak.findAll({
-    where: { userId },
-    include: [
-      {
-        model: StudyHabit,
-        as: 'habitRef',
-        attributes: ['id', 'name', 'iconEmoji'],
-      },
-    ],
+  const freezeDate = now.toISOString().split('T')[0];
+  streak.freezesUsed = [...(streak.freezesUsed || []), freezeDate];
+  streak.freezeCount += 1;
+
+  // Log as a completion to maintain streak
+  const log = await HabitLog.create({
+    userId,
+    habitId,
+    logDate: freezeDate,
+    completed: true,
+    actualMinutes: 0,
+    quality: null,
+    notes: 'Streak freeze applied',
+    metadata: { type: 'freeze' },
   });
 
-  return {
-    week: {
-      start: startStr,
-      end: endStr,
-    },
-    habits: habitSummaries,
-    overallScore,
-    totalHabitsTracked: habits.length,
-    streaks: streaks.map((s) => ({
-      habitId: s.habitId,
-      habitName: s.habitRef?.name,
-      icon: s.habitRef?.iconEmoji,
-      currentStreak: s.currentStreak,
-      longestStreak: s.longestStreak,
-      totalCompletions: s.totalCompletions,
-      completionRate: s.completionRate,
-    })),
-  };
+  streak.lastCompletedDate = freezeDate;
+  await streak.save();
+
+  return { streak, log };
 }
 
-// ---------------------------------------------------------------------------
-// Dashboard
-// ---------------------------------------------------------------------------
+// ── Analytics ────────────────────────────────────────────────────────────
 
-/**
- * Get a combined dashboard view with today's habits, active streaks,
- * and a mini calendar heatmap.
- */
-async function getDashboard(userId) {
-  const today = new Date().toISOString().split('T')[0];
-
+async function getHabitAnalytics(userId) {
   const habits = await StudyHabit.findAll({
-    where: { userId, isActive: true, isArchived: false },
-    order: [['sortOrder', 'ASC']],
+    where: { userId, status: 'active' },
   });
 
-  // Today's logs
-  const todayLogs = await HabitLog.findAll({
-    where: { userId, date: today },
-  });
-  const todayLogMap = {};
-  for (const log of todayLogs) {
-    todayLogMap[log.habitId] = log;
-  }
-
-  // All streaks
-  const streaks = await HabitStreak.findAll({
-    where: { userId },
-    include: [
-      {
-        model: StudyHabit,
-        as: 'habitRef',
-        attributes: ['id', 'name', 'iconEmoji', 'color'],
-      },
-    ],
-  });
-  const streakMap = {};
-  for (const s of streaks) {
-    streakMap[s.habitId] = s;
-  }
-
-  // Today's summary
-  const habitsWithToday = habits.map((h) => {
-    const todayLog = todayLogMap[h.id];
-    const streak = streakMap[h.id];
+  const habitIds = habits.map((h) => h.id);
+  if (habitIds.length === 0) {
     return {
-      habit: h,
-      todayCompleted: todayLog ? todayLog.completed : false,
-      todayCount: todayLog ? todayLog.completionCount : 0,
-      todayDuration: todayLog ? todayLog.durationMinutes : 0,
-      currentStreak: streak ? streak.currentStreak : 0,
-      longestStreak: streak ? streak.longestStreak : 0,
+      totalHabits: 0,
+      activeHabits: 0,
+      overallConsistency: 0,
+      totalCompletionsThisWeek: 0,
+      categoryBreakdown: {},
+      streakSummary: { totalActiveStreaks: 0, longestStreak: 0 },
     };
+  }
+
+  const streaks = await HabitStreak.findAll({
+    where: { habitId: { [Op.in]: habitIds } },
   });
 
-  const completedToday = habitsWithToday.filter((h) => h.todayCompleted).length;
-  const totalHabits = habits.length;
-  const overallRate = totalHabits > 0
-    ? Math.round((completedToday / totalHabits) * 100)
+  const weekAgo = new Date();
+  weekAgo.setDate(weekAgo.getDate() - 7);
+  const weekAgoStr = weekAgo.toISOString().split('T')[0];
+
+  const weekLogs = await HabitLog.findAll({
+    where: {
+      userId,
+      habitId: { [Op.in]: habitIds },
+      completed: true,
+      logDate: { [Op.gte]: weekAgoStr },
+    },
+  });
+
+  // Category breakdown
+  const categoryBreakdown = {};
+  for (const habit of habits) {
+    const cat = habit.category || 'custom';
+    if (!categoryBreakdown[cat]) {
+      categoryBreakdown[cat] = { count: 0, completions: 0 };
+    }
+    categoryBreakdown[cat].count += 1;
+    const habitLogs = weekLogs.filter((l) => l.habitId === habit.id);
+    categoryBreakdown[cat].completions += habitLogs.length;
+  }
+
+  // Streak summary
+  const activeStreaks = streaks.filter((s) => s.currentStreak > 0);
+  const longestStreak = streaks.reduce((max, s) => Math.max(max, s.bestStreak), 0);
+  const overallConsistency = streaks.length > 0
+    ? Math.round(streaks.reduce((sum, s) => sum + (s.consistencyScore || 0), 0) / streaks.length)
     : 0;
 
-  // Mini heatmap (last 30 days)
-  const thirtyDaysAgo = new Date();
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-  const miniHeatmapStart = thirtyDaysAgo.toISOString().split('T')[0];
-
-  const recentLogs = await HabitLog.findAll({
-    where: {
-      userId,
-      date: { [Op.between]: [miniHeatmapStart, today] },
-    },
+  // Today's habits completion
+  const todayStr = new Date().toISOString().split('T')[0];
+  const todayLogs = await HabitLog.findAll({
+    where: { userId, logDate: todayStr, completed: true },
   });
-
-  const miniHeatmap = {};
-  for (const log of recentLogs) {
-    if (!miniHeatmap[log.date]) miniHeatmap[log.date] = 0;
-    miniHeatmap[log.date] += log.completionCount || 1;
-  }
+  const todayCompletedHabits = new Set(todayLogs.map((l) => l.habitId)).size;
 
   return {
-    date: today,
-    habits: habitsWithToday,
-    todaySummary: {
-      completed: completedToday,
-      total: totalHabits,
-      overallRate,
+    totalHabits: habits.length,
+    activeHabits: habits.length,
+    overallConsistency,
+    totalCompletionsThisWeek: weekLogs.length,
+    todayCompletedHabits,
+    todayTotalHabits: habits.length,
+    todayCompletionRate: habits.length > 0
+      ? Math.round((todayCompletedHabits / habits.length) * 100)
+      : 0,
+    categoryBreakdown,
+    streakSummary: {
+      totalActiveStreaks: activeStreaks.length,
+      longestStreak,
+      averageCurrentStreak: activeStreaks.length > 0
+        ? Math.round(activeStreaks.reduce((sum, s) => sum + s.currentStreak, 0) / activeStreaks.length)
+        : 0,
     },
-    topStreaks: streaks
-      .filter((s) => s.currentStreak > 0)
-      .sort((a, b) => b.currentStreak - a.currentStreak)
-      .slice(0, 5)
-      .map((s) => ({
-        habitId: s.habitId,
-        name: s.habitRef?.name,
-        icon: s.habitRef?.iconEmoji,
-        currentStreak: s.currentStreak,
-        longestStreak: s.longestStreak,
-      })),
-    miniHeatmap,
   };
+}
+
+async function getHabitHistory(userId, habitId, { page = 1, limit = 30 } = {}) {
+  const offset = (Math.max(1, page) - 1) * limit;
+
+  const { count, rows: logs } = await HabitLog.findAndCountAll({
+    where: { userId, habitId },
+    order: [['logDate', 'DESC']],
+    offset,
+    limit,
+  });
+
+  return {
+    logs,
+    pagination: {
+      total: count,
+      page,
+      totalPages: Math.ceil(count / limit),
+      limit,
+    },
+  };
+}
+
+async function getWeeklySummary(userId) {
+  const weekAgo = new Date();
+  weekAgo.setDate(weekAgo.getDate() - 7);
+  const weekAgoStr = weekAgo.toISOString().split('T')[0];
+
+  const habits = await StudyHabit.findAll({
+    where: { userId, status: 'active' },
+  });
+
+  const habitIds = habits.map((h) => h.id);
+  if (habitIds.length === 0) {
+    return { dailyBreakdown: [], totalCompletions: 0, averageQuality: 0 };
+  }
+
+  const logs = await HabitLog.findAll({
+    where: {
+      userId,
+      habitId: { [Op.in]: habitIds },
+      completed: true,
+      logDate: { [Op.gte]: weekAgoStr },
+    },
+    order: [['logDate', 'ASC']],
+  });
+
+  // Daily breakdown
+  const dailyBreakdown = {};
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const dateStr = d.toISOString().split('T')[0];
+    dailyBreakdown[dateStr] = { completions: 0, totalMinutes: 0, habits: [] };
+  }
+
+  for (const log of logs) {
+    const entry = dailyBreakdown[log.logDate];
+    if (entry) {
+      entry.completions += 1;
+      entry.totalMinutes += log.actualMinutes || 0;
+      entry.habits.push(log.habitId);
+    }
+  }
+
+  const qualityLogs = logs.filter((l) => l.quality !== null);
+  const averageQuality = qualityLogs.length > 0
+    ? Math.round((qualityLogs.reduce((sum, l) => sum + l.quality, 0) / qualityLogs.length) * 10) / 10
+    : 0;
+
+  const totalMinutes = logs.reduce((sum, l) => sum + (l.actualMinutes || 0), 0);
+
+  return {
+    dailyBreakdown: Object.entries(dailyBreakdown).map(([date, data]) => ({
+      date,
+      ...data,
+      uniqueHabits: new Set(data.habits).size,
+    })),
+    totalCompletions: logs.length,
+    totalMinutes,
+    averageQuality,
+    habitsTracked: habitIds.length,
+  };
+}
+
+// ── Dashboard ────────────────────────────────────────────────────────────
+
+async function getDashboard(userId) {
+  const [analytics, weeklySummary] = await Promise.all([
+    getHabitAnalytics(userId),
+    getWeeklySummary(userId),
+  ]);
+
+  const habits = await StudyHabit.findAll({
+    where: { userId, status: 'active' },
+    order: [['createdAt', 'DESC']],
+  });
+
+  const todayStr = new Date().toISOString().split('T')[0];
+  const todayLogs = await HabitLog.findAll({
+    where: { userId, logDate: todayStr, completed: true },
+  });
+  const completedToday = new Set(todayLogs.map((l) => l.habitId));
+
+  const todayHabits = habits.map((h) => ({
+    id: h.id,
+    name: h.name,
+    category: h.category,
+    completedToday: completedToday.has(h.id),
+  }));
+
+  return {
+    analytics,
+    weeklySummary,
+    todayHabits,
+    habitsSummary: {
+      total: habits.length,
+      completedToday: completedToday.size,
+      remainingToday: habits.length - completedToday.size,
+    },
+  };
+}
+
+// ── Recommendations ──────────────────────────────────────────────────────
+
+function generateHabitRecommendations(analytics) {
+  const recs = [];
+
+  if (analytics.todayCompletionRate < 50 && analytics.totalHabits > 0) {
+    recs.push({
+      category: 'completion',
+      message: `You've completed ${analytics.todayCompletionRate}% of today's habits. Try to finish at least one more before bed.`,
+      impact: 'high',
+    });
+  }
+
+  if (analytics.overallConsistency < 40) {
+    recs.push({
+      category: 'consistency',
+      message: 'Your consistency score is low. Focus on doing a little each day rather than cramming.',
+      impact: 'high',
+    });
+  }
+
+  if (analytics.streakSummary.longestStreak >= 7 && analytics.streakSummary.totalActiveStreaks === 0) {
+    recs.push({
+      category: 'streak',
+      message: 'You had a great streak before! Time to start building it again.',
+      impact: 'medium',
+    });
+  }
+
+  if (analytics.streakSummary.averageCurrentStreak >= 14) {
+    recs.push({
+      category: 'streak',
+      message: `Excellent! Average streak is ${analytics.streakSummary.averageCurrentStreak} days. Keep the momentum!`,
+      impact: 'low',
+    });
+  }
+
+  return recs;
+}
+
+// ── Exports ──────────────────────────────────────────────────────────────
+
+class NotFoundError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'NotFoundError';
+    this.statusCode = 404;
+  }
 }
 
 module.exports = {
-  // Habit CRUD
   createHabit,
+  getUserHabits,
   getHabitById,
-  listHabits,
   updateHabit,
-  archiveHabit,
   deleteHabit,
-
-  // Logging
-  logHabit,
-  batchLogHabits,
-  getLogsForRange,
-
-  // Streaks
-  recalculateStreak,
-  recalculateAllStreaks,
-
-  // Calendar
-  getCalendarHeatmap,
-
-  // Summary & Dashboard
+  logHabitCompletion,
+  useStreakFreeze,
+  getHabitAnalytics,
+  getHabitHistory,
   getWeeklySummary,
   getDashboard,
-
-  // Expose constants for testing
-  WEEKDAY_NAMES,
-  MONTH_NAMES,
-  GRACE_PERIOD_HOURS,
+  generateHabitRecommendations,
+  computeConsistencyScore,
+  HABIT_CATEGORIES,
+  MOOD_WEIGHTS,
+  CONSISTENCY_WINDOW_DAYS,
+  FREEZE_LIMIT_PER_MONTH,
+  NotFoundError,
 };

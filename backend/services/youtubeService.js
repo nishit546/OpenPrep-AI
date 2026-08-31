@@ -5,14 +5,76 @@ const cacheManager = require('../utils/cacheManager');
 const YOUTUBE_REGEX = /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)\/(watch\?v=|embed\/|v\/|shorts\/)?([a-zA-Z0-9_-]{11})/;
 
 /**
- * Validates YouTube URL and extracts video ID
- * @param {string} url
- * @returns {string|null} videoId if valid, null otherwise
+ * Extracts a unique 11-character video ID from varied YouTube URLs.
+ */
+function extractYoutubeId(url) {
+  if (!url || typeof url !== 'string') return null;
+  
+  // Security check: ensure domain belongs to youtube.com or youtu.be
+  try {
+    const parsed = new URL(url.startsWith('http') ? url : `https://${url}`);
+    const host = parsed.hostname.toLowerCase();
+    if (host !== 'youtube.com' && host !== 'www.youtube.com' && host !== 'youtu.be' && host !== 'm.youtube.com') {
+      return null;
+    }
+  } catch (e) {
+    return null;
+  }
+
+  const regex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?|shorts)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i;
+  const match = url.match(regex);
+  return match ? match[1] : null;
+}
+
+/**
+ * Legacy wrapper for extractYoutubeId
  */
 function extractVideoId(url) {
-  if (!url) return null;
-  const match = url.match(YOUTUBE_REGEX);
-  return match ? match[5] : null;
+  return extractYoutubeId(url);
+}
+
+/**
+ * Validates raw captions and batches text arrays into blocks aligned with video chapters.
+ */
+function chunkTranscriptByChapters(captions, chapters = []) {
+  if (!Array.isArray(captions) || captions.length === 0) {
+    throw new Error('CAPTI_ONS_EMPTY_OR_INVALID');
+  }
+
+  let activeChapters = Array.isArray(chapters) && chapters.length > 0 ? chapters : [];
+  
+  if (activeChapters.length === 0) {
+    const maxTime = Math.max(...captions.map(c => c.start || 0), 300);
+    const intervals = [];
+    const step = 300; // 5 minute buckets
+    const defaultTitles = ["Introduction", "Core Concepts", "Advanced Analysis", "Key Takeaways", "Summary"];
+    
+    let index = 0;
+    for (let start = 0; start <= maxTime; start += step) {
+      const title = defaultTitles[index] || `Section ${index + 1}`;
+      intervals.push({ start, title });
+      index++;
+    }
+    activeChapters = intervals;
+  }
+
+  const groupedChunks = activeChapters.map((chapter, index) => {
+    const nextChapterStart = activeChapters[index + 1]?.start !== undefined ? activeChapters[index + 1].start : Infinity;
+    
+    // Filter matching timed caption fragments matching this block boundary
+    const textBlock = captions
+      .filter(item => item.start >= chapter.start && item.start < nextChapterStart)
+      .map(item => item.text)
+      .join(' ');
+
+    return {
+      chapterTitle: chapter.title,
+      startTimestamp: chapter.start,
+      combinedText: textBlock.trim()
+    };
+  }).filter(chunk => chunk.combinedText.length > 0);
+
+  return groupedChunks;
 }
 
 /**
@@ -21,14 +83,13 @@ function extractVideoId(url) {
  * @returns {Promise<Array<{text: string, start: number, duration: number}>>}
  */
 async function fetchTranscript(videoUrl) {
-  const videoId = extractVideoId(videoUrl);
+  const videoId = extractYoutubeId(videoUrl);
   if (!videoId) {
     throw new Error('Invalid YouTube URL pattern');
   }
 
   const cacheKey = `youtube_transcript:${videoId}`;
   try {
-    // Check Cache first
     const cached = await cacheManager.get(cacheKey);
     if (cached) {
       return JSON.parse(cached);
@@ -43,7 +104,6 @@ async function fetchTranscript(videoUrl) {
       throw new Error('Captions are disabled or unavailable for this video');
     }
 
-    // Cache for 24 hours (86400 seconds)
     try {
       await cacheManager.set(cacheKey, JSON.stringify(transcript), 86400);
     } catch (cacheErr) {
@@ -58,7 +118,10 @@ async function fetchTranscript(videoUrl) {
 }
 
 module.exports = {
+  extractYoutubeId,
   extractVideoId,
+  chunkTranscriptByChapters,
   fetchTranscript,
   YOUTUBE_REGEX,
 };
+

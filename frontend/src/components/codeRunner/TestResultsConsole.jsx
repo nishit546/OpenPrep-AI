@@ -1,7 +1,9 @@
 /**
  * @fileoverview Tabbed console showing test cases, expected vs actual output diffs, and resource usage.
+ * Issue #2200: extended with DiffView and full status-type badges.
  */
 import React, { useState } from 'react';
+import DiffView from '../coding/DiffView';
 
 const TestResultsConsole = ({ results, isLoading }) => {
     const [activeTab, setActiveTab] = useState('results');
@@ -54,14 +56,20 @@ const TestResultsConsole = ({ results, isLoading }) => {
                                     </span>
                                 </div>
                                 {!detail.passed && (
-                                    <div className="grid grid-cols-2 gap-4 text-xs">
-                                        <div>
-                                            <span className="text-gray-500 block mb-1">Expected:</span>
-                                            <pre className="bg-gray-900 p-2 rounded text-green-400">{detail.expected}</pre>
+                                    <div className="space-y-2 mt-2">
+                                        <div className="grid grid-cols-2 gap-4 text-xs">
+                                            <div>
+                                                <span className="text-gray-500 block mb-1">Expected:</span>
+                                                <pre className="bg-gray-900 p-2 rounded text-green-400">{detail.expected}</pre>
+                                            </div>
+                                            <div>
+                                                <span className="text-gray-500 block mb-1">Actual:</span>
+                                                <pre className="bg-gray-900 p-2 rounded text-red-400">{detail.actual || 'Empty Output'}</pre>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <span className="text-gray-500 block mb-1">Actual:</span>
-                                            <pre className="bg-gray-900 p-2 rounded text-red-400">{detail.actual || 'Empty Output'}</pre>
+                                        <div className="mt-2">
+                                            <span className="text-gray-500 text-xs block mb-1">Visual Diff:</span>
+                                            <DiffView expected={detail.expected} actual={detail.actual} />
                                         </div>
                                     </div>
                                 )}

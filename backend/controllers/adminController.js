@@ -161,6 +161,41 @@ exports.deleteUser = async (req, res, next) => {
   }
 };
 
+// @desc    Get task queue depths and recent dead-letter jobs
+// @route   GET /api/admin/queues/status
+// @access  Private/Admin
+exports.getQueueStatus = async (req, res, next) => {
+  try {
+    const queueService = require('../services/queueService');
+
+    // getQueueStats already degrades on its own when Redis is down, returning
+    // { status: 'Redis Offline' } rather than throwing — the same contract
+    // getRedisStatus honours, so the admin dashboard renders a state instead of
+    // an error. getDlqJobs returns [] in the same situation.
+    const stats = await queueService.getQueueStats();
+
+    // Anything that is not a positive integer takes the default rather than
+    // clamping to 1 — ?dlqLimit=-4 is a malformed request, not a request for
+    // one row.
+    const requested = parseInt(req.query.dlqLimit, 10);
+    const limit = Math.min(100, requested > 0 ? requested : 20);
+
+    const dlqJobs = stats.status === 'Active' ? await queueService.getDlqJobs(limit) : [];
+
+    res.status(200).json({
+      success: true,
+      data: {
+        ...stats,
+        dlqJobs,
+        registeredHandlers: [...queueService.jobHandlers.keys()],
+      },
+    });
+  } catch (error) {
+    console.error('[adminController.getQueueStatus] Error:', error);
+    next(error);
+  }
+};
+
 // @desc    Get all badges for admin management
 // @route   GET /api/admin/badges
 // @access  Private/Admin

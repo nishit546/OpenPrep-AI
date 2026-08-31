@@ -1,0 +1,29 @@
+{
+  "_comment": [
+    "Routers that server.js requires but never mounts. Every request to the",
+    "endpoints in these files 404s, so each entry is a feature that is present",
+    "in the tree and unreachable over HTTP.",
+    "",
+    "They are allowlisted rather than mounted because mounting a router changes",
+    "the public API surface and each of these needs its own review of the auth",
+    "guards and payload validation on its routes. That work does not belong in",
+    "a fix whose job is to make server.js parse.",
+    "",
+    "The list is a ceiling, not a target: scripts/check-server-wiring.js fails",
+    "on any router required and left unmounted that is not named here, so no",
+    "new one can be added. Remove entries as the routers are reviewed and",
+    "mounted."
+  ],
+  "unmountedRouters": [
+    "adaptivePlannerRoutes",
+    "aiEditorRoutes",
+    "attemptHistoryRoutes",
+    "communityResourceRoutes",
+    "learningInsightsRoutes",
+    "pdfRoutes",
+    "proctoringRoutes",
+    "pyqIntelligenceRoutes",
+    "studyGoalSchedulerRoutes",
+    "weaknessDetectionRoutes"
+  ]
+}

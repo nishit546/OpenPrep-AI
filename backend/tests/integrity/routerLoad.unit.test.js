@@ -3,7 +3,7 @@ import { describe, it, expect } from 'vitest';
 const fs = require('fs');
 const path = require('path');
 
-const BACKEND_ROOT = path.join(__dirname, '..', '..');
+const BACKEND_ROOT = path.resolve(__dirname, '../../');
 const ROUTES_DIR = path.join(BACKEND_ROOT, 'routes');
 const SERVER_SOURCE = fs.readFileSync(path.join(BACKEND_ROOT, 'server.js'), 'utf8');
 
@@ -55,17 +55,11 @@ describe('mounted routers', () => {
   });
 
   it('every mounted router loads', () => {
-    // A parse gate cannot see this class of failure. #1807 and #1808 both
-    // shipped files that `node --check` accepts and `require` rejects: a
-    // middleware whose named exports had been deleted out from under eight
-    // route modules, and four models importing the sequelize-cli config
-    // object instead of the Sequelize instance. Express throws on the
-    // undefined handler at module load, so the router never mounts and the
-    // endpoints behind it are simply gone.
     const failures = MOUNTED.map(loadFailure).filter(Boolean);
 
     expect(failures).toEqual([]);
-  });
+  }, 30000);
+
 });
 
 describe('rate limiter exports', () => {

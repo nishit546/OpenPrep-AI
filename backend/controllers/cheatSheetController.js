@@ -59,7 +59,20 @@ exports.getUserCheatSheets = async (req, res) => {
       order: [['updatedAt', 'DESC']],
     });
 
-    return res.json({ success: true, data: sheets });
+    try {
+      require('../services/metricsService').recordTokensConsumed(
+        'gemini-2.5-flash',
+        response.usageMetadata?.promptTokenCount,
+        response.usageMetadata?.candidatesTokenCount
+      );
+    } catch (e) {}
+
+    const cheatSheetData = JSON.parse(response.text);
+
+    res.status(200).json({
+      success: true,
+      cheatSheet: cheatSheetData,
+    });
   } catch (error) {
     return res.status(500).json({ success: false, error: error.message });
   }

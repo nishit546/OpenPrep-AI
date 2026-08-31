@@ -1,7 +1,7 @@
 const express = require('express');
 const multer = require('multer');
 const { protect } = require('../middleware/auth');
-const { processHandwrittenNote } = require('../controllers/ocrController');
+const { processHandwrittenNote, parseDiagram } = require('../controllers/ocrController');
 
 const router = express.Router();
 
@@ -19,5 +19,6 @@ const upload = multer({
 });
 
 router.post('/process-notes', protect, upload.single('image'), processHandwrittenNote);
+router.post('/parse-diagram', protect, upload.single('image'), parseDiagram);
 
 module.exports = router;

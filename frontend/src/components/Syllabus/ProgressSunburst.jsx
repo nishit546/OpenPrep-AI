@@ -39,7 +39,7 @@ const ProgressSunburst = ({ syllabusData }) => {
             return (
                 <div className="bg-white dark:bg-gray-800 p-3 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg">
                     <p className="font-semibold text-gray-900 dark:text-white text-sm">{data.name}</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">{data.moduleName} > {data.topicName}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{data.moduleName} &gt; {data.topicName}</p>
                     <p className="text-xs font-bold mt-1" style={{ color: data.fill }}>
                         Progress: {data.value}%
                     </p>

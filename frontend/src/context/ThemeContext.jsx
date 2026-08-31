@@ -6,15 +6,23 @@ export const ThemeContext = createContext({
   resolvedTheme: 'light',
   isDarkMode: false,
   accentColors: DEFAULT_ACCENT_COLORS,
+  colorblindFilter: 'none',
   setTheme: () => {},
   toggleTheme: () => {},
   setAccentColors: () => {},
   resetAccentColors: () => {},
+  setColorblindFilter: () => {},
 });
 
 const STORAGE_KEY = 'openprep_theme';
 const LEGACY_STORAGE_KEY = 'theme';
 const ACCENT_STORAGE_KEY = 'openprep_accent_colors';
+const COLORBLIND_STORAGE_KEY = 'openprep_colorblind_filter';
+
+const readSavedColorblindFilter = () => {
+  if (typeof window === 'undefined') return 'none';
+  return localStorage.getItem(COLORBLIND_STORAGE_KEY) || 'none';
+};
 
 const readSavedTheme = () => {
   if (typeof window === 'undefined') return 'system';
@@ -82,6 +90,7 @@ export const ThemeProvider = ({ children }) => {
   const [theme, setThemeState] = useState(readSavedTheme);
   const [systemDark, setSystemDark] = useState(systemPrefersDark);
   const [customAccentColors, setCustomAccentColors] = useState(readSavedAccentColors);
+  const [colorblindFilter, setColorblindFilterState] = useState(readSavedColorblindFilter);
 
   const resolvedTheme = useMemo(() => {
     if (theme === 'system') return systemDark ? 'dark' : 'light';
@@ -147,6 +156,11 @@ export const ThemeProvider = ({ children }) => {
       }
       return updated;
     });
+  const setColorblindFilter = (mode) => {
+    setColorblindFilterState(mode);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(COLORBLIND_STORAGE_KEY, mode);
+    }
   };
 
   // Listen for OS system preference changes (used while theme === 'system')
@@ -214,9 +228,12 @@ export const ThemeProvider = ({ children }) => {
     root.style.setProperty('--color-primary', primary.hex);
     root.style.setProperty('--color-secondary', secondary.hex);
 
+    // Apply Colorblind Filter attribute
+    root.setAttribute('data-colorblind-filter', colorblindFilter);
+
     localStorage.setItem(STORAGE_KEY, theme);
     localStorage.setItem(LEGACY_STORAGE_KEY, theme);
-  }, [theme, resolvedTheme, activePreset, isDarkMode, accentColors]);
+  }, [theme, resolvedTheme, activePreset, isDarkMode, accentColors, colorblindFilter]);
 
   return (
     <ThemeContext.Provider
@@ -225,10 +242,12 @@ export const ThemeProvider = ({ children }) => {
         resolvedTheme,
         isDarkMode,
         accentColors,
+        colorblindFilter,
         setTheme,
         toggleTheme,
         setAccentColors,
         resetAccentColors,
+        setColorblindFilter,
       }}
     >
       {children}

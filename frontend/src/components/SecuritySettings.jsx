@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { ShieldCheck, Copy, Check, AlertTriangle, KeyRound } from 'lucide-react';
+import PasskeySettings from './PasskeySettings';
 
 export default function SecuritySettings() {
   const [loading, setLoading] = useState(false);
@@ -170,6 +171,9 @@ export default function SecuritySettings() {
           </form>
         </div>
       )}
+
+      {/* WebAuthn Passkeys Section */}
+      <PasskeySettings />
     </div>
   );
 }

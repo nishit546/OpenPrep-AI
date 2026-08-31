@@ -23,6 +23,10 @@ const {
   generateDeckPodcast,
   getPodcastEpisodeById,
 } = require('../controllers/flashcardController');
+const {
+  getLeitnerDistribution,
+  getDueForecast,
+} = require('../controllers/flashcardAnalyticsController');
 const { protect } = require('../middleware/auth');
 const cacheMiddleware = require('../middleware/cacheMiddleware');
 const { aiLimiter } = require('../middleware/rateLimiter');
@@ -38,6 +42,11 @@ validateGenerateAIFlashcards,
   validateExportFlashcards,
   validateImportFlashcards,
 } = require('../middleware/validators');const router = express.Router();
+
+// Spaced Repetition Analytics Routes
+router.get('/analytics/leitner-distribution', protect, getLeitnerDistribution);
+router.get('/analytics/due-forecast', protect, getDueForecast);
+
 
 /**
  * @swagger
@@ -390,6 +399,20 @@ router.post(
   checkQuota,
   validateGenerateFlashcardsFromYouTube,
   generateFlashcardsFromYouTube
+);
+router.post(
+  '/generate-from-youtube',
+  protect,
+  aiLimiter,
+  checkQuota,
+  validateGenerateFlashcardsFromYouTube,
+  generateFlashcardsFromYouTube
+);
+const { saveYoutubeDeck } = require('../controllers/youtubeFlashcardController');
+router.post(
+  '/save-youtube-deck',
+  protect,
+  saveYoutubeDeck
 );
 
 /**

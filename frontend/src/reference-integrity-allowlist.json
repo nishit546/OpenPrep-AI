@@ -1,0 +1,25 @@
+{
+  "_comment": [
+    "Files whose unresolvable imports are fixed by an open pull request, not by",
+    "the change that added this gate.",
+    "",
+    "The three pacing-coach files import '@mui/material', which is not and never",
+    "has been a dependency of this app, and the dashboard imports its API client",
+    "from one directory too far up. Both are fixed in the pacing-coach PR, which",
+    "rebuilds all three files in Tailwind. Fixing them here as well would just",
+    "collide with it.",
+    "",
+    "This list is temporary. The gate fails on a stale entry — one whose file no",
+    "longer has an unresolvable import — so once the pacing-coach fix lands this",
+    "file has to be emptied, and CI says so rather than letting the exemption",
+    "quietly outlive its reason.",
+    "",
+    "Nothing else belongs here. An import that cannot resolve is a page that",
+    "will not build or will not render; the answer is to fix it, not to list it."
+  ],
+  "unresolvedImports": [
+    "src/components/pacing-coach/AutopsyReport.jsx",
+    "src/components/pacing-coach/LivePacingStrip.jsx",
+    "src/pages/PacingCoachDashboard.jsx"
+  ]
+}

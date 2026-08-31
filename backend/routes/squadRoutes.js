@@ -13,6 +13,15 @@ router.post('/create', squadController.createSquad);
 router.post('/join', squadController.joinSquad);
 router.post('/:id/leave', squadController.leaveSquad);
 router.get('/:id/dashboard', squadController.getSquadDashboard);
+router.get('/:id/audio-status', squadController.getAudioStatus);
+
+// Squad Admin/RBAC & Audit logs
+const squadAdminController = require('../controllers/squadAdminController');
+const { requireSquadPermission } = require('../middleware/squadAuth');
+
+router.get('/:id/audit-logs', requireSquadPermission('CAN_VIEW_AUDIT_LOGS'), squadAdminController.getAuditLogs);
+router.put('/:id/members/:userId/role', squadAdminController.updateMemberRole);
+router.delete('/:id/members/:userId', requireSquadPermission('CAN_BAN_MEMBERS'), squadAdminController.kickMember);
 
 router.post('/:squadId/challenges', challengeController.createChallenge);
 router.put('/:squadId/challenges/:challengeId', challengeController.updateChallenge);

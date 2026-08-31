@@ -48,10 +48,11 @@ describe('backend module discovery', () => {
 
   it('covers every boot-path source directory', () => {
     for (const dir of SOURCE_DIRS) {
-      const covered = SOURCE_FILES.some((file) => file.startsWith(`${dir}${path.sep}`));
+      const covered = SOURCE_FILES.some((file) => file.startsWith(`${dir}/`));
       expect(covered, `no modules discovered under ${dir}/`).toBe(true);
     }
   });
+
 
   it('excludes test files from the boot-path sweep', () => {
     expect(SOURCE_FILES.filter((file) => /\.(test|spec)\.js$/.test(file))).toEqual([]);

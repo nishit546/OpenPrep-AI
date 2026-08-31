@@ -1,0 +1,24 @@
+/* Dynamic adaptation hook using HTML attribute selectors */
+[dir="rtl"] {
+  text-align: right;
+}
+
+[dir="rtl"] .flex-row {
+  flex-direction: row-reverse;
+}
+
+/* logical padding and margin transformations where necessary */
+[dir="rtl"] .ml-auto {
+  margin-right: auto;
+  margin-left: 0;
+}
+
+[dir="rtl"] .mr-2 {
+  margin-left: 0.5rem;
+  margin-right: 0;
+}
+
+/* Invert directional iconography components */
+[dir="rtl"] .chevron-icon {
+  transform: rotate(180deg);
+}

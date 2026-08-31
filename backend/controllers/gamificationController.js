@@ -3,17 +3,18 @@ const Badge = require('../models/Badge');
 const UserBadge = require('../models/UserBadge');
 const User = require('../models/User');
 
+const SHOP_PRICES = {
+  streak_freeze: 150,
+  xp_booster: 250,
+  golden_sparkle_frame: 500,
+  neon_blue_frame: 500,
+};
+
 /**
- * Resolves the caller's own calendar date as YYYY-MM-DD.
- *
- * Streak bookkeeping is per calendar day, so it has to be the user's day and
- * not the server's. Clients send either an IANA zone in `x-timezone` or a
- * legacy numeric minute offset in `x-timezone-offset`; an unusable value falls
- * back to UTC rather than throwing.
+ * Resolves local date.
  */
 function resolveLocalDate(req, now = new Date()) {
   const zone = req.headers?.['x-timezone'];
-
   if (zone) {
     try {
       return new Intl.DateTimeFormat('en-CA', {
@@ -22,20 +23,12 @@ function resolveLocalDate(req, now = new Date()) {
         month: '2-digit',
         day: '2-digit',
       }).format(now);
-    } catch {
-      // Unknown zone name - fall through to the offset path.
-    }
+    } catch {}
   }
-
   const offsetMinutes = Number(req.headers?.['x-timezone-offset']) || 0;
   return new Date(now.getTime() - offsetMinutes * 60 * 1000).toISOString().split('T')[0];
 }
 
-/**
- * @desc    Get current user gamification overview (XP, Level, Badges, Freezes)
- * @route   GET /api/gamification/status
- * @access  Private
- */
 exports.getGamificationStatus = async (req, res) => {
   try {
     const user = await User.findByPk(req.user.id);
@@ -52,7 +45,7 @@ exports.getGamificationStatus = async (req, res) => {
       data: {
         ...levelInfo,
         streakCount: user.streakCount || 0,
-        streakFreezes: user.streakFreezes || 0,
+        streakFreezes: user.streakFreezesAvailable !== undefined ? user.streakFreezesAvailable : (user.streakFreezes || 0),
         badges: userBadges,
       },
     });
@@ -61,25 +54,6 @@ exports.getGamificationStatus = async (req, res) => {
   }
 };
 
-/**
- * @desc    Purchase a streak freeze with XP
- * @route   POST /api/gamification/streak-freeze/buy
- * @access  Private
- */
-exports.buyStreakFreeze = async (req, res) => {
-  try {
-    const result = await gamificationService.purchaseStreakFreeze(req.user.id);
-    return res.json({ success: true, ...result });
-  } catch (error) {
-    return res.status(400).json({ success: false, message: error.message });
-  }
-};
-
-/**
- * @desc    Dashboard summary of the caller's gamification state
- * @route   GET /api/gamification/summary
- * @access  Private
- */
 exports.getSummary = async (req, res, next) => {
   try {
     const user = await User.findByPk(req.user.id);
@@ -104,7 +78,7 @@ exports.getSummary = async (req, res, next) => {
         progressPercent: levelInfo.progressPercent,
         currentStreak: user.currentStreak || 0,
         longestStreak: user.longestStreak || 0,
-        streakFreezes: user.streakFreezes || 0,
+        streakFreezes: user.streakFreezesAvailable !== undefined ? user.streakFreezesAvailable : (user.streakFreezes || 0),
         badges: userBadges.map((entry) => ({
           id: entry.id,
           badgeCode: entry.badgeCode,
@@ -120,11 +94,6 @@ exports.getSummary = async (req, res, next) => {
   }
 };
 
-/**
- * @desc    Consume a streak freeze so today counts towards the streak
- * @route   POST /api/gamification/streak-freeze/use
- * @access  Private
- */
 exports.useStreakFreeze = async (req, res, next) => {
   try {
     const user = await User.findByPk(req.user.id);
@@ -132,13 +101,15 @@ exports.useStreakFreeze = async (req, res, next) => {
       return res.status(404).json({ success: false, error: 'User not found' });
     }
 
-    if ((user.streakFreezes || 0) <= 0) {
+    const freezes = user.streakFreezesAvailable !== undefined ? user.streakFreezesAvailable : (user.streakFreezes || 0);
+    if (freezes <= 0) {
       return res.status(400).json({ success: false, error: 'No streak freezes available' });
     }
 
-    user.streakFreezes -= 1;
-    // Mark today active in the caller's own timezone, otherwise a user east of
-    // UTC burns a freeze on a day the server still considers yesterday.
+    if (user.streakFreezesAvailable !== undefined) {
+      user.streakFreezesAvailable -= 1;
+    }
+    user.streakFreezes = Math.max(0, (user.streakFreezes || 0) - 1);
     user.lastActivityDate = resolveLocalDate(req, new Date());
     await user.save();
 
@@ -146,11 +117,177 @@ exports.useStreakFreeze = async (req, res, next) => {
       success: true,
       message: 'Streak freeze consumed successfully.',
       data: {
-        streakFreezes: user.streakFreezes,
+        streakFreezes: user.streakFreezesAvailable !== undefined ? user.streakFreezesAvailable : user.streakFreezes,
         currentStreak: user.currentStreak || 0,
       },
     });
   } catch (error) {
     return next(error);
+  }
+};
+
+exports.buyStreakFreeze = async (req, res) => {
+  try {
+    const result = await gamificationService.purchaseStreakFreeze(req.user.id);
+    return res.json({ success: true, ...result });
+  } catch (error) {
+    return res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * GET /api/gamification/inventory
+ */
+exports.getInventory = async (req, res) => {
+  try {
+    const user = await User.findByPk(req.user.id);
+    if (!user) return res.status(404).json({ success: false, error: 'User not found' });
+
+    return res.json({
+      success: true,
+      data: {
+        prepCoins: user.prepCoins || 0,
+        streakFreezes: user.streakFreezesAvailable !== undefined ? user.streakFreezesAvailable : (user.streakFreezes || 0),
+        activeXpBoosterUntil: user.activeXpBoosterUntil,
+        ownedCosmetics: user.ownedCosmetics || [],
+        equippedAvatarFrame: user.equippedAvatarFrame,
+      },
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+/**
+ * POST /api/gamification/shop/buy
+ */
+exports.buyShopItem = async (req, res) => {
+  const { itemId } = req.body;
+  const price = SHOP_PRICES[itemId];
+
+  if (!price) {
+    return res.status(400).json({ success: false, error: 'Invalid shop item requested' });
+  }
+
+  try {
+    const user = await User.findByPk(req.user.id);
+    if ((user.prepCoins || 0) < price) {
+      return res.status(400).json({ success: false, error: 'Insufficient PrepCoins balance' });
+    }
+
+    user.prepCoins -= price;
+
+    if (itemId === 'streak_freeze') {
+      user.streakFreezes = (user.streakFreezes || 0) + 1;
+      user.streakFreezesAvailable = (user.streakFreezesAvailable || 0) + 1;
+    } else if (itemId === 'xp_booster') {
+      const now = new Date();
+      const currentExpiry = user.activeXpBoosterUntil && new Date(user.activeXpBoosterUntil) > now
+        ? new Date(user.activeXpBoosterUntil)
+        : now;
+      user.activeXpBoosterUntil = new Date(currentExpiry.getTime() + 60 * 60 * 1000); // add 1 hour
+    } else {
+      // Cosmetic Avatar Frame
+      const owned = user.ownedCosmetics || [];
+      if (owned.includes(itemId)) {
+        return res.status(400).json({ success: false, error: 'You already own this avatar frame' });
+      }
+      user.ownedCosmetics = [...owned, itemId];
+    }
+
+    await user.save();
+    return res.json({
+      success: true,
+      message: `Purchased ${itemId} successfully`,
+      data: {
+        prepCoins: user.prepCoins,
+        streakFreezes: user.streakFreezesAvailable,
+        activeXpBoosterUntil: user.activeXpBoosterUntil,
+        ownedCosmetics: user.ownedCosmetics,
+      },
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+/**
+ * POST /api/gamification/chest/open
+ */
+exports.openMysteryChest = async (req, res) => {
+  const cost = 100;
+
+  try {
+    const user = await User.findByPk(req.user.id);
+    if ((user.prepCoins || 0) < cost) {
+      return res.status(400).json({ success: false, error: 'Insufficient PrepCoins. Chest unboxing costs 100 coins.' });
+    }
+
+    user.prepCoins -= cost;
+
+    // Determine unboxing rewards
+    // 90% chance: XP reward between 50 and 250 XP
+    // 10% chance: Unlock rare avatar frame
+    const roll = Math.random();
+    let rewardType = 'xp';
+    let rewardAmount = Math.floor(Math.random() * 201) + 50; // 50 to 250
+    let cosmeticId = null;
+
+    if (roll < 0.1) {
+      rewardType = 'cosmetic';
+      const cosmeticOptions = ['cosmic_glow_frame', 'ruby_shine_frame', 'emerald_matrix_frame'];
+      cosmeticId = cosmeticOptions[Math.floor(Math.random() * cosmeticOptions.length)];
+      
+      const owned = user.ownedCosmetics || [];
+      if (!owned.includes(cosmeticId)) {
+        user.ownedCosmetics = [...owned, cosmeticId];
+      }
+    } else {
+      await gamificationService.awardXP(user.id, rewardAmount, 'Mystery Chest reward');
+    }
+
+    await user.save();
+
+    // Reload user to get latest XP updates
+    const updatedUser = await User.findByPk(req.user.id);
+
+    return res.json({
+      success: true,
+      rewardType,
+      amount: rewardType === 'xp' ? rewardAmount : 0,
+      cosmeticId,
+      userCoins: updatedUser.prepCoins,
+      xp: updatedUser.xp,
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+/**
+ * POST /api/gamification/avatar/equip
+ */
+exports.equipAvatarFrame = async (req, res) => {
+  const { cosmeticId } = req.body;
+
+  try {
+    const user = await User.findByPk(req.user.id);
+    if (cosmeticId !== null) {
+      const owned = user.ownedCosmetics || [];
+      if (!owned.includes(cosmeticId)) {
+        return res.status(400).json({ success: false, error: 'You do not own this avatar frame' });
+      }
+    }
+
+    user.equippedAvatarFrame = cosmeticId;
+    await user.save();
+
+    return res.json({
+      success: true,
+      message: cosmeticId ? `Equipped ${cosmeticId} avatar frame` : 'Unequipped avatar frame',
+      equippedAvatarFrame: user.equippedAvatarFrame,
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
   }
 };

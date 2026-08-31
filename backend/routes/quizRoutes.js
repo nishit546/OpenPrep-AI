@@ -41,6 +41,7 @@ const {
   validateGenerateRemediationQuiz,
 } = require('../middleware/validators');
 const { validateRequest, submitQuizSchema } = require('../middleware/validate');
+const checkOwnership = require('../middleware/checkOwnership');
 
 const router = express.Router();
 const { getNextAdaptiveQuestion } = require('../controllers/adaptiveQuizController');
@@ -517,7 +518,7 @@ router.get('/attempts/:attemptId/pdf', protect, getQuizAttemptReportPDF);
  *               $ref: '#/components/schemas/Error'
  */
 
-router.get('/:id', protect, getQuizDetails);
+router.get('/:id', protect, checkOwnership('Quiz'), getQuizDetails);
 
 /**
  * @swagger
@@ -633,7 +634,7 @@ router.post('/:id/submit', protect, validateRequest(submitQuizSchema), submitQui
  *       404:
  *         description: Quiz not found
  */
-router.get('/:id/bookmarks', protect, getQuizBookmarks);
+router.get('/:id/bookmarks', protect, checkOwnership('Quiz'), getQuizBookmarks);
 
 /**
  * @swagger
@@ -653,6 +654,11 @@ router.get('/:id/bookmarks', protect, getQuizBookmarks);
  *       404:
  *         description: Quiz not found
  */
-router.post('/:id/bookmarks/toggle', protect, toggleQuizBookmark);
+router.post('/:id/bookmarks/toggle', protect, checkOwnership('Quiz'), toggleQuizBookmark);
+
+const { getOmrSheetPdf, getAnswerKeyPdf } = require('../controllers/omrController');
+router.get('/:id/omr-sheet.pdf', getOmrSheetPdf);
+router.get('/:id/answer-key.pdf', getAnswerKeyPdf);
 
 module.exports = router;
+

@@ -3,7 +3,9 @@
  * Features drag-and-drop file upload and results visualization.
  */
 import React, { useState } from 'react';
-import SkillRadarChart from '../components/SkillGap/SkillRadarChart';import axios from 'axios';
+import SkillRadarChart from '../components/SkillGap/SkillRadarChart';
+import SkillDependencyGraph from '../components/SkillGap/SkillDependencyGraph';
+import axios from 'axios';
 
 const SkillGapAnalysis = () => {
     const [file, setFile] = useState(null);

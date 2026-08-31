@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import {
   Users, FileText, Layers, Star, Search, Filter, TrendingUp, Loader2,
-  AlertCircle, Grid3X3, ChevronDown, X,
+  AlertCircle, Grid3X3, ChevronDown, X, User,
 } from 'lucide-react';
 import {
   fetchDiscoverResources, fetchTrendingResources, fetchCommunityStats,

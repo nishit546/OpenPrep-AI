@@ -85,7 +85,11 @@ const router = express.Router();
  *         description: Predictive readiness trajectory and recommendations
  */
 
+const { getSubjectHeatmap, getDailyRecommendations } = require('../controllers/weaknessAnalyticsController');
+
 router.get('/readiness-projection', protect, getReadinessProjection);
 router.get('/activity-heatmap', protect, getActivityHeatmap);
+router.get('/weakness-heatmap/:subjectId', protect, getSubjectHeatmap);
+router.get('/daily-recommendations', protect, getDailyRecommendations);
 
 module.exports = router;

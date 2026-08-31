@@ -8,7 +8,6 @@ import { schema } from 'prosemirror-schema-basic';
 import { exampleSetup } from 'prosemirror-example-setup';
 import { ySyncPlugin, yCursorPlugin, yUndoPlugin, undo, redo } from 'y-prosemirror';
 import { ArrowLeft, Users, Save } from 'lucide-react';
-import Navbar from '../components/common/Navbar';
 import 'prosemirror-example-setup/style/style.css';
 import 'prosemirror-view/style/prosemirror.css';
 
@@ -82,7 +81,6 @@ const CollabNote = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex flex-col">
-      <Navbar />
       
       <div className="flex-1 max-w-5xl w-full mx-auto p-4 flex flex-col">
         <div className="flex justify-between items-center mb-6 bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-neutral-200 dark:border-slate-700">

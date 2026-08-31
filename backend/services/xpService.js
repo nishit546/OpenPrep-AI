@@ -14,8 +14,13 @@ async function addXP(userRecord, amount) {
   const user = await User.findByPk(userId);
   if (!user) return { leveledUp: false };
 
+  let xpAwarded = amount;
+  if (user.activeXpBoosterUntil && new Date() < new Date(user.activeXpBoosterUntil)) {
+    xpAwarded *= 2;
+  }
+
   const previousLevel = user.level || 1;
-  const currentXP = (user.xp || 0) + amount;
+  const currentXP = (user.xp || 0) + xpAwarded;
   user.xp = currentXP;
 
   const currentLevel = calculateLevel(currentXP);
