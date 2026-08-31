@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import SquadLeaderboard from './SquadLeaderboard';
+import SquadHabitGrid from './SquadHabitGrid';
 import SquadActivityFeed from './SquadActivityFeed';
 import SquadAudioLounge from './SquadAudioLounge';
 import { Share2, LogOut, Award, Target, Radio } from 'lucide-react';
@@ -188,6 +189,10 @@ export default function StudySquadDashboard({ squadData, currentUserRole, onLeav
             )}
           </div>
 </div>
+      </div>
+
+      <div className="mt-6">
+        <SquadHabitGrid squadId={squad.id} currentUserId={squadData.user?.id || squadData.userId} />
       </div>
 
       <div className="mt-6">

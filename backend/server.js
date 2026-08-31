@@ -72,6 +72,7 @@ const noteRoutes = require('./routes/noteRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const searchRoutes = require('./routes/searchRoutes');
 const progressRoutes = require('./routes/progressRoutes');
+const confidenceCalibrationRoutes = require('./routes/confidenceCalibrationRoutes');
 const handwrittenSubmissionRoutes = require('./routes/handwrittenSubmissionRoutes');
 const communityRoutes = require('./routes/communityRoutes');
 const userRoutes = require('./routes/userRoutes');
@@ -403,6 +404,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api/submissions', handwrittenSubmissionRoutes);
 app.use('/api/progress', progressRoutes);
+app.use('/api/confidence-calibration', confidenceCalibrationRoutes);
 app.use('/api/users', userRoutes);
 app.get('/api/user/quota', protect, require('./controllers/userController').getQuota);
 app.put('/api/user/preferences/timezone', protect, require('./controllers/userController').updateTimezone);
@@ -751,4 +753,5 @@ const gracefulShutdown = (signal) => {
 
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
 
