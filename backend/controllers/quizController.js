@@ -534,11 +534,22 @@ exports.submitQuizAttempt = async (req, res, next) => {
       return res.status(200).json({ success: true, data: attempt, duplicate: true });
     }
 
+    if (score >= 80) {
+      const gamificationService = require('../services/gamificationService');
+      await gamificationService.awardCoins(req.user.id, 25, 'High quiz score bonus')
+        .catch(err => console.error('Error awarding PrepCoins for quiz:', err));
+    }
+
     // Trigger AI weakness aggregation and adaptive planner rescheduling in background
     const weaknessAggregatorService = require('../services/weaknessAggregatorService');
     weaknessAggregatorService.aggregateUserWeakness(req.user.id)
       .then(() => weaknessAggregatorService.rescheduleAdaptivePlanner(req.user.id))
       .catch((err) => console.error('Background weakness aggregation error:', err));
+
+    // Issue #2003: Log mistakes with error-taxonomy classification into Mistake Notebook
+    const mistakeNotebookService = require('../services/mistakeNotebookService');
+    mistakeNotebookService.logAttemptMistakes(attempt, quiz)
+      .catch((err) => console.error('Error logging mistake notebook entries:', err));
 
     // Update Progress (supports both topic-level and subject-level quizzes)
     const progressWhere = {

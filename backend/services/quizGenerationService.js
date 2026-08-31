@@ -9,9 +9,39 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
 const MAX_RETRIES = 3;
+const geminiService = require('./geminiService');
+const AIContractVersioningService = require('./aiContractVersioningService');
+const AIGenerationCacheService = require('./aiGenerationCacheService');/**
+// Check cache first
+const cacheKey = AIGenerationCacheService.generateFingerprint('quiz-generation', {
+  content: notes,
+  parameters: options,
+  contractVersion: contract.version,
+  modelConfig: contract.modelConfig,
+});
 
-/**
- * Generates a single quiz question with validation and retry logic
+const cached = await AIGenerationCacheService.getCachedResult(
+  cacheKey.fingerprint,
+  userId,
+  contract.version
+);
+
+let quizzes;
+if (cached) {
+  quizzes = JSON.parse(cached.result);
+} else {
+  quizzes = await geminiService.generateQuizzes(notes, options);
+  await AIGenerationCacheService.cacheResult(
+    cacheKey.fingerprint,
+    'quiz-generation',
+    userId,
+    contract.version,
+    cacheKey.inputHash,
+    JSON.stringify(quizzes),
+    { model: 'gemini-pro', timestamp: new Date() }
+  );
+} 
+* Generates a single quiz question with validation and retry logic
  * @param {string} topic - Topic for the question
  * @param {string} difficulty - Difficulty level
  * @param {string} sourceContext - Source material for grounding

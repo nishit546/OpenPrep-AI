@@ -6,7 +6,9 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
-
+const geminiService = require('./geminiService');
+const AIContractVersioningService = require('./aiContractVersioningService');
+const AIGenerationCacheService = require('./aiGenerationCacheService');
 /**
  * Generates a structured, day-by-day study schedule.
  * 
@@ -60,7 +62,35 @@ async function generateStudyPlan(examDate, topics, dailyHours) {
  */
 async function createPlanVersion(studyPlanId, reason, metadata = {}) {
   const { StudyPlanVersion, PlanRevisionMetadata } = require('../models');
-  
+  // Check cache first
+const cacheKey = AIGenerationCacheService.generateFingerprint('study-plan', {
+  content: topics,
+  parameters: { timeframe, ...options },
+  contractVersion: contract.version,
+  modelConfig: contract.modelConfig,
+});
+
+const cached = await AIGenerationCacheService.getCachedResult(
+  cacheKey.fingerprint,
+  userId,
+  contract.version
+);
+
+let studyPlan;
+if (cached) {
+  studyPlan = JSON.parse(cached.result);
+} else {
+  studyPlan = await geminiService.generateStudyPlan(topics, timeframe, options);
+  await AIGenerationCacheService.cacheResult(
+    cacheKey.fingerprint,
+    'study-plan',
+    userId,
+    contract.version,
+    cacheKey.inputHash,
+    JSON.stringify(studyPlan),
+    { model: 'gemini-pro', timeframe, topicCount: topics.length }
+  );
+}
   try {
     const lastVersion = await StudyPlanVersion.findOne({
       where: { studyPlanId },

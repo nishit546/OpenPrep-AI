@@ -27,6 +27,7 @@ const NAV_LINKS = [
   { to: '/study-group', label: 'Study Group', preload: () => import('../pages/StudyGroupChat') },
   { to: '/squads', label: 'Study Squads', preload: () => import('../pages/SquadsPage') },
   { to: '/bounties', label: 'Bounty Board', preload: () => import('../pages/BountyBoardPage') },
+  { to: '/code/sandbox', label: 'Code Sandbox', preload: () => import('../pages/code/CodeSandboxPage') },
   { to: '/ai-assistant', label: 'AI Mentor Chat', preload: () => import('../pages/AiAssistant') },
   { to: '/community/decks', label: 'Community Library', preload: () => import('../pages/CommunityDecks') },
   { to: '/settings', label: 'Settings', preload: () => import('../pages/Settings') },

@@ -111,4 +111,5 @@ const StudyHabit = sequelize.define(
   }
 );
 
-module.exports = StudyHabit;
+module.exports = (sequelizeInstance, dataTypes) => StudyHabit;
+

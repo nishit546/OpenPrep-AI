@@ -3,8 +3,9 @@ import API from '../services/api';
 import SyllabusUploaderModal from '../components/planner/SyllabusUploaderModal';
 import SyllabusCoverageMatrix from '../components/planner/SyllabusCoverageMatrix';
 import AdaptiveLearningPath from '../components/dashboard/AdaptiveLearningPath';
+import ChapterSplitSelector from '../components/pdf/ChapterSplitSelector';
 import { FaBookOpen, FaPlus, FaCheckCircle, FaExclamationCircle } from 'react-icons/fa';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Scissors } from 'lucide-react';
 
 export default function StudyPlanner() {
   const [syllabi, setSyllabi] = useState([]);
@@ -13,6 +14,7 @@ export default function StudyPlanner() {
   const [loading, setLoading] = useState(true);
   const [loadingAnalysis, setLoadingAnalysis] = useState(false);
   const [isUploaderOpen, setIsUploaderOpen] = useState(false);
+  const [isSplitterOpen, setIsSplitterOpen] = useState(false);
   const [error, setError] = useState('');
 
   const fetchSyllabi = async () => {
@@ -76,12 +78,20 @@ export default function StudyPlanner() {
             </p>
           </div>
           
-          <button
-            onClick={() => setIsUploaderOpen(true)}
-            className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition shadow-lg hover:shadow-indigo-500/10 cursor-pointer flex items-center gap-1.5"
-          >
-            <FaPlus /> Import PDF Syllabus
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => setIsSplitterOpen(true)}
+              className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition shadow-lg hover:shadow-emerald-500/10 cursor-pointer flex items-center gap-1.5"
+            >
+              <Scissors className="w-3.5 h-3.5" /> Split Textbook PDF
+            </button>
+            <button
+              onClick={() => setIsUploaderOpen(true)}
+              className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition shadow-lg hover:shadow-indigo-500/10 cursor-pointer flex items-center gap-1.5"
+            >
+              <FaPlus /> Import PDF Syllabus
+            </button>
+          </div>
         </div>
 
         {error && (
@@ -166,6 +176,17 @@ export default function StudyPlanner() {
           onClose={() => setIsUploaderOpen(false)}
           onImported={handleImportSuccess}
         />
+
+        {isSplitterOpen && (
+          <div className="fixed inset-0 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+            <ChapterSplitSelector
+              onClose={() => setIsSplitterOpen(false)}
+              onImportToSyllabus={(splitChapters) => {
+                fetchSyllabi();
+              }}
+            />
+          </div>
+        )}
 
       </div>
     </div>

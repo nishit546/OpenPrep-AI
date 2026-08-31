@@ -67,4 +67,5 @@ const HabitLog = sequelize.define(
   }
 );
 
-module.exports = HabitLog;
+module.exports = (sequelizeInstance, dataTypes) => HabitLog;
+

@@ -740,6 +740,8 @@ exports.reviewFlashcard = async (req, res, next) => {
 
     const gamificationService = require('../services/gamificationService');
     const progression = await gamificationService.awardXP(req.user.id, 30, 'flashcard_review');
+    await gamificationService.awardCoins(req.user.id, 10, 'Flashcard review reward')
+      .catch(err => console.error('Error awarding PrepCoins for flashcard review:', err));
 
     const timeZoneParam = req.headers['x-timezone'] || (req.headers['x-timezone-offset'] !== undefined ? Number(req.headers['x-timezone-offset']) : null);
     await gamificationService.updateStreak(req.user.id, timeZoneParam);

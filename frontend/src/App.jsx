@@ -63,6 +63,7 @@ const PYQIntelligenceDashboard = lazy(() => import('./pages/PYQIntelligenceDashb
 const QuizSession = lazy(() => import('./pages/QuizSession'));
 const MindMapViewer = lazy(() => import('./pages/MindMapViewer'));
 const WeaknessDetectionDashboard = lazy(() => import('./pages/WeaknessDetectionDashboard'));
+const MistakeNotebook = lazy(() => import('./pages/MistakeNotebook'));
 const StudyPlanner = lazy(() => import('./pages/StudyPlanner'));
 const StudyGoals = lazy(() => import('./pages/StudyGoals'));
 const VivaSimulator = lazy(() => import('./pages/VivaSimulator'));
@@ -70,6 +71,9 @@ const AttemptHistoryDashboard = lazy(() => import('./pages/AttemptHistoryDashboa
 const CollaborativeNoteView = lazy(() => import('./pages/CollaborativeNoteView'));
 const SquadsPage = lazy(() => import('./pages/SquadsPage'));
 const BountyBoardPage = lazy(() => import('./pages/BountyBoardPage'));
+const CodeSandboxPage = lazy(() => import('./pages/code/CodeSandboxPage'));
+const RewardsShop = lazy(() => import('./components/gamification/RewardsShop'));
+const OcrSolverPage = lazy(() => import('./pages/ocr/OcrSolverPage'));
 
 function App() {
 
@@ -285,6 +289,47 @@ function App() {
               </ProtectedRoute>
             }
           />
+
+          <Route
+            path="/code/sandbox"
+            element={
+              <ProtectedRoute>
+                <CodeSandboxPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/code/room/:inviteCode"
+            element={
+              <ProtectedRoute>
+                <CodeSandboxPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/rewards-shop"
+            element={
+              <ProtectedRoute>
+                <RewardsShop />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/ocr/solver"
+            element={
+              <ProtectedRoute>
+                <OcrSolverPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/mock-exam/:examId"
+            element={
+              <ProtectedRoute>
+                <MockExamArena />
+              </ProtectedRoute>
+            }
+          />
           <Route
             path="/ai-assistant"
             element={
@@ -317,6 +362,15 @@ function App() {
             element={
               <ProtectedRoute>
                 <PYQIntelligenceDashboard />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/mistake-notebook"
+            element={
+              <ProtectedRoute>
+                <MistakeNotebook />
               </ProtectedRoute>
             }
           />

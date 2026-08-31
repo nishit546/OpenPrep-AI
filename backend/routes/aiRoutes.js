@@ -215,5 +215,7 @@ router.post(
   aiSanitizer,
   generateQuestions
 );
-
+router.get('/cache/stats', auth, aiController.getCacheStats);
+router.post('/cache/cleanup', auth, adminAuth, aiController.clearExpiredCache);
+router.get('/artifacts/:artifactId/history', aiController.getArtifactHistory);
 module.exports = router;

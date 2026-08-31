@@ -354,3 +354,95 @@ describe('Rate Limiter Middleware - authEmailLimiter (3 req/15 min)', () => {
     expect(blocked.body.error).toBe('Too many requests. Please try again after 15 minutes.');
   });
 });
+
+describe('Tiered Token Bucket Rate Limiter Middleware', () => {
+  let app;
+  let jwtSecret;
+
+  beforeAll(() => {
+    jwtSecret = process.env.JWT_SECRET || 'test_secret';
+  });
+
+  beforeEach(() => {
+    process.env.NODE_ENV = 'development';
+    delete require.cache[require.resolve('../../middleware/rateLimiter')];
+    const rateLimiter = require('../../middleware/rateLimiter');
+
+    app = express();
+    app.use(express.json());
+
+    // Mock authentication middleware locally for tests
+    app.use((req, res, next) => {
+      const authHeader = req.headers.authorization;
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.split(' ')[1];
+        if (token === 'student_token') {
+          req.user = { id: 'student_123', role: 'student' };
+        } else if (token === 'admin_token') {
+          req.user = { id: 'admin_456', role: 'admin' };
+        }
+      }
+      next();
+    });
+
+    app.get('/api/general-endpoint', rateLimiter, (req, res) => {
+      res.status(200).json({ success: true, type: 'general' });
+    });
+
+    app.get('/api/ai/generation', rateLimiter, (req, res) => {
+      res.status(200).json({ success: true, type: 'ai' });
+    });
+
+    app.use(errorHandler);
+  });
+
+  afterEach(() => {
+    process.env.NODE_ENV = 'test';
+  });
+
+  describe('Guest / Unauthenticated Tier', () => {
+    it('blocks guests from accessing AI endpoints with 403 Forbidden', async () => {
+      const res = await request(app).get('/api/ai/generation');
+      expect(res.status).toBe(403);
+      expect(res.body.success).toBe(false);
+      expect(res.body.error).toBe('Forbidden');
+      expect(res.body.message).toContain('locked for guests');
+    });
+
+    it('limits guest general requests to 10 per minute', async () => {
+      const results = await sendNRequests(app, 'GET', '/api/general-endpoint', 11);
+      expect(results.filter(r => r.status === 200)).toHaveLength(10);
+      expect(results.filter(r => r.status === 429)).toHaveLength(1);
+    });
+  });
+
+  describe('Standard Student Tier', () => {
+    it('limits standard student general requests to 60 per minute', async () => {
+      // Opt-in for rate limiting
+      const results = await sendNRequests(app, 'GET', '/api/general-endpoint', 61, 'student_token');
+      expect(results.filter(r => r.status === 200)).toHaveLength(60);
+      expect(results.filter(r => r.status === 429)).toHaveLength(1);
+    });
+
+    it('limits standard student AI requests to 30 per hour', async () => {
+      const results = await sendNRequests(app, 'GET', '/api/ai/generation', 31, 'student_token');
+      expect(results.filter(r => r.status === 200)).toHaveLength(30);
+      expect(results.filter(r => r.status === 429)).toHaveLength(1);
+    });
+  });
+
+  describe('Admin / Moderator Tier', () => {
+    it('limits admin general requests to 120 per minute', async () => {
+      const results = await sendNRequests(app, 'GET', '/api/general-endpoint', 121, 'admin_token');
+      expect(results.filter(r => r.status === 200)).toHaveLength(120);
+      expect(results.filter(r => r.status === 429)).toHaveLength(1);
+    });
+
+    it('limits admin AI requests to 100 per hour', async () => {
+      const results = await sendNRequests(app, 'GET', '/api/ai/generation', 101, 'admin_token');
+      expect(results.filter(r => r.status === 200)).toHaveLength(100);
+      expect(results.filter(r => r.status === 429)).toHaveLength(1);
+    });
+  });
+});
+

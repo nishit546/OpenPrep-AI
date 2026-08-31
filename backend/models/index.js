@@ -1,6 +1,41 @@
 const { DataTypes, Sequelize } = require('sequelize');
 const { sequelize } = require('../config/db');
 
+ feature/ai-distractor-quality-gate
+
+const User = require('./User');
+const Quiz = require('./Quiz');
+const AIUsageLog = require('./AIUsageLog')(sequelize, DataTypes);
+const ProviderHealthStatus = require('./ProviderHealthStatus')(sequelize, DataTypes);
+
+const SchedulerVersion = require('./SchedulerVersion');
+
+const FlashcardSchedulingState = require('./FlashcardSchedulingState');
+const FlashcardReviewHistory = require('./FlashcardReviewHistory');
+const ReviewSubmissionToken = require('./ReviewSubmissionToken');
+const QuizValidationLog = require('./QuizValidationLog');
+const Folder = require('./Folder');
+const Exam = require('./Exam');
+const Subject = require('./Subject');
+const Topic = require('./Topic');
+const SkillDependency = require('./SkillDependency');
+const ExamStrategy = require('./ExamStrategy');
+const StudyTip = require('./StudyTip');
+const StudyReminder = require('./StudyReminder');
+const AlumniMentorProfile = require('./AlumniMentorProfile');
+const ResumeParseSession = require('./ResumeParseSession');
+const MockInterview = require('./MockInterview');
+const SalaryNegotiation = require('./SalaryNegotiation');
+const PYQ = require('./PYQ');
+
+
+const StudyPlan = require('./StudyPlan');
+const QuizAttempt = require('./QuizAttempt');
+
+const Note = require('./Note');
+const Question = require('./Question');
+const QuestionComment = require('./QuestionComment');
+
 /**
  * The model registry: every Sequelize model the backend can reach, wired to
  * the single shared instance and associated in one place.
@@ -38,10 +73,12 @@ const BattleParticipant = require('./BattleParticipant');
 const BattleSession = require('./BattleSession');
 const BountyAnswer = require('./BountyAnswer');
 const BountyQuestion = require('./BountyQuestion');
+const CodeRoom = require('./CodeRoom');
 const CommentFlag = require('./CommentFlag');
 const CommentVote = require('./CommentVote');
 const DeckCollaborator = require('./DeckCollaborator');
 const DeckRating = require('./DeckRating');
+ main
 const DoubtSession = require('./DoubtSession');
 const DoubtSessionMessage = require('./DoubtSessionMessage');
 const Exam = require('./Exam');
@@ -59,6 +96,7 @@ const HabitLog = require('./HabitLog');
 const HabitStreak = require('./HabitStreak');
 const HandwrittenSubmission = require('./HandwrittenSubmission');
 const LearningPath = require('./LearningPath');
+const MistakeLogEntry = require('./MistakeLogEntry');
 const MockInterview = require('./MockInterview');
 const MockInterviewSession = require('./MockInterviewSession');
 const Note = require('./Note');
@@ -79,6 +117,19 @@ const QuizBookmark = require('./QuizBookmark');
 const QuizTelemetryEvent = require('./QuizTelemetryEvent');
 const QuizValidationLog = require('./QuizValidationLog');
 const ReadinessSnapshot = require('./ReadinessSnapshot');
+ feature/ai-distractor-quality-gate
+const SubjectGoal = require('./SubjectGoal');
+const StudyHabit = require('./StudyHabit')(sequelize, DataTypes);
+const HabitLog = require('./HabitLog')(sequelize, DataTypes);
+const HabitStreak = require('./HabitStreak')(sequelize, DataTypes);
+
+
+
+const StudySquad = require('./StudySquad');
+const SquadMember = require('./SquadMember');
+const SquadChallenge = require('./SquadChallenge');
+const SquadChallengeContribution = require('./SquadChallengeContribution');
+
 const ResumeParseSession = require('./ResumeParseSession');
 const ReviewSubmissionToken = require('./ReviewSubmissionToken');
 const SalaryNegotiation = require('./SalaryNegotiation');
@@ -86,9 +137,11 @@ const SavedSession = require('./SavedSession');
 const SchedulerVersion = require('./SchedulerVersion');
 const SecurityAuditLog = require('./SecurityAuditLog');
 const SkillDependency = require('./SkillDependency');
+ main
 const SquadAchievement = require('./SquadAchievement');
 const SquadActivity = require('./SquadActivity');
 const SquadActivityReaction = require('./SquadActivityReaction');
+const SquadAuditLog = require('./SquadAuditLog');
 const SquadChallenge = require('./SquadChallenge');
 const SquadChallengeContribution = require('./SquadChallengeContribution');
 const SquadMember = require('./SquadMember');
@@ -111,6 +164,28 @@ const User = require('./User');
 const UserBadge = require('./UserBadge');
 const UserProgress = require('./UserProgress');
 const VivaSession = require('./VivaSession');
+ feature/ai-distractor-quality-gate
+const BountyQuestion = require('./BountyQuestion');
+const BountyAnswer = require('./BountyAnswer');
+const ExamIntegrityReport = require('./ExamIntegrityReport');
+const LearningPath = require('./LearningPath');
+const ModeratorAuditLog = require('./ModeratorAuditLog');
+const StudyGoal = require('./StudyGoal');
+const StudyGoalProgress = require('./StudyGoalProgress');
+const WeeklyStudyReport = require('./WeeklyStudyReport');
+const StudyMilestone = require('./StudyMilestone')(sequelize, DataTypes);
+const UserMilestone = require('./UserMilestone')(sequelize, DataTypes);
+
+
+const { Bounty, initBounty } = require('./Bounty');
+const { BountySolution, initBountySolution } = require('./BountySolution');
+const { BountySolutionVote, initBountySolutionVote } = require('./BountySolutionVote');
+
+initBounty(sequelize);
+initBountySolution(sequelize);
+initBountySolutionVote(sequelize);
+
+
 const WeeklyStudyReport = require('./WeeklyStudyReport');
 
 // Models exporting a (sequelize, DataTypes) factory.
@@ -144,6 +219,7 @@ initJobApplication(sequelize);
 initJobOpportunity(sequelize);
 initModeratorAuditLog(sequelize);
 initSponsor(sequelize);
+ main
 
 // User associations
 User.hasMany(Exam, { foreignKey: 'user', onDelete: 'CASCADE' });
@@ -153,11 +229,12 @@ User.hasMany(PYQ, { foreignKey: 'user', onDelete: 'CASCADE' });
 User.hasMany(Bounty, { foreignKey: 'authorId', as: 'bounties', onDelete: 'CASCADE' });
 Bounty.belongsTo(User, { foreignKey: 'authorId', as: 'author' });
 Bounty.belongsTo(User, { foreignKey: 'winnerId', as: 'winner' });
-
+AIWorkflowContract: require('./AIWorkflowContract'),
+AIArtifactVersion: require('./AIArtifactVersion'),
 Bounty.hasMany(BountySolution, { foreignKey: 'bountyId', as: 'solutions', onDelete: 'CASCADE' });
 BountySolution.belongsTo(Bounty, { foreignKey: 'bountyId', as: 'bounty' });
 BountySolution.belongsTo(User, { foreignKey: 'authorId', as: 'author' });
-
+AIGenerationCache: require('./AIGenerationCache'),
 BountySolution.hasMany(BountySolutionVote, { foreignKey: 'solutionId', as: 'votes', onDelete: 'CASCADE' });
 BountySolutionVote.belongsTo(BountySolution, { foreignKey: 'solutionId', as: 'solution' });
 User.hasMany(StudyPlan, { foreignKey: 'user', onDelete: 'CASCADE' });
@@ -193,7 +270,8 @@ User.hasMany(UserBadge, { foreignKey: 'userId', as: 'badgesRef', onDelete: 'CASC
 User.hasMany(UsageQuota, { foreignKey: 'userId', onDelete: 'CASCADE' });
 User.hasMany(VivaSession, { foreignKey: 'userId', as: 'vivaSessions', onDelete: 'CASCADE' });
 VivaSession.belongsTo(User, { foreignKey: 'userId', as: 'userRef' });
-
+DocumentProcessingLog: require('./DocumentProcessingLog'),
+DocumentProcessingStage: require('./DocumentProcessingStage'),
 // Exam associations
 Exam.belongsTo(User, { foreignKey: 'user', as: 'userRef' });
 Exam.hasMany(Subject, { foreignKey: 'exam', onDelete: 'CASCADE' });
@@ -281,10 +359,26 @@ QuizAttempt.hasOne(ExamIntegrityReport, { foreignKey: 'quizAttemptId', as: 'inte
 ExamIntegrityReport.belongsTo(QuizAttempt, { foreignKey: 'quizAttemptId', as: 'attemptRef' });
 ExamIntegrityReport.belongsTo(User, { foreignKey: 'userId', as: 'userRef' });
 
+// MistakeLogEntry associations
+User.hasMany(MistakeLogEntry, { foreignKey: 'user', onDelete: 'CASCADE' });
+MistakeLogEntry.belongsTo(User, { foreignKey: 'user', as: 'userRef' });
+MistakeLogEntry.belongsTo(Subject, { foreignKey: 'subjectId', as: 'subjectRef', onDelete: 'SET NULL' });
+MistakeLogEntry.belongsTo(Topic, { foreignKey: 'topicId', as: 'topicRef', onDelete: 'SET NULL' });
+MistakeLogEntry.belongsTo(QuizAttempt, { foreignKey: 'quizAttemptId', as: 'attemptRef', onDelete: 'SET NULL' });
+MistakeLogEntry.belongsTo(Quiz, { foreignKey: 'quizId', as: 'quizRef', onDelete: 'SET NULL' });
+
 // Note associations
 Note.belongsTo(Subject, { foreignKey: 'subject', as: 'subjectRef', onDelete: 'CASCADE' });
 Note.belongsTo(Topic, { foreignKey: 'topic', as: 'topicRef', onDelete: 'CASCADE' });
 Note.belongsTo(User, { foreignKey: 'user', as: 'userRef' });
+
+// CodeRoom associations
+CodeRoom.belongsTo(User, { foreignKey: 'userId', as: 'creator' });
+User.hasMany(CodeRoom, { foreignKey: 'userId' });
+
+// SquadAuditLog associations
+SquadAuditLog.belongsTo(User, { foreignKey: 'userId', as: 'actor' });
+SquadAuditLog.belongsTo(StudySquad, { foreignKey: 'squadId', as: 'squad' });
 
 // Flashcard associations
 Flashcard.belongsTo(User, { foreignKey: 'user', as: 'userRef' });
@@ -370,6 +464,12 @@ SubjectGoal.belongsTo(User, { foreignKey: 'user', as: 'userRef' });
 User.hasMany(StudySquad, { foreignKey: 'adminUserId', as: 'ownedSquads', onDelete: 'CASCADE' });
 StudySquad.belongsTo(User, { foreignKey: 'adminUserId', as: 'adminRef' });
 
+StudySquad.hasMany(Whiteboard, { foreignKey: 'squadId', onDelete: 'CASCADE' });
+Whiteboard.belongsTo(StudySquad, { foreignKey: 'squadId', as: 'squadRef' });
+
+User.hasMany(MockExamSession, { foreignKey: 'userId', onDelete: 'CASCADE' });
+MockExamSession.belongsTo(User, { foreignKey: 'userId', as: 'userRef' });
+
 StudySquad.hasMany(SquadMember, { foreignKey: 'squadId', onDelete: 'CASCADE' });
 SquadMember.belongsTo(StudySquad, { foreignKey: 'squadId', as: 'squadRef' });
 
@@ -422,6 +522,29 @@ BountyAnswer.belongsTo(BountyQuestion, { foreignKey: 'questionId', as: 'question
 User.hasMany(BountyAnswer, { foreignKey: 'userId', as: 'bountyAnswers', onDelete: 'CASCADE' });
 BountyAnswer.belongsTo(User, { foreignKey: 'userId', as: 'author' });
 
+ feature/ai-distractor-quality-gate
+const { Sequelize } = require('sequelize');
+
+module.exports = {
+  Sequelize,
+  sequelize,
+  User,
+  Exam,
+
+  Subject,
+  Topic,
+  PYQ,
+  StudyPlan,
+  Quiz,
+  QuizAttempt,
+  Note,
+  Question,
+  SchedulerVersion,
+  FlashcardSchedulingState,
+  FlashcardReviewHistory,
+  ReviewSubmissionToken,
+  QuestionComment,
+
 module.exports = {
   sequelize,
   // The library namespace, so callers can reach Sequelize.Op without a
@@ -442,10 +565,12 @@ module.exports = {
   BountyQuestion,
   BountySolution,
   BountySolutionVote,
+  CodeRoom,
   CommentFlag,
   CommentVote,
   DeckCollaborator,
   DeckRating,
+ main
   DoubtSession,
   DoubtSessionMessage,
   Exam,
@@ -466,6 +591,7 @@ module.exports = {
   JobApplication,
   JobOpportunity,
   LearningPath,
+  MistakeLogEntry,
   MockInterview,
   MockInterviewSession,
   ModeratorAuditLog,
@@ -500,6 +626,7 @@ module.exports = {
   SquadAchievement,
   SquadActivity,
   SquadActivityReaction,
+  SquadAuditLog,
   SquadChallenge,
   SquadChallengeContribution,
   SquadMember,
@@ -525,5 +652,30 @@ module.exports = {
   UserMilestone,
   UserProgress,
   VivaSession,
+ feature/ai-distractor-quality-gate
+  BountyQuestion,
+  BountyAnswer,
+  StudyHabit,
+  HabitLog,
+  HabitStreak,
+  AIUsageLog,
+  ProviderHealthStatus,
+  ExamIntegrityReport,
+  LearningPath,
+  Bounty,
+  BountySolution,
+  BountySolutionVote,
+  SkillDependency,
+  ExamStrategy,
+  StudyTip,
+  StudyReminder,
+  AlumniMentorProfile,
+  ResumeParseSession,
+  MockInterview,
+  SalaryNegotiation,
+
   WeeklyStudyReport,
+ main
 };
+
+

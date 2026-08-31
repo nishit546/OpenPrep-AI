@@ -29,10 +29,18 @@ try {
 } catch (e) {
   apiReference = null;
 }
+const { initializeDocumentProcessingRetryWorker } = require('./jobs/documentProcessingRetryWorker');
+
+// Initialize document processing retry worker
+initializeDocumentProcessingRetryWorker();
 const passport = require('./config/passport');
 const { getCorsMiddleware, getSocketCorsOrigin } = require('./middleware/corsHandler');
 const { metricsMiddleware, getMetrics } = require('./middleware/metricsMiddleware');
-
+const { initializeCacheCleanupCron } = require('./jobs/cacheCleanupCron');
+const documentProcessingRoutes = require('./routes/documentProcessingRoutes');
+app.use('/api/documents/processing', documentProcessingRoutes);
+// Initialize scheduled jobs
+initializeCacheCleanupCron();
 // Validate the whole environment against the schema in config/env.js before
 // anything else loads. Reports every problem at once and exits in production;
 // in development it warns and continues on defaults so the API still boots.
@@ -97,8 +105,6 @@ const squadRoutes = require('./routes/squadRoutes');
 const badgeRoutes = require('./routes/badgeRoutes');
 const whiteboardRoutes = require('./routes/whiteboardRoutes');
 const mockExamRoutes = require('./routes/mockExamRoutes');
-const securityRoutes = require('./routes/securityRoutes');
-const molecularRoutes = require('./routes/molecularRoutes');
 const visualizerRoutes = require('./routes/visualizerRoutes');
 const weaknessDetectionRoutes = require('./routes/weaknessDetectionRoutes');
 const pyqIntelligenceRoutes = require('./routes/pyqIntelligenceRoutes');
@@ -119,7 +125,9 @@ const studyTipRoutes = require('./routes/studyTipRoutes');
 
 const vivaRoutes = require('./routes/vivaRoutes');
 const bountyRoutes = require('./routes/bountyRoutes');
+const codeRoutes = require('./routes/codeRoutes');
 const learningPathRoutes = require('./routes/learningPathRoutes');
+const mistakeNotebookRoutes = require('./routes/mistakeNotebookRoutes');
 const { initNotificationCron } = require('./services/notificationService');
 const { initDifficultyCalibratorCron } = require('./services/difficultyCalibrator');
 const { initNightlyBadgeEvaluatorCron } = require('./services/badgeEvaluationService');
@@ -419,6 +427,7 @@ app.use('/api/study-plans', studyPlanRoutes);
 app.use('/api/milestones', milestoneRoutes);
 app.use('/api/streaks', streakRoutes);
 app.use('/api/quizzes', quizRoutes);
+app.use('/api/mistake-notebook', mistakeNotebookRoutes);
 app.use('/api/pacing-coach', pacingCoachRoutes);
 app.use('/api/questions', questionDiscussionRoutes);
 app.use('/api/comments', commentRoutes);
@@ -469,6 +478,7 @@ app.use('/api/battles', battleRoutes);
 app.use('/api/folders', folderRoutes);
 app.use('/api/badges', badgeRoutes);
 app.use('/api/bounties', bountyRoutes);
+app.use('/api/code', codeRoutes);
 
 const leaderboardRoutes = require('./routes/leaderboardRoutes');
 app.use('/api/leaderboard', leaderboardRoutes);app.get('/user/badges', protect, require('./controllers/badgeController').getUserBadges);
@@ -504,6 +514,7 @@ app.use('/api/learning-journal', learningJournalRoutes);
 const studyPlanVersioningRoutes = require('./routes/studyPlanVersioningRoutes');
 app.use('/api/study-plans/:planId', studyPlanVersioningRoutes);
 app.use('/api/interviews', mockInterviewRoutes);
+app.use('/api/pdf', require('./routes/pdfParserRoutes'));
 // Serve static assets from frontend build folder in production
 if (process.env.NODE_ENV === 'production') {
   app.use(express.static(path.join(__dirname, '../frontend/dist')));
@@ -646,6 +657,7 @@ require('./sockets/crdtHandler')(io);
 require('./sockets/squadHandler')(io);
 require('./sockets/flashcardCollaborationHandler')(io);
 require('./services/audioSignalingSocket').init(io);
+require('./services/codeRoomSocketService')(io);
 // Authenticate Socket.io connections
 io.use((socket, next) => {
   const token = socket.handshake.auth.token;

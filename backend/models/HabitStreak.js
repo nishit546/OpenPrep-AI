@@ -90,4 +90,5 @@ const HabitStreak = sequelize.define(
   }
 );
 
-module.exports = HabitStreak;
+module.exports = (sequelizeInstance, dataTypes) => HabitStreak;
+

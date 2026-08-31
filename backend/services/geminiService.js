@@ -4,8 +4,8 @@ const crypto = require('crypto');
 const { splitIntoChunks } = require('../utils/textChunking');
 const { toLocalDateString } = require('../utils/dateUtils');
 const CircuitBreaker = require('./circuitBreaker');
-
-// Notes larger than this are split into semantic chunks and summarized
+const AIContractVersioningService = require('./aiContractVersioningService');
+const AIGenerationCacheService = require('./aiGenerationCacheService');// Notes larger than this are split into semantic chunks and summarized
 // across multiple Gemini passes so no content is silently dropped.
 const NOTE_SUMMARY_CHUNK_MAX_CHARS = 11000;
 // Notes context passed to flashcard/quiz generation is condensed to this size.
