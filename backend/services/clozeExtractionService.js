@@ -1,167 +1,136 @@
-/**
- * @fileoverview AI-Powered Flashcard Cloze Deletion (Fill-in-the-Blank) Auto-Extractor.
- * Parses study text, identifies key facts, numbers, formulas, dates, and technical terms,
- * and formats them into Anki-style cloze deletion syntax: {{c1::keyword::hint}}.
- */
-
 const { GoogleGenerativeAI } = require('@google/generative-ai');
-
-// Initialize Gemini client if API key exists
 const apiKey = process.env.GEMINI_API_KEY;
 let genAI = null;
 if (apiKey && apiKey !== 'your_gemini_api_key_here') {
   genAI = new GoogleGenerativeAI(apiKey);
 }
 
-// Mask density presets specifying cloze deletion count target per sentence/paragraph
-const MASK_DENSITY_MAP = {
-  Light: { targetClozesPerCard: 1, label: 'Light (1 key term per card)' },
-  Medium: { targetClozesPerCard: 2, label: 'Medium (2 key terms per card)' },
-  Dense: { targetClozesPerCard: 3, label: 'Dense (3+ key terms per card for intense retrieval)' }
-};
-
 /**
- * Heuristic Cloze Extraction fallback using regex for numbers, formulas, dates, and key terms.
- * @param {string} text - Input text paragraph
- * @param {string} density - 'Light' | 'Medium' | 'Dense'
+ * Heuristic fallback Cloze generator when AI is offline or quota reached
  */
-function heuristicClozeExtraction(text, density = 'Medium') {
-  const targetCount = MASK_DENSITY_MAP[density]?.targetClozesPerCard || 2;
+function heuristicClozeExtract(text, count = 5) {
   const sentences = text
-    .split(/(?<=[.!?])\s+/)
-    .map(s => s.trim())
-    .filter(s => s.length > 15);
+    .split(/(?<=[.?!])\s+/)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 20);
 
   const clozeCards = [];
+  const importantKeywords = [
+    'is defined as',
+    'refers to',
+    'consists of',
+    'discovered by',
+    'principle',
+    'formula',
+    'equation',
+    'characterized by',
+    'responsible for',
+    'measured in',
+    'synthesized in',
+  ];
 
-  sentences.forEach((sentence, idx) => {
-    // Match potential targets: numbers/units, dates, capitalized technical terms, formula tokens
-    const entityRegex = /\b(\d+(?:\.\d+)?%?|\b[A-Z][a-z]{3,}\b|\b[A-Z]{2,}\b|\b\d{4}\b)/g;
-    let match;
-    const matches = [];
+  for (let i = 0; i < sentences.length && clozeCards.length < count; i++) {
+    const sentence = sentences[i];
+    const words = sentence.split(/\s+/);
 
-    while ((match = entityRegex.exec(sentence)) !== null) {
-      if (!matches.includes(match[1])) {
-        matches.push(match[1]);
+    if (words.length >= 6) {
+      // Find candidate keyword or capitalize noun
+      let targetWordIdx = -1;
+      for (let wIdx = 0; wIdx < words.length; wIdx++) {
+        const cleanWord = words[wIdx].replace(/[^a-zA-Z0-9]/g, '');
+        if (cleanWord.length >= 5 && /^[A-Z]/.test(cleanWord) && wIdx > 0) {
+          targetWordIdx = wIdx;
+          break;
+        }
       }
-    }
 
-    if (matches.length === 0) return;
+      if (targetWordIdx === -1) {
+        targetWordIdx = Math.floor(words.length / 2);
+      }
 
-    // Pick top N matches according to mask density
-    const selectedMatches = matches.slice(0, Math.min(matches.length, targetCount));
-    let clozeText = sentence;
-    const clozeDeletions = [];
+      const targetWord = words[targetWordIdx].replace(/[.,;:]/g, '');
+      const clozeSentence = words
+        .map((w, idx) => (idx === targetWordIdx ? `{{c1::${targetWord}}}` : w))
+        .join(' ');
 
-    selectedMatches.forEach((term, cIdx) => {
-      const clozeNum = cIdx + 1;
-      const clozeTag = `{{c${clozeNum}::${term}}}`;
-      clozeText = clozeText.replace(new RegExp(`\\b${term}\\b`, 'g'), clozeTag);
-      clozeDeletions.push({
-        clozeNumber: clozeNum,
-        answer: term,
-        hint: 'key term'
+      clozeCards.push({
+        front: clozeSentence,
+        back: `Answer: ${targetWord}\n\nContext: ${sentence}`,
+        clozeTerm: targetWord,
+        hint: 'Key Term',
+        isCloze: true,
       });
-    });
-
-    clozeCards.push({
-      id: `cloze-auto-${idx + 1}`,
-      originalText: sentence,
-      clozeText,
-      clozeDeletions,
-      type: 'cloze',
-      maskDensity: density,
-      tags: ['auto-cloze']
-    });
-  });
+    }
+  }
 
   return clozeCards;
 }
 
 /**
- * Main Cloze Extraction Pipeline using Gemini API with fallback heuristics.
- * @param {Object} payload - { text, maskDensity, maxCards, subject }
+ * AI Cloze Deletion Extraction Service
+ * Analyzes study notes or textbook excerpts and generates high-yield cloze deletions with hints.
  */
-async function extractClozeFlashcards({ text, maskDensity = 'Medium', maxCards = 10, subject = '' }) {
-  if (!text || typeof text !== 'string' || text.trim().length === 0) {
-    throw new Error('Invalid input text for cloze extraction.');
+async function generateClozeCardsFromText(text, { count = 5, subject = 'General' } = {}) {
+  if (!text || text.trim().length === 0) {
+    return [];
   }
 
-  const normalizedDensity = ['Light', 'Medium', 'Dense'].includes(maskDensity) ? maskDensity : 'Medium';
-  const limit = Math.min(Math.max(1, parseInt(maxCards, 10) || 10), 30);
-
-  if (genAI) {
-    try {
-      const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
-      const prompt = `
-You are an expert Anki flashcard creator specializing in Cloze Deletion (fill-in-the-blank) extraction.
-Ingest the following study text and generate high-yield Anki-style Cloze Deletion flashcards.
-
-Input Text:
-"${text}"
-
-Parameters:
-- Mask Density: ${normalizedDensity} (${MASK_DENSITY_MAP[normalizedDensity].label})
-- Max Cards: ${limit}
-- Subject/Context: "${subject || 'General Study Notes'}"
-
-Formatting Rules:
-1. Format all cloze deletions using standard Anki syntax: {{c1::keyword::hint}} or {{c1::keyword}}.
-2. For Light density, place 1 cloze deletion per card. For Medium density, place 2 cloze deletions per card. For Dense density, place 3+ cloze deletions per card.
-3. Automatically target critical dates, numbers, formulas, technical terminology, proper nouns, and core definitions.
-4. Ensure the sentence retains context when blanks are hidden.
-
-Return a JSON object in this exact schema:
-{
-  "clozeCards": [
-    {
-      "id": "cloze-1",
-      "originalText": "Full un-masked original sentence",
-      "clozeText": "Sentence with {{c1::cloze term::optional hint}} embedded.",
-      "clozeDeletions": [
-        { "clozeNumber": 1, "answer": "cloze term", "hint": "optional hint" }
-      ],
-      "tags": ["topic", "keyword"],
-      "maskDensity": "${normalizedDensity}"
-    }
-  ]
-}
-`;
-
-      const result = await model.generateContent(prompt);
-      const rawResponse = result.response.text();
-      const jsonMatch = rawResponse.match(/\{[\s\S]*\}/);
-
-      if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0]);
-        if (Array.isArray(parsed.clozeCards) && parsed.clozeCards.length > 0) {
-          return {
-            success: true,
-            totalCards: parsed.clozeCards.length,
-            maskDensity: normalizedDensity,
-            cards: parsed.clozeCards.slice(0, limit)
-          };
-        }
-      }
-    } catch (aiErr) {
-      console.warn('Gemini Cloze Extraction fallback:', aiErr.message);
-    }
+  if (!genAI) {
+    return heuristicClozeExtract(text, count);
   }
 
-  // Fallback to Regex Heuristic Cloze Extraction if Gemini API fails or is unconfigured
-  const fallbackCards = heuristicClozeExtraction(text, normalizedDensity).slice(0, limit);
+  const prompt = `You are an expert medical and STEM educator creating Anki-compatible Cloze Deletion flashcards.
+Text to extract from:
+"""
+${text.slice(0, 4000)}
+"""
 
-  return {
-    success: true,
-    totalCards: fallbackCards.length,
-    maskDensity: normalizedDensity,
-    cards: fallbackCards,
-    isFallback: true
-  };
+Task:
+Extract up to ${count} high-yield Cloze Deletion flashcards targeting key definitions, mechanism steps, formulas, or anatomical terms.
+Use standard Anki Cloze syntax: {{c1::Target Term::Optional Hint}}
+
+Format your response as a valid JSON array of objects with the exact schema:
+[
+  {
+    "front": "Complete sentence containing {{c1::Key Term::Hint}}.",
+    "back": "Key Term - Brief explanation or context",
+    "clozeTerm": "Key Term",
+    "hint": "Hint",
+    "isCloze": true,
+    "tags": ["cloze", "${subject.toLowerCase().replace(/\s+/g, '-')}"]
+  }
+]
+Return ONLY the raw JSON array.`;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: prompt,
+    });
+
+    const responseText = response.text?.trim() || '';
+    const cleanJson = responseText.replace(/^```json\s*/i, '').replace(/\s*```$/i, '').trim();
+    const parsed = JSON.parse(cleanJson);
+
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      return parsed.map((item) => ({
+        front: item.front || item.text,
+        back: item.back || item.clozeTerm || 'Explanation',
+        clozeTerm: item.clozeTerm || '',
+        hint: item.hint || '',
+        isCloze: true,
+        tags: Array.isArray(item.tags) ? item.tags : ['cloze'],
+      }));
+    }
+
+    return heuristicClozeExtract(text, count);
+  } catch (err) {
+    console.warn('[ClozeExtractionService] Gemini error, falling back to heuristic cloze generator:', err.message);
+    return heuristicClozeExtract(text, count);
+  }
 }
 
 module.exports = {
-  extractClozeFlashcards,
-  heuristicClozeExtraction,
-  MASK_DENSITY_MAP
+  generateClozeCardsFromText,
+  heuristicClozeExtract,
 };

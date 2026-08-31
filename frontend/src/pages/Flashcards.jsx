@@ -6,8 +6,10 @@ import CreateDeckModal from '../components/dashboard/CreateDeckModal';
 import CreateFlashcardDeckModal from '../components/flashcards/CreateFlashcardDeckModal';
 import YouTubeFlashcardImporter from '../components/flashcards/YouTubeFlashcardImporter';
 import DeckCollaboratorsModal from '../components/flashcards/DeckCollaboratorsModal';
+import AnkiSyncModal from '../components/flashcards/AnkiSyncModal';
+import ClozeEditor from '../components/flashcards/ClozeEditor';
 import MathRenderer from '../components/common/MathRenderer';
-import { Search, Trash2, Plus, ChevronLeft, ChevronRight, PlaySquare as Youtube, Share2, Copy, Check, BookOpen, Layers, Globe, Lock, Users, FileImage } from 'lucide-react';
+import { Search, Trash2, Plus, ChevronLeft, ChevronRight, PlaySquare as Youtube, Share2, Copy, Check, BookOpen, Layers, Globe, Lock, Users, FileImage, FileArchive, Sparkles } from 'lucide-react';
 
 const Flashcards = () => {
   const dispatch = useDispatch();
@@ -37,6 +39,9 @@ const Flashcards = () => {
   const [showYoutubeModal, setShowYoutubeModal] = useState(false);
   const [showCollaboratorsModal, setShowCollaboratorsModal] = useState(false);
   const [selectedDeckForCollaborators, setSelectedDeckForCollaborators] = useState(null);
+  const [showAnkiModal, setShowAnkiModal] = useState(false);
+  const [showClozeModal, setShowClozeModal] = useState(false);
+  const [selectedDeckForAnki, setSelectedDeckForAnki] = useState(null);
   
   // Create card target IDs
   const [targetDeckId, setTargetDeckId] = useState('');
@@ -170,11 +175,21 @@ const Flashcards = () => {
             YouTube Import
           </button>
           <button
-            onClick={() => setShowOCRModal(true)}
+            onClick={() => {
+              setSelectedDeckForAnki(decks[0] || null);
+              setShowAnkiModal(true);
+            }}
+            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-semibold shadow-md transition cursor-pointer text-sm"
+          >
+            <FileArchive className="w-4 h-4" />
+            Anki .apkg Sync
+          </button>
+          <button
+            onClick={() => setShowClozeModal(true)}
             className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-semibold shadow-md transition cursor-pointer text-sm"
           >
-            <FileImage className="w-4 h-4" />
-            Image/PDF Import
+            <Sparkles className="w-4 h-4" />
+            AI Cloze Studio
           </button>
           <button
             onClick={() => {
@@ -591,6 +606,41 @@ const Flashcards = () => {
           isOwner={true}
           canAdmin={true}
         />
+      )}
+
+      {showAnkiModal && (
+        <AnkiSyncModal
+          subjectId={selectedDeckForAnki?.id || subjects[0]?.id || ''}
+          deckName={selectedDeckForAnki?.name || 'OpenPrep Deck'}
+          onClose={() => setShowAnkiModal(false)}
+          onImportSuccess={() => {
+            fetchDecks();
+            dispatch(fetchFlashcards({ page: 1, limit: 12, sortBy, order }));
+          }}
+        />
+      )}
+
+      {showClozeModal && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <ClozeEditor
+            onClose={() => setShowClozeModal(false)}
+            onSaveCard={async (card) => {
+              try {
+                await API.post('/flashcards', {
+                  front: card.front,
+                  back: card.back || 'Cloze Deletion',
+                  subject: targetSubjectId || subjects[0]?.id,
+                  topic: topicId || null,
+                  tags: card.tags || ['cloze'],
+                });
+                fetchDecks();
+                dispatch(fetchFlashcards({ page: 1, limit: 12, sortBy, order }));
+              } catch (err) {
+                console.error('Failed to create cloze flashcard:', err);
+              }
+            }}
+          />
+        </div>
       )}
     </div>
   );

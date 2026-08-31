@@ -27,6 +27,11 @@ const {
   getLeitnerDistribution,
   getDueForecast,
 } = require('../controllers/flashcardAnalyticsController');
+const {
+  importAnkiPackage,
+  exportAnkiPackage,
+  generateClozeFromText,
+} = require('../controllers/ankiController');
 const { protect } = require('../middleware/auth');
 const cacheMiddleware = require('../middleware/cacheMiddleware');
 const { aiLimiter } = require('../middleware/rateLimiter');
@@ -42,6 +47,11 @@ validateGenerateAIFlashcards,
   validateExportFlashcards,
   validateImportFlashcards,
 } = require('../middleware/validators');const router = express.Router();
+
+// Anki APKG & AI Cloze Sync Endpoints (#2069)
+router.post('/anki/import', protect, flashcardUpload.single('file'), importAnkiPackage);
+router.get('/anki/export/:subjectId', protect, exportAnkiPackage);
+router.post('/ai/generate-cloze', protect, aiLimiter, checkQuota, generateClozeFromText);
 
 // Spaced Repetition Analytics Routes
 router.get('/analytics/leitner-distribution', protect, getLeitnerDistribution);
