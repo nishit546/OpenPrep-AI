@@ -118,7 +118,7 @@
     "sequelize-cli": "^6.6.2",
     "sequelize-mock": "^0.10.2",
     "supertest": "^7.2.2",
-    "toxiproxy-node-client": "^2.0.0",
+    "toxiproxy-node-client": "^4.1.0",
     "vitest": "^4.1.9"
   }
 }
