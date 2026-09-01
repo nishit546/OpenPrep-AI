@@ -79,7 +79,7 @@
     "pdfkit": "^0.20.1",
     "pg": "^8.23.0",
     "pg-hstore": "^2.3.4",
-    "@opentelemetry/auto-instrumentations-node": "^0.56.0",
+    "@opentelemetry/auto-instrumentations-node": "^0.79.0",
     "@opentelemetry/exporter-trace-otlp-http": "^0.57.0",
     "@opentelemetry/sdk-node": "^0.57.0",
     "ajv": "^8.17.1",
