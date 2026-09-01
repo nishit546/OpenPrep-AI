@@ -78,8 +78,8 @@ importers:
         specifier: ^13.0.3
         version: 13.0.3
       bullmq:
-        specifier: ^6.3.1
-        version: 6.3.1(ioredis@6.0.0(supports-color@5.5.0))(pg@8.23.0)(redis@6.2.1(@opentelemetry/api@1.9.1))
+        specifier: ^6.3.2
+        version: 6.3.2(ioredis@6.0.0(supports-color@5.5.0))(pg@8.23.0)(redis@6.2.1(@opentelemetry/api@1.9.1))
       cheerio:
         specifier: ^1.0.0-rc.12
         version: 1.2.0
@@ -3336,8 +3336,8 @@ packages:
   buffer@6.0.3:
     resolution: {integrity: sha512-FTiCpNxtwiZZHEZbcbTIcZjERVICn9yq/pDFkTl95/AxzD1naBctN7YO68riM/gLSDY7sdrMby8hofADYuuqOA==}
 
-  bullmq@6.3.1:
-    resolution: {integrity: sha512-dxFRQtN42H1SWpODKr1eHqFsgYPAWOKiZDihatP8Skdd/j8e0x77AP//TUqGMVuUmjHf/eNMa2e+g6bidc4oYg==}
+  bullmq@6.3.2:
+    resolution: {integrity: sha512-jW4mEG1JOKewI2IhtuMery+kNhCs+EZp4qeNXeYRfueW7P4NFOStFGHOdsiJE9EO9Abz+JMrYlymb+r7fCbT7A==}
     engines: {node: '>=14.17.0'}
     peerDependencies:
       bullmq-otel: '>=2.0.0'
@@ -4985,8 +4985,8 @@ packages:
     resolution: {integrity: sha512-4kmO/MdyUIkLIvTPr8VHLil4AtoKIoniWPIEk5+CDy0xnWC84azhSFmuJ7PxZdsYtiP5kEeQsORAVIeMgxT+Hw==}
     hasBin: true
 
-  msgpackr@2.0.5:
-    resolution: {integrity: sha512-cef05H/dSYpLpqp3sj/qyZh5vhUYCalnaLO7j1yOmpsR0y/XwLVtK7r5gn+U/F7CTEfMowcGhlUQJDLcLf7jcA==}
+  msgpackr@2.1.0:
+    resolution: {integrity: sha512-p/pBCVO63CsvvpkomUnNNag6+n38rULuDA6HHe70o2gtC8ODI52foF/4ko2qQcp6OiErJXTmrZeXmsGGHsIQNQ==}
 
   multer@2.2.0:
     resolution: {integrity: sha512-6rdyFg2kLrMh9Jee7/BMPuV9lEAd7lLW2YUpF9/YxR7njyoUwwQ0ZPh3TaIY50Sw6vlyD2HW3wGOkTS4P79xrQ==}
@@ -10397,10 +10397,10 @@ snapshots:
       base64-js: 1.5.1
       ieee754: 1.2.1
 
-  bullmq@6.3.1(ioredis@6.0.0(supports-color@5.5.0))(pg@8.23.0)(redis@6.2.1(@opentelemetry/api@1.9.1)):
+  bullmq@6.3.2(ioredis@6.0.0(supports-color@5.5.0))(pg@8.23.0)(redis@6.2.1(@opentelemetry/api@1.9.1)):
     dependencies:
       cron-parser: 5.10.0
-      msgpackr: 2.0.5
+      msgpackr: 2.1.0
       node-abort-controller: 3.1.1
       semver: 7.8.5
       tslib: 2.8.1
@@ -12271,7 +12271,7 @@ snapshots:
       '@msgpackr-extract/msgpackr-extract-win32-x64': 3.0.4
     optional: true
 
-  msgpackr@2.0.5:
+  msgpackr@2.1.0:
     optionalDependencies:
       msgpackr-extract: 3.0.4
 
