@@ -460,6 +460,8 @@ exports.submitQuizAttempt = async (req, res, next) => {
             userAnswerText: userAns ? (userAns.userAnswerText || (userAns.selectedAnswer && userAns.selectedAnswer.userAnswerText) || (typeof userAns.selectedAnswer === 'string' ? userAns.selectedAnswer : '') || '') : '',
             isCorrect,
             evaluation: evalObj,
+            confidence: userAns && userAns.confidence !== undefined ? Number(userAns.confidence) : null,
+            timeSpent: userAns && userAns.timeSpent !== undefined ? Number(userAns.timeSpent) : null,
           };
         } else {
           totalMaxPoints += 1;
@@ -477,6 +479,8 @@ exports.submitQuizAttempt = async (req, res, next) => {
             questionType: 'MCQ',
             selectedAnswer: selected,
             isCorrect,
+            confidence: userAns && userAns.confidence !== undefined ? Number(userAns.confidence) : null,
+            timeSpent: userAns && userAns.timeSpent !== undefined ? Number(userAns.timeSpent) : null,
           };
         }
       });

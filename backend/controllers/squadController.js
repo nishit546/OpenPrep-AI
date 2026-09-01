@@ -97,6 +97,115 @@ async function getMySquads(req, res, next) {
   }
 }
 
+async function getSquadHabits(req, res, next) {
+  try {
+    const { squadId } = req.params;
+    const { HabitLog, User } = require('../models');
+    const { Op } = require('sequelize');
+
+    const member = await SquadMember.findOne({ where: { squadId, userId: req.user.id } });
+    if (!member) return res.status(403).json({ error: 'Not authorized to view this squad' });
+
+    const squadMembers = await SquadMember.findAll({
+      where: { squadId },
+      include: [{ model: User, as: 'userRef', attributes: ['id', 'name', 'avatar'] }]
+    });
+
+    const userIds = squadMembers.map(m => m.userId);
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    sevenDaysAgo.setHours(0, 0, 0, 0);
+
+    const logs = await HabitLog.findAll({
+      where: {
+        userId: { [Op.in]: userIds },
+        date: { [Op.gte]: sevenDaysAgo }
+      }
+    });
+
+    const matrix = {};
+    let totalSquadXP = 0;
+    
+    squadMembers.forEach(m => {
+      matrix[m.userId] = {
+        user: m.userRef,
+        habitsByDate: {},
+        weeklyXp: 0,
+        consistencyDays: 0
+      };
+    });
+
+    logs.forEach(log => {
+      const u = matrix[log.userId];
+      if (u) {
+        if (!u.habitsByDate[log.date]) {
+          u.habitsByDate[log.date] = 0;
+          u.consistencyDays += 1;
+        }
+        u.habitsByDate[log.date] += log.completionCount;
+        
+        const xp = log.completionCount * 10;
+        u.weeklyXp += xp;
+        totalSquadXP += xp;
+      }
+    });
+
+    const level = Math.floor(totalSquadXP / 500) + 1;
+    const currentLevelXp = totalSquadXP % 500;
+    const nextLevelXp = 500;
+
+    const leaderboard = Object.values(matrix)
+      .map(u => ({
+        user: u.user,
+        xp: u.weeklyXp,
+        consistency: Math.round((u.consistencyDays / 7) * 100)
+      }))
+      .sort((a, b) => b.xp - a.xp);
+
+    res.status(200).json({
+      matrix,
+      leaderboard,
+      squadProgress: {
+        totalXp: totalSquadXP,
+        level,
+        currentLevelXp,
+        nextLevelXp
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function nudgeTeammate(req, res, next) {
+  try {
+    const { squadId } = req.params;
+    const { targetUserId } = req.body;
+    const cacheManager = require('../utils/cacheManager');
+
+    const member = await SquadMember.findOne({ where: { squadId, userId: req.user.id } });
+    if (!member) return res.status(403).json({ error: 'Not authorized' });
+
+    const targetMember = await SquadMember.findOne({ where: { squadId, userId: targetUserId } });
+    if (!targetMember) return res.status(400).json({ error: 'Target user is not in the squad' });
+
+    const cacheKey = `nudge_${squadId}_${req.user.id}_${targetUserId}`;
+    const alreadyNudged = await cacheManager.get(cacheKey);
+    if (alreadyNudged) {
+      return res.status(429).json({ error: 'Daily limit reached for nudging this teammate' });
+    }
+
+    await cacheManager.set(cacheKey, '1', 86400);
+
+    if (global.io) {
+      global.io.to(`user:${targetUserId}`).emit('squad:nudge_received', {
+        squadId,
+        fromUserId: req.user.id,
+        timestamp: new Date()
+      });
+    }
+
+    res.status(200).json({ message: 'Nudge sent successfully' });
 async function getAudioStatus(req, res, next) {
   try {
     const { id } = req.params;
@@ -122,5 +231,7 @@ module.exports = {
   leaveSquad,
   getSquadDashboard,
   getMySquads,
+  getSquadHabits,
+  nudgeTeammate
   getAudioStatus,
 };

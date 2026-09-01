@@ -29,4 +29,7 @@ router.put('/:squadId/challenges/:challengeId', challengeController.updateChalle
 router.get('/:squadId/activity', squadActivityController.getFeed);
 router.post('/:squadId/activity/:activityId/react', squadActivityController.react);
 
+router.get('/:squadId/habits', squadController.getSquadHabits);
+router.post('/:squadId/nudge', squadController.nudgeTeammate);
+
 module.exports = router;
