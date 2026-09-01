@@ -19,6 +19,13 @@ pgPool.on('error', (err) => {
   console.error('Unexpected error on idle PostgreSQL client pool:', err.message);
 });
 
+// Slow-query profiling (#2193). Off in tests so unit/integration suites
+// aren't slowed down or polluted by profiler EXPLAIN calls; on everywhere
+// else unless explicitly disabled.
+if (process.env.NODE_ENV !== 'test' && process.env.DISABLE_QUERY_PROFILER !== 'true') {
+  require('../middleware/queryProfiler').attachQueryProfiler(pgPool);
+}
+
 // Sequelize ORM instance with tuned connection pooling and statement timeouts
 const sequelize = new Sequelize(
   dbUrl,
