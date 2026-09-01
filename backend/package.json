@@ -32,7 +32,7 @@
     "@opentelemetry/resources": "^1.30.0",
     "@opentelemetry/sdk-node": "^0.57.0",
     "@opentelemetry/semantic-conventions": "^1.28.0",
-    "@scalar/express-api-reference": "^0.10.16",
+    "@scalar/express-api-reference": "^0.10.17",
     "@sentry/node": "^8.26.0",
     "@sentry/profiling-node": "^10.71.0",
     "@simplewebauthn/server": "^13.3.3",
