@@ -27,7 +27,7 @@
     "@tiptap/starter-kit": "^3.30.5",
     "@use-gesture/react": "^10.3.1",
     "@xyflow/react": "^12.11.5",
-    "axios": "^1.19.0",
+    "axios": "^1.20.0",
     "canvas-confetti": "^1.9.3",
     "dexie": "^4.4.5",
     "dompurify": "^3.4.13",
