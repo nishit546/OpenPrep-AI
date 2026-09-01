@@ -20,7 +20,7 @@
     "@opentelemetry/sdk-trace-web": "^1.30.0",
     "@react-oauth/google": "^0.13.5",
     "@reduxjs/toolkit": "^2.12.0",
-    "@sentry/react": "^10.71.0",
+    "@sentry/react": "^10.72.0",
     "@simplewebauthn/browser": "^13.3.0",
     "@tiptap/extension-highlight": "^3.30.5",
     "@tiptap/react": "^3.30.5",
