@@ -90,7 +90,7 @@ jobs:
             });
 
             // Post confirmation comment
-            const confirmationMessage = `🎉 Congratulations @${commenter}! You have successfully claimed this issue and it has been assigned to you.\n\n> 💡 **Tip**: Please review our [Contributing Guidelines](https://github.com/${owner}/${repo}/blob/main/CONTRIBUTING.md) before submitting a Pull Request. If you need any help, feel free to ask questions here in the comments! Happy coding! 🚀`;
+            const confirmationMessage = `🎉 Congratulations @${commenter}! You have successfully claimed this issue and it has been assigned to you.\n\n> ⏳ **Deadline**: Please note that the deadline for this issue is 3 days. If you do not submit a Pull Request within 3 days, this issue will be automatically closed as "not planned" so others can contribute.\n\n> 💡 **Tip**: Please review our [Contributing Guidelines](https://github.com/${owner}/${repo}/blob/main/CONTRIBUTING.md) before submitting a Pull Request. If you need any help, feel free to ask questions here in the comments! Happy coding! 🚀`;
 
             await github.rest.issues.createComment({
               owner,
