@@ -3,6 +3,7 @@ const path = require('path');
 const { execSync } = require('child_process');
 
 const issuesDir = path.join(__dirname, '..', 'issues');
+const targetLimit = parseInt(process.argv[2], 10) || 25;
 
 // Pre-fetch list of valid repo labels ONCE
 let validRepoLabels = [];
@@ -11,6 +12,22 @@ try {
   validRepoLabels = JSON.parse(labelsJson).map(l => l.name);
 } catch (e) {
   console.warn('Warning: Could not fetch GitHub labels via CLI:', e.message);
+}
+
+// Function to ensure label exists in repo
+function ensureLabel(name) {
+  const matched = validRepoLabels.find(vl => vl.toLowerCase() === name.toLowerCase());
+  if (matched) return matched;
+
+  // Otherwise create it
+  try {
+    console.log(`Creating missing label on GitHub: "${name}"`);
+    execSync(`gh label create "${name}" --color "a2eeef" --description "${name} related tasks"`, { stdio: 'ignore' });
+    validRepoLabels.push(name);
+    return name;
+  } catch (err) {
+    return null;
+  }
 }
 
 // Fetch existing issue titles on GitHub to avoid duplicates
@@ -25,12 +42,17 @@ try {
 const files = fs.readdirSync(issuesDir).filter(f => f.endsWith('.md')).sort();
 
 console.log(`Found ${files.length} issue specification files in ${issuesDir}`);
-console.log(`Processing issue creation...\n`);
+console.log(`Targeting creation of ${targetLimit} issues...\n`);
 
 let createdCount = 0;
 let skippedCount = 0;
 
 for (const file of files) {
+  if (createdCount >= targetLimit) {
+    console.log(`\nTarget limit of ${targetLimit} issues reached!`);
+    break;
+  }
+
   const filePath = path.join(issuesDir, file);
   const content = fs.readFileSync(filePath, 'utf8');
 
@@ -63,15 +85,16 @@ for (const file of files) {
     if (l.toLowerCase() === 'feature') normalized = 'enhancement';
     if (l.toLowerCase() === 'fullstack') normalized = 'frontend';
     if (l.toLowerCase() === 'architecture') normalized = 'backend';
+    if (l.toLowerCase() === 'performance') normalized = 'medium-priority';
 
-    const matched = validRepoLabels.find(vl => vl.toLowerCase() === normalized.toLowerCase());
+    const matched = ensureLabel(normalized);
     if (matched && !appliedLabels.includes(matched)) {
       appliedLabels.push(matched);
     }
   }
 
   console.log(`----------------------------------------`);
-  console.log(`Creating GitHub Issue for ${file}: "${title}"`);
+  console.log(`[${createdCount + 1}/${targetLimit}] Creating GitHub Issue for ${file}: "${title}"`);
   console.log(`Labels: ${appliedLabels.join(', ')}`);
 
   const tempBodyFile = path.join(__dirname, `temp_body_${file.replace('.md', '')}.md`);
@@ -85,6 +108,7 @@ for (const file of files) {
     const output = execSync(cmd, { cwd: path.join(__dirname, '..'), encoding: 'utf8' });
     console.log(`Success: ${output.trim()}`);
     createdCount++;
+    existingIssueTitles.push(title.toLowerCase().trim());
   } catch (err) {
     console.error(`Error creating issue for ${file}:`, err.stdout || err.stderr || err.message);
   } finally {
@@ -92,12 +116,16 @@ for (const file of files) {
       fs.unlinkSync(tempBodyFile);
     }
   }
+
+  // Small delay to prevent hitting secondary rate limits
+  execSync('node -e "setTimeout(() => {}, 1500)"');
 }
 
 console.log(`\n========================================`);
 console.log(`Publishing Complete! Summary:`);
-console.log(`- Total Issue Files: ${files.length}`);
+console.log(`- Total Issue Files in Directory: ${files.length}`);
 console.log(`- Newly Created: ${createdCount}`);
 console.log(`- Already Existing (Skipped): ${skippedCount}`);
 console.log(`========================================\n`);
+
 
