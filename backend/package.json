@@ -113,7 +113,7 @@
     "@vitest/coverage-v8": "^4.1.9",
     "babel-jest": "^30.4.1",
     "dotenv-flow": "^4.1.0",
-    "jest": "^30.4.2",
+    "jest": "^30.5.0",
     "nodemon": "^3.1.0",
     "sequelize-cli": "^6.6.2",
     "sequelize-mock": "^0.10.2",
