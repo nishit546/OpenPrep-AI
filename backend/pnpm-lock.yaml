@@ -189,8 +189,8 @@ importers:
         specifier: ^15.1.3
         version: 15.1.3
       qr-image:
-        specifier: ^2.0.0
-        version: 2.0.0
+        specifier: ^3.2.0
+        version: 3.2.0
       qrcode:
         specifier: ^1.5.4
         version: 1.5.4
@@ -5436,8 +5436,8 @@ packages:
     resolution: {integrity: sha512-BbubeCEyTuQjVMakvJQ/Sxbc93F2pwmbsxONT/ZRrwU7Ua38d8unYTwXpTVLAKJ4BDuH9IGztCjQcd/N/39Dvg==}
     engines: {node: '>=16.0.0'}
 
-  qr-image@2.0.0:
-    resolution: {integrity: sha512-BzRwZpRi5AeDWe1jXWEwvZ3epLzt1Byf21IKjCtARd8aLokNR5D4y29wcyC3J1aPMQsxSP5PYr30u3Q1XvR/1A==}
+  qr-image@3.2.0:
+    resolution: {integrity: sha512-rXKDS5Sx3YipVsqmlMJsJsk6jXylEpiHRC2+nJy66fxA5ExYyGa4PqwteW69SaVmAb2OQ18HbYriT7cGQMbduw==}
 
   qrcode@1.5.4:
     resolution: {integrity: sha512-1ca71Zgiu6ORjHqFBDpnSMTR2ReToX4l1Au1VFLyVeBTFavzQnv5JxMFr3ukHVKpSrSA2MCk0lNJSykjUfz7Zg==}
@@ -12681,7 +12681,7 @@ snapshots:
 
   pvutils@1.2.0: {}
 
-  qr-image@2.0.0: {}
+  qr-image@3.2.0: {}
 
   qrcode@1.5.4:
     dependencies:
