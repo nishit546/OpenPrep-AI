@@ -12,8 +12,8 @@ importers:
         specifier: ^2.16.0
         version: 2.16.0(supports-color@5.5.0)
       '@google/generative-ai':
-        specifier: ^0.11.4
-        version: 0.11.5
+        specifier: ^0.24.1
+        version: 0.24.1
       '@mozilla/readability':
         specifier: ^0.5.0
         version: 0.5.0
@@ -1117,8 +1117,8 @@ packages:
       '@modelcontextprotocol/sdk':
         optional: true
 
-  '@google/generative-ai@0.11.5':
-    resolution: {integrity: sha512-DviMgrnljEKh6qkDT2pVFW+NEuVhggqBUoEnyy2PNL7l4ewxXRJubk3PctC9yPl1AdRIlhqP7E076QQt+IWuTg==}
+  '@google/generative-ai@0.24.1':
+    resolution: {integrity: sha512-MqO+MLfM6kjxcKoy0p1wRzG3b4ZZXtPI+z2IE26UogS2Cm/XHO+7gGRBh6gcJsOiIVoH93UwKvW4HdgiOZCy9Q==}
     engines: {node: '>=18.0.0'}
 
   '@grpc/grpc-js@1.14.4':
@@ -7668,7 +7668,7 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  '@google/generative-ai@0.11.5': {}
+  '@google/generative-ai@0.24.1': {}
 
   '@grpc/grpc-js@1.14.4':
     dependencies:
