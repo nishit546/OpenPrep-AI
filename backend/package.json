@@ -30,7 +30,7 @@
     "@opentelemetry/auto-instrumentations-node": "^0.55.0",
     "@opentelemetry/exporter-trace-otlp-http": "^0.57.0",
     "@opentelemetry/resources": "^1.30.0",
-    "@opentelemetry/sdk-node": "^0.57.0",
+    "@opentelemetry/sdk-node": "^0.221.0",
     "@opentelemetry/semantic-conventions": "^1.28.0",
     "@scalar/express-api-reference": "^0.10.16",
     "@sentry/node": "^8.26.0",
