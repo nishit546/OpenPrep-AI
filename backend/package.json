@@ -22,7 +22,7 @@
     "test:chaos": "vitest run --config vitest.config.chaos.js"
   },
   "dependencies": {
-    "@google/genai": "^2.16.0",
+    "@google/genai": "^2.19.0",
     "@google/generative-ai": "^0.11.4",
     "@mozilla/readability": "^0.5.0",
     "@notionhq/client": "^5.26.0",
