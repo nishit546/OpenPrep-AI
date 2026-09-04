@@ -23,7 +23,7 @@
     "@sentry/react": "^10.71.0",
     "@simplewebauthn/browser": "^13.3.0",
     "@tiptap/extension-highlight": "^3.30.5",
-    "@tiptap/react": "^3.30.5",
+    "@tiptap/react": "^3.31.0",
     "@tiptap/starter-kit": "^3.30.6",
     "@use-gesture/react": "^10.3.1",
     "@xyflow/react": "^12.11.5",
