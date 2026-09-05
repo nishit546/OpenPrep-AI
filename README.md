@@ -91,13 +91,27 @@ OpenPrep-AI/
 ```
 ---
 
+## 📋 Prerequisites
+
+Before setting up OpenPrep AI, make sure you have the following installed:
+
+- **Node.js** 18 or later
+- **npm** 9 or later
+- **PostgreSQL** 14 or later (if running the database locally)
+- **Git**
+- **Docker & Docker Compose** (optional, only required for Docker-based setup)
+
+You will also need a **Gemini API key** for the AI features.
+
+---
+
 ## 🚦 Getting Started
 
 For a step-by-step setup guide with environment variable details, review the [Setup Guide](./docs/setup-guide.md).
 
 ### Quick Launch with Docker
 
-If you have Docker installed, you can spin up the frontend, backend, and PostgreSQL instances with a single command:
+If Docker and Docker Compose are installed, you can start the required services with:
 
 ```bash
 docker-compose up --build
@@ -109,7 +123,7 @@ The React frontend will be available at `http://localhost:5173` and the Express 
 
 1. **Clone the Repository**:
    ```bash
-   git clone https://github.com/yourusername/OpenPrep-AI.git
+   git clone https://github.com/nishit546/OpenPrep-AI.git
    cd OpenPrep-AI
    ```
 2. **Setup Backend**:
@@ -138,6 +152,21 @@ The React frontend will be available at `http://localhost:5173` and the Express 
 - **v3.0**: Live study battles, AI chat mentors, and React Native mobile client.
 
 For the comprehensive technical roadmap, review [docs/project-roadmap.md](./docs/project-roadmap.md).
+
+---
+
+## 📚 Documentation
+
+Useful project documentation:
+
+- [Setup Guide](./docs/setup-guide.md) — Detailed local setup and environment configuration
+- [Architecture](./docs/architecture.md) — Overview of the project architecture
+- [API Reference](./docs/api-reference.md) — Backend API documentation
+- [Socket.IO Events](./docs/socket-events.md) — Real-time event documentation
+- [Project Roadmap](./docs/project-roadmap.md) — Planned and upcoming features
+- [Contributing Guide](./CONTRIBUTING.md) — How to contribute to the project
+- [Code of Conduct](./CODE_OF_CONDUCT.md) — Community guidelines
+- [Security Policy](./SECURITY.md) — Security and vulnerability reporting
 
 ---
 
