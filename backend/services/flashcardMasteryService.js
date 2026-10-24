@@ -38,6 +38,21 @@ const RETENTION_BUCKETS = [
 // ── Forgetting Curve ─────────────────────────────────────────────────────
 
 /**
+ * Stability (in days) of a card, derived from its SM-2 state. Grows with
+ * interval, efactor and repetitions. Shared by predictRetention and the
+ * retention forecast service so both use the same notion of stability.
+ *
+ * @param {Object} card - Flashcard with interval, repetitions, efactor
+ * @returns {number} Stability in days, at least 1
+ */
+function getStability(card) {
+  const interval = card.interval || SM2_DEFAULTS.interval;
+  const efactor = card.efactor || SM2_DEFAULTS.efactor;
+  const repetitions = card.repetitions || SM2_DEFAULTS.repetitions;
+  return Math.max(1, interval * (efactor / 2.5) * (1 + repetitions * 0.1));
+}
+
+/**
  * Compute the predicted retention of a single card after `daysSinceReview`
  * days, using a simplified Ebbinghaus forgetting curve model.
  *
@@ -50,12 +65,7 @@ const RETENTION_BUCKETS = [
  * @returns {number} Predicted retention 0-100
  */
 function predictRetention(card, daysSinceReview) {
-  const interval = card.interval || SM2_DEFAULTS.interval;
-  const efactor = card.efactor || SM2_DEFAULTS.efactor;
-  const repetitions = card.repetitions || SM2_DEFAULTS.repetitions;
-
-  // Stability grows with repetitions and efactor
-  const stability = Math.max(1, interval * (efactor / 2.5) * (1 + repetitions * 0.1));
+  const stability = getStability(card);
   const decayRate = DECAY_CONSTANT * stability;
 
   // Retention decays exponentially
@@ -705,6 +715,7 @@ class NotFoundError extends Error {
 
 module.exports = {
   predictRetention,
+  getStability,
   generateCardCurve,
   generateAggregateCurve,
   classifyCard,

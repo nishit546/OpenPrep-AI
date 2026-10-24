@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import LeitnerBoxVisualizer from '../components/flashcards/LeitnerBoxVisualizer';
 import ReviewLoadForecast from '../components/flashcards/ReviewLoadForecast';
 import ForgettingCurveChart from '../components/Analytics/ForgettingCurveChart';
+import DeckRetentionHeatmap from '../components/Flashcards/DeckRetentionHeatmap';
+import ForgettingCurveSimulator from '../components/Flashcards/ForgettingCurveSimulator';
 import axios from 'axios';
 import { getLeitnerDistribution, getDueForecast } from '../services/api';
 
@@ -14,6 +16,7 @@ const SpacedRepetitionDashboard = () => {
     const [leitnerData, setLeitnerData] = useState(null);
     const [forecastData, setForecastData] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [simDeck, setSimDeck] = useState(null);
 
     const API_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
 
@@ -90,6 +93,10 @@ const SpacedRepetitionDashboard = () => {
 
                 {/* Analytics Section */}
                 <ForgettingCurveChart data={analytics} />
+
+                {/* Deck retention heatmap + forgetting curve simulator */}
+                <DeckRetentionHeatmap onSelectDeck={setSimDeck} selectedDeckId={simDeck?.deckId ?? null} />
+                {simDeck && <ForgettingCurveSimulator key={simDeck.deckId} deckId={simDeck.deckId} deckName={simDeck.name} />}
 
 
                 {/* Review Section */}

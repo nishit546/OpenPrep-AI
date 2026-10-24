@@ -29,6 +29,10 @@ const {
   getLeitnerDistribution,
   getDueForecast,
 } = require('../controllers/flashcardAnalyticsController');
+const {
+  getDeckRetentionCurve,
+  getRetentionHeatmap,
+} = require('../controllers/flashcardRetentionController');
 const { protect } = require('../middleware/auth');
 const cacheMiddleware = require('../middleware/cacheMiddleware');
 const { aiLimiter } = require('../middleware/rateLimiter');
@@ -49,6 +53,8 @@ validateGenerateAIFlashcards,
 // Spaced Repetition Analytics Routes
 router.get('/analytics/leitner-distribution', protect, getLeitnerDistribution);
 router.get('/analytics/due-forecast', protect, getDueForecast);
+router.get('/analytics/retention-heatmap', protect, getRetentionHeatmap);
+router.get('/deck/:id/retention-curve', protect, getDeckRetentionCurve);
 
 
 /**

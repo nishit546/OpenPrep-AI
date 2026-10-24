@@ -425,6 +425,11 @@ export const getLeitnerDistribution = (deckId = null) =>
 export const getDueForecast = (deckId = null) =>
   API.get('/flashcards/analytics/due-forecast', { params: { deckId } });
 
+export const getDeckRetentionCurve = (deckId, daysDelay = 3) =>
+  API.get(`/flashcards/deck/${deckId}/retention-curve`, { params: { daysDelay } });
+
+export const getRetentionHeatmap = () => API.get('/flashcards/analytics/retention-heatmap');
+
 // ── Smart Focus Pomodoro APIs ───────────────────────────────────────────
 // Consumed by components/timer/PomodoroWidget.jsx, which renders for every
 // signed-in user. Both calls were imported from here and never exported, so
