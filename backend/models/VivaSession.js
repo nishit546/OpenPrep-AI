@@ -29,6 +29,28 @@ const VivaSession = sequelize.define(
       type: DataTypes.JSONB,
       defaultValue: {},
     },
+    // Socratic engine state (see services/socraticVivaService.js)
+    topic: {
+      type: DataTypes.STRING(120),
+      allowNull: true,
+    },
+    depth: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 2,
+    },
+    // Text transcript only; no audio is ever stored.
+    transcript: {
+      type: DataTypes.JSONB,
+      allowNull: false,
+      defaultValue: [],
+    },
+    // Per-answer rubric scores: [{ conceptualAccuracy, depthOfExplanation, keywordRelevance, depth }]
+    rubric: {
+      type: DataTypes.JSONB,
+      allowNull: false,
+      defaultValue: [],
+    },
   },
   {
     timestamps: true,

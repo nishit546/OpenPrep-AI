@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import API from '../services/api';
-import VivaExamRoom from '../components/Viva/VivaExamRoom';
+import VivaExamRoom from '../components/viva/VivaExamRoom';
+import VivaTopicPicker from '../components/viva/VivaTopicPicker';
 import VivaScorecardModal from '../components/viva/VivaScorecardModal';
 import { FaGraduationCap, FaExclamationCircle } from 'react-icons/fa';
-import { Loader2 } from 'lucide-react';
 
 export default function VivaSimulator() {
   const location = useLocation();
@@ -21,16 +21,16 @@ export default function VivaSimulator() {
   const [error, setError] = useState('');
   const [showTopicInput, setShowTopicInput] = useState(!location.state?.topic);
 
-  const handleStartSession = async (e) => {
-    e.preventDefault();
-    if (!topic.trim()) return;
+  const handleStartSession = async (chosenTopic) => {
+    if (!chosenTopic || !chosenTopic.trim()) return;
+    setTopic(chosenTopic);
 
     setIsProcessing(true);
     setError('');
     setScorecard(null);
 
     try {
-      const response = await API.post('/viva/start', { topic: topic.trim() });
+      const response = await API.post('/viva/start', { topic: chosenTopic.trim() });
       if (response.data.success) {
         setSessionId(response.data.data.sessionId);
         setCurrentQuestion(response.data.data.currentQuestion);
@@ -47,7 +47,7 @@ export default function VivaSimulator() {
     }
   };
 
-  const handleRespond = async (inputText) => {
+  const handleRespond = async (inputText, rawTranscript) => {
     setIsProcessing(true);
     setError('');
 
@@ -55,6 +55,7 @@ export default function VivaSimulator() {
       const response = await API.post('/viva/respond', {
         sessionId,
         userAnswer: inputText,
+        rawTranscript,
         currentQuestion,
       });
 
@@ -138,41 +139,7 @@ export default function VivaSimulator() {
         {/* Topic Input Phase */}
         {showTopicInput ? (
           <div className="bg-neutral-900 border border-neutral-800 rounded-3xl p-8 shadow-2xl max-w-xl mx-auto space-y-6">
-            <form onSubmit={handleStartSession} className="space-y-6">
-              <div className="space-y-2">
-                <h2 className="text-stone-100 font-extrabold font-playfair text-xl">Configure Your Session</h2>
-                <p className="text-stone-400 text-xs leading-relaxed">
-                  Enter a specific topic to generate targeted oral examination questions.
-                </p>
-              </div>
-
-              <div className="space-y-1.5">
-                <label htmlFor="topic" className="text-[10px] font-black text-stone-500 uppercase tracking-widest block">
-                  Practice Topic
-                </label>
-                <input
-                  type="text"
-                  id="topic"
-                  value={topic}
-                  onChange={(e) => setTopic(e.target.value)}
-                  placeholder="e.g., Operating Systems, World War II, Chemistry"
-                  className="w-full bg-stone-950 border border-neutral-850 focus:border-indigo-500 rounded-xl px-4 py-3 text-sm text-stone-300 outline-none transition"
-                  required
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={isProcessing}
-                className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition shadow-lg hover:shadow-indigo-500/10 cursor-pointer flex items-center justify-center gap-1.5"
-              >
-                {isProcessing ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  'Start Oral Examination'
-                )}
-              </button>
-            </form>
+            <VivaTopicPicker onStart={handleStartSession} loading={isProcessing} initialTopic={topic} />
           </div>
         ) : (
           /* Interactive Viva Room Phase */

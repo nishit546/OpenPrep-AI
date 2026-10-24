@@ -10,6 +10,25 @@ export default function VivaScorecardModal({ isOpen, onClose, scorecard, onResta
     return 'bg-rose-500';
   };
 
+  // Socratic reports carry a three-dimension rubric; older sessions carry the five legacy fields.
+  const isSocratic = scorecard.conceptualAccuracy !== undefined;
+  const rubricRows = isSocratic
+    ? [
+        { label: 'Conceptual Accuracy', score: scorecard.conceptualAccuracy },
+        { label: 'Depth of Explanation', score: scorecard.depthOfExplanation },
+        { label: 'Keyword Relevance', score: scorecard.keywordRelevance },
+      ]
+    : [
+        { label: 'Conceptual Clarity', score: scorecard.conceptualDepth },
+        { label: 'Technical Accuracy', score: scorecard.technicalAccuracy },
+        { label: 'Communication Clarity', score: scorecard.communicationClarity },
+        { label: 'Vocabulary Precision', score: scorecard.vocabularyPrecision },
+        { label: 'Answer Conciseness', score: scorecard.answerConciseness },
+      ];
+  const strengths = Array.isArray(scorecard.strengths) ? scorecard.strengths : [];
+  const misconceptions = Array.isArray(scorecard.misconceptions) ? scorecard.misconceptions : [];
+  const flashcards = Array.isArray(scorecard.flashcards) ? scorecard.flashcards : [];
+
   return (
     <div
       role="dialog"
@@ -17,7 +36,7 @@ export default function VivaScorecardModal({ isOpen, onClose, scorecard, onResta
       aria-labelledby="scorecard-title"
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn"
     >
-      <div className="bg-neutral-900 border border-neutral-850 rounded-3xl w-full max-w-lg shadow-2xl p-6 relative overflow-hidden flex flex-col space-y-6">
+      <div className="bg-neutral-900 border border-neutral-850 rounded-3xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl p-6 relative flex flex-col space-y-6">
         
         {/* Header */}
         <div className="flex justify-between items-center border-b border-neutral-850 pb-4">
@@ -52,13 +71,7 @@ export default function VivaScorecardModal({ isOpen, onClose, scorecard, onResta
             <h3 className="text-stone-400 font-black text-[10px] uppercase tracking-widest">Rubrics Assessment</h3>
             
             <div className="space-y-3">
-              {[
-                { label: 'Conceptual Clarity', score: scorecard.conceptualDepth },
-                { label: 'Technical Accuracy', score: scorecard.technicalAccuracy },
-                { label: 'Communication Clarity', score: scorecard.communicationClarity },
-                { label: 'Vocabulary Precision', score: scorecard.vocabularyPrecision },
-                { label: 'Answer Conciseness', score: scorecard.answerConciseness },
-              ].map((rubric) => (
+              {rubricRows.map((rubric) => (
                 <div key={rubric.label} className="space-y-1">
                   <div className="flex justify-between text-xs font-semibold text-stone-300">
                     <span>{rubric.label}</span>
@@ -82,6 +95,41 @@ export default function VivaScorecardModal({ isOpen, onClose, scorecard, onResta
               {scorecard.feedback || 'Excellent performance overall. Focus on technical accuracy.'}
             </p>
           </div>
+
+          {(strengths.length > 0 || misconceptions.length > 0) && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <h3 className="text-stone-400 font-black text-[10px] uppercase tracking-widest">Strengths</h3>
+                <ul className="list-disc list-inside text-xs text-emerald-300 space-y-1" data-testid="viva-strengths">
+                  {strengths.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              </div>
+              <div className="space-y-2">
+                <h3 className="text-stone-400 font-black text-[10px] uppercase tracking-widest">Misconceptions</h3>
+                <ul className="list-disc list-inside text-xs text-rose-300 space-y-1" data-testid="viva-misconceptions">
+                  {misconceptions.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          )}
+
+          {flashcards.length > 0 && (
+            <div className="space-y-2">
+              <h3 className="text-stone-400 font-black text-[10px] uppercase tracking-widest">Suggested Review Flashcards</h3>
+              <ul className="space-y-2" data-testid="viva-flashcards">
+                {flashcards.map((card) => (
+                  <li key={card.front} className="text-xs bg-stone-950/20 p-3 rounded-xl border border-neutral-850/80">
+                    <p className="text-stone-200 font-semibold">{card.front}</p>
+                    <p className="text-stone-400 mt-1">{card.back}</p>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
         </div>
 

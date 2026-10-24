@@ -2,8 +2,20 @@
  * @fileoverview Controller for managing Oral Viva sessions and evaluations.
  */
 const { VivaSession, Subject } = require('../models');
-const vivaExaminerService = require('../services/vivaExaminerService');
+const socratic = require('../services/socraticVivaService');
 const logger = require('../utils/logger');
+
+const MAX_ANSWER_CHARS = 4000;
+
+/** Session topic, falling back to the subject name for sessions created before topic was stored. */
+async function resolveTopic(session) {
+  if (session.topic) return session.topic;
+  if (session.subjectId && session.subjectId !== '00000000-0000-0000-0000-000000000000') {
+    const subject = await Subject.findByPk(session.subjectId);
+    if (subject) return subject.name;
+  }
+  return 'General Studies';
+}
 
 /**
  * Starts a new viva session by generating an initial question.
@@ -20,8 +32,12 @@ exports.startSession = async (req, res, next) => {
         topicName = subject.name;
         resolvedSubjectId = subject.id;
       }
+      // An optional syllabus topic narrows the subject.
+      if (topic && typeof topic === 'string' && topic.trim().length >= 3) {
+        topicName = `${topicName}: ${socratic.sanitizeTopic(topic)}`.slice(0, 120);
+      }
     } else if (topic && typeof topic === 'string' && topic.trim().length >= 3) {
-      topicName = topic.trim();
+      topicName = socratic.sanitizeTopic(topic);
     } else {
       return res.status(400).json({
         success: false,
@@ -29,12 +45,17 @@ exports.startSession = async (req, res, next) => {
       });
     }
 
-    const initialQuestion = await vivaExaminerService.generateInitialQuestion(topicName);
+    const startDepth = socratic.DEFAULT_DEPTH;
+    const initialQuestion = await socratic.generateOpeningQuestion(topicName, startDepth);
 
     // Save session to database (turns starts with the opening question)
     const session = await VivaSession.create({
       userId: req.user.id,
       subjectId: resolvedSubjectId || '00000000-0000-0000-0000-000000000000',
+      topic: topicName,
+      depth: startDepth,
+      transcript: [{ speaker: 'AI', text: initialQuestion, at: new Date().toISOString() }],
+      rubric: [],
       turns: [
         {
           speaker: 'AI',
@@ -48,6 +69,7 @@ exports.startSession = async (req, res, next) => {
       data: {
         sessionId: session.id,
         topic: topicName,
+        depth: startDepth,
         currentQuestion: initialQuestion,
         nextQuestion: initialQuestion, // Support integration tests expecting nextQuestion
         conversationHistory: session.turns,
@@ -65,7 +87,7 @@ exports.startSession = async (req, res, next) => {
  */
 exports.respondSession = async (req, res, next) => {
   try {
-    const { sessionId, studentAnswer, userAnswer, currentQuestion } = req.body;
+    const { sessionId, studentAnswer, userAnswer, currentQuestion, rawTranscript } = req.body;
     const answer = studentAnswer || userAnswer;
 
     if (!sessionId || !answer) {
@@ -93,39 +115,50 @@ exports.respondSession = async (req, res, next) => {
       });
     }
 
-    // Determine what subjectName/topic name to pass to evaluator
-    let topicName = 'General Studies';
-    if (session.subjectId && session.subjectId !== '00000000-0000-0000-0000-000000000000') {
-      const subject = await Subject.findByPk(session.subjectId);
-      if (subject) topicName = subject.name;
-    }
+    const topicName = await resolveTopic(session);
 
     // Use last turn as the question context if available
     const lastTurn = session.turns && session.turns[session.turns.length - 1];
     const questionText = lastTurn ? lastTurn.text : (currentQuestion || 'Please answer the question.');
+    const finalAnswer = answer.trim().slice(0, MAX_ANSWER_CHARS);
 
-    const evaluation = await vivaExaminerService.evaluateVivaResponse(
-      questionText,
-      answer.trim(),
-      topicName
-    );
+    const evaluation = await socratic.evaluateAnswer({
+      topic: topicName,
+      depth: session.depth,
+      question: questionText,
+      answer: finalAnswer,
+    });
+
+    const at = new Date().toISOString();
+    const rawText = typeof rawTranscript === 'string' ? rawTranscript.trim().slice(0, MAX_ANSWER_CHARS) : '';
 
     // Update conversation history
     const updatedHistory = [
       ...session.turns,
       {
         speaker: 'student',
-        text: answer.trim(),
+        text: finalAnswer,
         score: evaluation.score,
         feedback: evaluation.feedback,
+        rubric: evaluation.rubric,
+        hesitation: evaluation.hesitation,
       },
       {
         speaker: 'AI',
         text: evaluation.nextQuestion,
+        depth: evaluation.nextDepth,
+        mode: evaluation.mode,
       },
     ];
 
     session.turns = updatedHistory;
+    session.depth = evaluation.nextDepth;
+    session.rubric = [...(session.rubric || []), { ...evaluation.rubric, depth: evaluation.depth }];
+    session.transcript = [
+      ...(session.transcript || []),
+      { speaker: 'student', text: finalAnswer, edited: !!rawText && rawText !== finalAnswer, at },
+      { speaker: 'AI', text: evaluation.nextQuestion, at },
+    ];
     await session.save();
 
     res.status(200).json({
@@ -133,6 +166,7 @@ exports.respondSession = async (req, res, next) => {
       data: {
         sessionId: session.id,
         evaluation,
+        depth: evaluation.nextDepth,
         conversationHistory: updatedHistory,
         turns: updatedHistory,
         nextQuestion: evaluation.nextQuestion,
@@ -175,14 +209,14 @@ exports.evaluateSession = async (req, res, next) => {
       });
     }
 
-    // Resolve subject / topic name
-    let topicName = 'General Studies';
-    if (session.subjectId && session.subjectId !== '00000000-0000-0000-0000-000000000000') {
-      const subject = await Subject.findByPk(session.subjectId);
-      if (subject) topicName = subject.name;
-    }
+    const topicName = await resolveTopic(session);
 
-    const scorecard = await vivaExaminerService.generateFinalScorecard(topicName, session.turns);
+    const scorecard = await socratic.generateReport({
+      topic: topicName,
+      turns: session.turns || [],
+      rubric: session.rubric || [],
+    });
+    scorecard.finalDepth = session.depth;
 
     session.score = scorecard.score;
     session.feedback = scorecard;

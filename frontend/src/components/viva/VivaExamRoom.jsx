@@ -3,6 +3,9 @@ import { FaMicrophone, FaPaperPlane, FaVolumeUp, FaVolumeMute, FaGlobe } from 'r
 import { Loader2 } from 'lucide-react';
 import ExaminerAvatar from './ExaminerAvatar';
 
+/** Milliseconds of silence after the last recognition result before listening stops. */
+export const SILENCE_MS = 2000;
+
 export default function VivaExamRoom({
   turns = [],
   nextQuestion = '',
@@ -11,6 +14,7 @@ export default function VivaExamRoom({
   loading = false,
 }) {
   const [inputText, setInputText] = useState('');
+  const [rawTranscript, setRawTranscript] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const [speechStatus, setSpeechStatus] = useState('idle'); // 'idle', 'speaking', 'listening'
   const [voiceRate, setVoiceRate] = useState(1.0);
@@ -19,6 +23,28 @@ export default function VivaExamRoom({
   const [isMuted, setIsMuted] = useState(false);
   
   const chatEndRef = useRef(null);
+  const recognitionRef = useRef(null);
+  const silenceTimerRef = useRef(null);
+
+  const clearSilenceTimer = () => {
+    if (silenceTimerRef.current) {
+      clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+    }
+  };
+
+  // Stop listening on unmount
+  useEffect(
+    () => () => {
+      clearSilenceTimer();
+      try {
+        recognitionRef.current?.stop();
+      } catch {
+        /* already stopped */
+      }
+    },
+    []
+  );
 
   // Load available voices for SpeechSynthesis
   useEffect(() => {
@@ -83,6 +109,12 @@ export default function VivaExamRoom({
     }
 
     if (isRecording) {
+      clearSilenceTimer();
+      try {
+        recognitionRef.current?.stop();
+      } catch {
+        /* already stopped */
+      }
       setIsRecording(false);
       setSpeechStatus('idle');
       return;
@@ -91,28 +123,48 @@ export default function VivaExamRoom({
     const recognition = new SpeechRecognition();
     recognition.lang = 'en-US';
     recognition.interimResults = true;
+    recognition.continuous = true;
     recognition.maxAlternatives = 1;
+    recognitionRef.current = recognition;
+
+    // End-of-speech detection: no new result for SILENCE_MS means the answer is finished.
+    const armSilenceTimer = () => {
+      clearSilenceTimer();
+      silenceTimerRef.current = setTimeout(() => {
+        try {
+          recognition.stop();
+        } catch {
+          /* already stopped */
+        }
+      }, SILENCE_MS);
+    };
 
     recognition.onstart = () => {
       setIsRecording(true);
       setSpeechStatus('listening');
+      armSilenceTimer();
     };
 
     recognition.onresult = (event) => {
       let liveText = '';
-      for (let i = event.resultIndex; i < event.results.length; i++) {
+      for (let i = 0; i < event.results.length; i++) {
         liveText += event.results[i][0].transcript;
       }
+      liveText = liveText.trim();
       setInputText(liveText);
+      setRawTranscript(liveText);
+      armSilenceTimer();
     };
 
     recognition.onerror = (event) => {
       console.error('Speech recognition error:', event.error);
+      clearSilenceTimer();
       setIsRecording(false);
       setSpeechStatus('idle');
     };
 
     recognition.onend = () => {
+      clearSilenceTimer();
       setIsRecording(false);
       setSpeechStatus('idle');
     };
@@ -123,8 +175,10 @@ export default function VivaExamRoom({
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!inputText.trim() || loading) return;
-    onRespond(inputText);
+    // Second argument is the unedited speech transcript, so the server can record that the student corrected it.
+    onRespond(inputText.trim(), rawTranscript);
     setInputText('');
+    setRawTranscript('');
   };
 
   return (
@@ -229,6 +283,12 @@ export default function VivaExamRoom({
             >
               <span className="text-[9px] font-black text-stone-500 uppercase tracking-widest px-2">
                 {turn.speaker === 'AI' ? 'Examiner' : 'Student'}
+                {turn.speaker === 'AI' && turn.mode === 'hint' && (
+                  <span className="ml-2 text-amber-400">Guiding question</span>
+                )}
+                {turn.speaker === 'AI' && turn.depth ? (
+                  <span className="ml-2 text-indigo-400">Depth {turn.depth}/5</span>
+                ) : null}
               </span>
               <div
                 className={`max-w-md px-4 py-2.5 rounded-2xl text-xs leading-relaxed ${
@@ -262,16 +322,18 @@ export default function VivaExamRoom({
             <FaMicrophone />
           </button>
           
-          <input
-            type="text"
+          <textarea
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
             disabled={loading}
+            rows={2}
             placeholder={
-              isRecording ? 'Listening live (speak clearly)...' : 'Type your technical response here...'
+              isRecording
+                ? 'Listening live. Stops after a pause; you can edit before sending...'
+                : 'Speak or type your answer. Fix any mis-heard words before sending.'
             }
-            className="flex-1 bg-stone-950/60 border border-neutral-850 focus:border-indigo-500 rounded-xl px-4 py-2.5 text-xs text-stone-200 outline-none transition"
-            aria-label="Student response input"
+            className="flex-1 resize-none bg-stone-950/60 border border-neutral-850 focus:border-indigo-500 rounded-xl px-4 py-2.5 text-xs text-stone-200 outline-none transition"
+            aria-label="Student response transcript (editable)"
           />
 
           <button
