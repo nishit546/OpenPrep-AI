@@ -9,14 +9,14 @@
  * 4. DB RAG Hybrid Search: Integrates PostgreSQL `pgvector` cosine similarity with full-text search.
  */
 
-const { Pool } = require('pg');
 const { GoogleGenAI } = require('@google/genai');
 const { Question, Flashcard, Note } = require('../models');
 const geminiService = require('./geminiService');
 const searchIndex = require('./searchIndexService');
 
-const pool = new Pool();
-const aiClient = new GoogleGenAI();
+// Created on first use: constructing the client at import time throws when no API key is configured.
+let aiClient;
+const getAiClient = () => (aiClient ||= new GoogleGenAI());
 
 const INDEX_LIMIT = 250;
 const RRF_K = 60;
@@ -122,7 +122,7 @@ async function embedOrNull(text, ai = geminiService) {
     if (ai.generateEmbedding) {
       return await ai.generateEmbedding(text);
     }
-    const response = await aiClient.models.embedContent({
+    const response = await getAiClient().models.embedContent({
       model: 'text-embedding-004',
       contents: text,
     });
@@ -234,48 +234,202 @@ function fuse(rankings) {
   return [...merged.values()].sort((a, b) => b.score - a.score);
 }
 
-/** PostgreSQL pgvector Hybrid Search (Document Embeddings RAG) */
-async function hybridDbSearch(queryText, limit = 5) {
-  const queryEmbedding = await embedOrNull(queryText);
-  if (!queryEmbedding) return [];
+// ---------------------------------------------------------------------------
+// Document chunk search (PostgreSQL pgvector + full-text, fused with RRF)
+// ---------------------------------------------------------------------------
 
-  const vectorStr = `[${queryEmbedding.join(',')}]`;
+const EMBEDDING_DIMENSIONS = 768;
+const CANDIDATES_PER_LIST = 50;
+const CHUNK_SIZE = 1000;
+const CHUNK_OVERLAP = 150;
+const MAX_CHUNKS_PER_DOCUMENT = 2000;
 
-  const query = `
+const defaultDb = {
+  query: (sql, params) => {
+    const { sequelize } = require('../config/db');
+    return sequelize.query(sql, { bind: params, type: 'SELECT' });
+  },
+};
+
+const toVectorLiteral = (vector) => `[${vector.join(',')}]`;
+
+const isValidEmbedding = (vector) =>
+  Array.isArray(vector) &&
+  vector.length === EMBEDDING_DIMENSIONS &&
+  vector.every((value) => Number.isFinite(value));
+
+async function embedChunk(text, deps = {}) {
+  const generate = deps.generateVector || require('./embeddingsProcessor').generateVector;
+  try {
+    const vector = await generate(text);
+    return isValidEmbedding(vector) ? vector : null;
+  } catch (error) {
+    console.warn('[HybridSearch] Document embedding failed:', error.message);
+    return null;
+  }
+}
+
+/**
+ * Split text into overlapping chunks, preferring to break on whitespace.
+ */
+function chunkText(text, { size = CHUNK_SIZE, overlap = CHUNK_OVERLAP } = {}) {
+  const clean = String(text || '').replace(/\s+/g, ' ').trim();
+  if (!clean) return [];
+  if (clean.length <= size) return [clean];
+
+  const chunks = [];
+  let start = 0;
+  while (start < clean.length) {
+    let end = Math.min(start + size, clean.length);
+    if (end < clean.length) {
+      const lastSpace = clean.lastIndexOf(' ', end);
+      if (lastSpace > start + size / 2) end = lastSpace;
+    }
+    chunks.push(clean.slice(start, end).trim());
+    if (end >= clean.length) break;
+    start = Math.max(end - overlap, start + 1);
+  }
+  return chunks.filter(Boolean);
+}
+
+/**
+ * Chunk a document, embed each chunk and store it for the owning user.
+ * `pages` is [{ page, text }]; a plain `text` string is treated as one page-less block.
+ * A chunk whose embedding fails is still stored (lexical search keeps working)
+ * and is counted in `embeddingFailures`. Re-indexing replaces earlier chunks.
+ */
+async function indexDocumentChunks({ userId, documentId, pages, text }, deps = {}) {
+  if (!userId || !documentId) throw new Error('userId and documentId are required');
+
+  const sources = Array.isArray(pages) && pages.length ? pages : [{ page: null, text }];
+  const chunks = [];
+  for (const source of sources) {
+    for (const piece of chunkText(source.text, deps.chunking)) {
+      chunks.push({ content: piece, page: Number.isInteger(source.page) ? source.page : null });
+    }
+  }
+  if (chunks.length > MAX_CHUNKS_PER_DOCUMENT) {
+    throw new Error(`Document is too large to index (max ${MAX_CHUNKS_PER_DOCUMENT} chunks)`);
+  }
+
+  const db = deps.db || defaultDb;
+  const concurrency = deps.concurrency || EMBED_CONCURRENCY;
+  const embeddings = await mapWithConcurrency(chunks, concurrency, (chunk) =>
+    embedChunk(chunk.content, deps)
+  );
+
+  await db.query(
+    'DELETE FROM document_chunks WHERE "userId" = $1 AND "documentId" = $2 RETURNING id',
+    [userId, documentId]
+  );
+
+  for (let i = 0; i < chunks.length; i += 1) {
+    await db.query(
+      `INSERT INTO document_chunks ("userId", "documentId", "chunkIndex", "chunkText", "pageNumber", embedding)
+       VALUES ($1, $2, $3, $4, $5, $6::vector) RETURNING id`,
+      [
+        userId,
+        documentId,
+        i,
+        chunks[i].content,
+        chunks[i].page,
+        embeddings[i] ? toVectorLiteral(embeddings[i]) : null,
+      ]
+    );
+  }
+
+  return {
+    chunks: chunks.length,
+    embeddingFailures: embeddings.filter((vector) => !vector).length,
+  };
+}
+
+/** Job name so indexing runs out of band via services/queueService. */
+const INDEX_JOB = 'index_document_chunks';
+
+async function enqueueDocumentIndexing(payload, deps = {}) {
+  const queue = deps.queueService || require('./queueService');
+  try {
+    await queue.enqueue(INDEX_JOB, payload);
+    return { queued: true };
+  } catch (error) {
+    console.warn('[HybridSearch] Queue unavailable, indexing inline:', error.message);
+    const result = await indexDocumentChunks(payload, deps);
+    return { queued: false, ...result };
+  }
+}
+
+function registerIndexingHandler(deps = {}) {
+  const queue = deps.queueService || require('./queueService');
+  queue.registerHandler(INDEX_JOB, (payload) => indexDocumentChunks(payload, deps));
+}
+
+/**
+ * Hybrid search over one user's document chunks. Vector (cosine, HNSW) and
+ * full-text (websearch_to_tsquery, GIN) candidates are fused with Reciprocal
+ * Rank Fusion: score(d) = sum over lists of 1 / (60 + rank). A chunk missing
+ * from a list contributes nothing for that list. If the query cannot be
+ * embedded, the search falls back to full-text only.
+ *
+ * Every query is scoped by "userId"; optional `documentId` narrows further.
+ */
+async function hybridDbSearch(queryText, { userId, documentId = null, limit = 5 } = {}, deps = {}) {
+  const normalized = String(queryText || '').trim();
+  if (!userId || !normalized) return [];
+
+  const db = deps.db || defaultDb;
+  const safeLimit = Math.min(Math.max(parseInt(limit, 10) || 5, 1), 50);
+
+  const queryEmbedding = await embedChunk(normalized, deps);
+  const vectorLiteral = queryEmbedding ? toVectorLiteral(queryEmbedding) : null;
+
+  const sql = `
     WITH vector_search AS (
-      SELECT id, document_id, chunk_index, content, metadata,
-             1 - (embedding <=> $1::vector) AS vector_score,
-             ROW_NUMBER() OVER (ORDER BY embedding <=> $1::vector) AS vector_rank
-      FROM document_embeddings
+      SELECT id, ROW_NUMBER() OVER (ORDER BY embedding <=> $1::vector) AS rank
+      FROM document_chunks
+      WHERE $1::vector IS NOT NULL
+        AND "userId" = $2::uuid
+        AND ($4::uuid IS NULL OR "documentId" = $4::uuid)
+        AND embedding IS NOT NULL
       ORDER BY embedding <=> $1::vector
-      LIMIT 50
+      LIMIT ${CANDIDATES_PER_LIST}
     ),
     fts_search AS (
-      SELECT id, document_id, chunk_index, content, metadata,
-             ts_rank(to_tsvector('english', content), plainto_tsquery('english', $2)) AS fts_score,
-             ROW_NUMBER() OVER (ORDER BY ts_rank(to_tsvector('english', content), plainto_tsquery('english', $2)) DESC) AS fts_rank
-      FROM document_embeddings
-      WHERE to_tsvector('english', content) @@ plainto_tsquery('english', $2)
-      LIMIT 50
+      SELECT id, ROW_NUMBER() OVER (ORDER BY ts_rank(tsv, websearch_to_tsquery('english', $3)) DESC) AS rank
+      FROM document_chunks
+      WHERE "userId" = $2::uuid
+        AND ($4::uuid IS NULL OR "documentId" = $4::uuid)
+        AND tsv @@ websearch_to_tsquery('english', $3)
+      ORDER BY ts_rank(tsv, websearch_to_tsquery('english', $3)) DESC
+      LIMIT ${CANDIDATES_PER_LIST}
     ),
-    rrf AS (
+    fused AS (
       SELECT COALESCE(v.id, f.id) AS id,
-             COALESCE(v.document_id, f.document_id) AS document_id,
-             COALESCE(v.chunk_index, f.chunk_index) AS chunk_index,
-             COALESCE(v.content, f.content) AS content,
-             COALESCE(v.metadata, f.metadata) AS metadata,
-             (1.0 / (${RRF_K}.0 + COALESCE(v.vector_rank, 100))) + 
-             (1.0 / (${RRF_K}.0 + COALESCE(f.fts_rank, 100))) AS rrf_score
+             COALESCE(1.0 / (${RRF_K} + v.rank), 0) + COALESCE(1.0 / (${RRF_K} + f.rank), 0) AS score
       FROM vector_search v
       FULL OUTER JOIN fts_search f ON v.id = f.id
     )
-    SELECT * FROM rrf
-    ORDER BY rrf_score DESC
-    LIMIT $3;
+    SELECT c.id, c."documentId", c."chunkIndex", c."chunkText" AS content,
+           c."pageNumber", c.metadata, fused.score
+    FROM fused
+    JOIN document_chunks c ON c.id = fused.id
+    ORDER BY fused.score DESC
+    LIMIT $5;
   `;
 
-  const { rows } = await pool.query(query, [vectorStr, queryText, limit]);
-  return rows;
+  const rows = await db.query(sql, [vectorLiteral, userId, normalized, documentId, safeLimit]);
+  const list = Array.isArray(rows) ? rows : rows?.rows || [];
+
+  return list.map((row) => ({
+    id: row.id,
+    documentId: row.documentId,
+    chunkIndex: row.chunkIndex,
+    page: row.pageNumber ?? null,
+    content: row.content,
+    snippet: makeSnippet(row.content, normalized),
+    metadata: row.metadata || {},
+    score: Number(Number(row.score).toFixed(5)),
+  }));
 }
 
 async function search({ userId, query, type = 'all', subject }, deps = {}) {
@@ -332,6 +486,12 @@ function clearCache() {
 module.exports = {
   search,
   hybridDbSearch,
+  hybridSearch: hybridDbSearch,
+  chunkText,
+  indexDocumentChunks,
+  enqueueDocumentIndexing,
+  registerIndexingHandler,
+  EMBEDDING_DIMENSIONS,
   cosine,
   makeSnippet,
   clearCache,

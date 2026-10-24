@@ -43,6 +43,7 @@ const CommentFlag = require('./CommentFlag');
 const CommentVote = require('./CommentVote');
 const DeckCollaborator = require('./DeckCollaborator');
 const DeckRating = require('./DeckRating');
+const DocumentChunk = require('./DocumentChunk');
 const DoubtSession = require('./DoubtSession');
 const DoubtSessionMessage = require('./DoubtSessionMessage');
 const Exam = require('./Exam');
@@ -479,6 +480,7 @@ module.exports = {
   CommentVote,
   DeckCollaborator,
   DeckRating,
+  DocumentChunk,
   DoubtSession,
   DoubtSessionMessage,
   Exam,
