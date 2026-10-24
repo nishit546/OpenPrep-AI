@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchFlashcards, deleteFlashcard } from '../store/slices/flashcardSlice';
 import API from '../services/api';
@@ -6,8 +6,11 @@ import CreateDeckModal from '../components/dashboard/CreateDeckModal';
 import CreateFlashcardDeckModal from '../components/flashcards/CreateFlashcardDeckModal';
 import YouTubeFlashcardImporter from '../components/flashcards/YouTubeFlashcardImporter';
 import DeckCollaboratorsModal from '../components/flashcards/DeckCollaboratorsModal';
+import TagFilterBar from '../components/flashcards/TagFilterBar';
+import BatchActionToolbar from '../components/flashcards/BatchActionToolbar';
+import useBatchSelection from '../hooks/useBatchSelection';
 import MathRenderer from '../components/common/MathRenderer';
-import { Search, Trash2, Plus, ChevronLeft, ChevronRight, PlaySquare as Youtube, Share2, Copy, Check, BookOpen, Layers, Globe, Lock, Users, FileImage } from 'lucide-react';
+import { Search, Trash2, Plus, ChevronLeft, ChevronRight, PlaySquare as Youtube, Share2, Copy, Check, BookOpen, Layers, Globe, Lock, Users, FileImage, CheckSquare, Square } from 'lucide-react';
 
 const Flashcards = () => {
   const dispatch = useDispatch();
@@ -44,6 +47,112 @@ const Flashcards = () => {
 
   // Copy state for share links
   const [copiedDeckId, setCopiedDeckId] = useState(null);
+
+  // Multi-tag filtering state
+  const [activeTags, setActiveTags] = useState([]);
+
+  // Extract all distinct tags and count cards per tag
+  const availableTags = useMemo(() => {
+    const tagSet = new Set();
+    flashcards.forEach((c) => {
+      if (c.subject?.name) tagSet.add(c.subject.name);
+      if (c.topic?.name) tagSet.add(c.topic.name);
+      if (Array.isArray(c.tags)) c.tags.forEach((t) => tagSet.add(t));
+    });
+    return Array.from(tagSet);
+  }, [flashcards]);
+
+  const tagCounts = useMemo(() => {
+    const counts = {};
+    flashcards.forEach((c) => {
+      const cardTags = new Set(
+        [c.subject?.name, c.topic?.name, ...(Array.isArray(c.tags) ? c.tags : [])].filter(Boolean)
+      );
+      cardTags.forEach((t) => {
+        counts[t] = (counts[t] || 0) + 1;
+      });
+    });
+    return counts;
+  }, [flashcards]);
+
+  // Filter cards by active tag pills
+  const filteredFlashcards = useMemo(() => {
+    if (activeTags.length === 0) return flashcards;
+    return flashcards.filter((c) => {
+      const cardTags = [
+        c.subject?.name,
+        c.topic?.name,
+        ...(Array.isArray(c.tags) ? c.tags : [])
+      ].filter(Boolean);
+      return activeTags.some((t) => cardTags.includes(t));
+    });
+  }, [flashcards, activeTags]);
+
+  // Hook for multi-item batch selection
+  const {
+    selectedIds,
+    selectedList,
+    selectedCount,
+    isSelected,
+    isAllSelected,
+    toggleSelect,
+    selectAll,
+    clearSelection
+  } = useBatchSelection(filteredFlashcards);
+
+  const handleToggleTag = (tag) => {
+    setActiveTags((prev) =>
+      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
+    );
+  };
+
+  const handleClearTags = () => {
+    setActiveTags([]);
+  };
+
+  const handleBatchTag = async (newTag) => {
+    try {
+      await Promise.all(
+        selectedList.map((id) => API.put(`/flashcards/${id}`, { tags: [newTag] }))
+      );
+      dispatch(fetchFlashcards({ page, limit: 12, sortBy, order, search, subjectId, topicId, deckId }));
+      clearSelection();
+    } catch (err) {
+      console.error('Failed to batch tag cards:', err);
+    }
+  };
+
+  const handleBatchMove = async (destinationDeckId) => {
+    try {
+      await Promise.all(
+        selectedList.map((id) => API.put(`/flashcards/${id}`, { deckId: destinationDeckId }))
+      );
+      dispatch(fetchFlashcards({ page, limit: 12, sortBy, order, search, subjectId, topicId, deckId }));
+      clearSelection();
+    } catch (err) {
+      console.error('Failed to batch move cards:', err);
+    }
+  };
+
+  const handleBatchExport = () => {
+    const selectedCards = flashcards.filter((c) => selectedIds.has(c.id));
+    const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(selectedCards, null, 2));
+    const downloadAnchor = document.createElement('a');
+    downloadAnchor.setAttribute('href', dataStr);
+    downloadAnchor.setAttribute('download', `flashcards_batch_export_${Date.now()}.json`);
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
+  };
+
+  const handleBatchDelete = async () => {
+    try {
+      await Promise.all(selectedList.map((id) => dispatch(deleteFlashcard(id))));
+      clearSelection();
+    } catch (err) {
+      console.error('Failed to delete selected cards:', err);
+    }
+  };
 
   const fetchDecks = async () => {
     setDecksLoading(true);
@@ -462,6 +571,19 @@ const Flashcards = () => {
             </div>
           </div>
 
+          {/* Multi-Tag Filter Pills */}
+          {availableTags.length > 0 && (
+            <div className="mb-6 p-2 bg-neutral-50 dark:bg-neutral-900 rounded-2xl border border-neutral-200 dark:border-neutral-800">
+              <TagFilterBar
+                availableTags={availableTags}
+                activeTags={activeTags}
+                onToggleTag={handleToggleTag}
+                onClearTags={handleClearTags}
+                tagCounts={tagCounts}
+              />
+            </div>
+          )}
+
           {error && <div className="p-4 mb-6 bg-red-100 text-red-700 rounded-xl">{error}</div>}
 
           {/* Grid of Flashcards */}
@@ -471,22 +593,40 @@ const Flashcards = () => {
                 <div key={i} className="animate-pulse bg-neutral-100 dark:bg-neutral-850 h-48 rounded-2xl" />
               ))}
             </div>
-          ) : flashcards.length === 0 ? (
+          ) : filteredFlashcards.length === 0 ? (
             <div className="text-center py-12 text-neutral-500 dark:text-neutral-400">
-              No flashcards found. Create a card inside a deck or add a card to get started!
+              No flashcards found matching the selected filters.
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-              {flashcards.map((card) => (
+              {filteredFlashcards.map((card) => (
                 <div
                   key={card.id}
-                  className="bg-white dark:bg-neutral-900 rounded-2xl p-5 border border-neutral-200 dark:border-neutral-800 shadow-sm hover:shadow-md transition flex flex-col justify-between"
+                  className={`bg-white dark:bg-neutral-900 rounded-2xl p-5 border shadow-sm hover:shadow-md transition flex flex-col justify-between ${
+                    isSelected(card.id)
+                      ? 'border-amber-500 ring-2 ring-amber-500/20'
+                      : 'border-neutral-200 dark:border-neutral-800'
+                  }`}
                 >
                   <div>
                     <div className="flex justify-between items-start gap-2 mb-3">
-                      <span className="text-[10px] font-semibold px-2 py-0.5 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 rounded-full">
-                        {card.subject?.name || 'Subject'}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => toggleSelect(card.id)}
+                          className="text-neutral-400 hover:text-amber-500 transition cursor-pointer"
+                          aria-label={isSelected(card.id) ? 'Deselect card' : 'Select card'}
+                        >
+                          {isSelected(card.id) ? (
+                            <CheckSquare className="w-4 h-4 text-amber-500" />
+                          ) : (
+                            <Square className="w-4 h-4 text-neutral-400" />
+                          )}
+                        </button>
+                        <span className="text-[10px] font-semibold px-2 py-0.5 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 rounded-full">
+                          {card.subject?.name || 'Subject'}
+                        </span>
+                      </div>
                       <button
                         onClick={() => handleDeleteCard(card.id)}
                         className="text-neutral-400 hover:text-red-500 transition cursor-pointer"
@@ -535,6 +675,21 @@ const Flashcards = () => {
               </button>
             </div>
           )}
+
+          {/* Floating Bulk Action Toolbar */}
+          <BatchActionToolbar
+            selectedCount={selectedCount}
+            selectedIds={selectedList}
+            totalFilteredCount={filteredFlashcards.length}
+            isAllSelected={isAllSelected}
+            onSelectAll={selectAll}
+            onClearSelection={clearSelection}
+            onBatchTag={handleBatchTag}
+            onBatchMove={handleBatchMove}
+            onBatchExport={handleBatchExport}
+            onBatchDelete={handleBatchDelete}
+            availableDecks={decks}
+          />
         </div>
       )}
 
