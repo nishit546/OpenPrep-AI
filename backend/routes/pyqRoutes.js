@@ -14,6 +14,7 @@ const {
   getSubjectAnalyses,
   exportPYQAnalysisPDF,
   getPYQMetadata,
+  exportWorksheetPDF,
 } = require('../controllers/pyqController');
 
 const multer = require('multer');
@@ -448,6 +449,7 @@ router.delete('/:id', protect, clearCache('pyqs:*'), clearCache((req) => `pyqs:$
 router.post('/analyze', protect, upload.array('files', 10), analyzePYQBatch);
 router.get('/subject/:subjectId', protect, getSubjectAnalyses);
 router.get('/analysis/:analysisId/export', protect, exportPYQAnalysisPDF);
+router.get('/export/worksheet/:id', protect, exportWorksheetPDF);
 
 /**
  * @swagger
