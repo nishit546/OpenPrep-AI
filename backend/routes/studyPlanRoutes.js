@@ -17,6 +17,7 @@ const {
   getReadinessScore,
   exportStudyPlanIcsWithRevisions,
   getGoogleCalendarUrl,
+  getVelocityMetrics,
 } = require('../controllers/studyPlanController');
 const { protect } = require('../middleware/auth');
 const { aiLimiter } = require('../middleware/rateLimiter');
@@ -464,6 +465,25 @@ router.post('/:id/reschedule', protect, aiLimiter, checkAiQuota, rescheduleOverd
  *               $ref: '#/components/schemas/Error'
  */
 router.post('/rebalance', protect, aiLimiter, checkAiQuota, rebalanceStudyPlan);
+/**
+ * @swagger
+ * /api/study-plans/velocity-metrics:
+ *   get:
+ *     summary: Study velocity vs required pace for the active plan, with burnout risk and tips
+ *     tags: [Study Plans]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Velocity metrics, or null data when the user has no active plan
+ *       401:
+ *         description: Not authenticated
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
+router.get('/velocity-metrics', protect, getVelocityMetrics);
 router.get('/:id/burndown', protect, getBurndown);
 router.get('/:id/readiness-score', protect, getReadinessScore);
 

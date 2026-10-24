@@ -1085,6 +1085,72 @@ exports.exportStudyPlanIcsWithRevisions = async (req, res, next) => {
   }
 };
 
+// Unfinished work for a plan: StudyTask rows of the current plan version, falling
+// back to the tasks stored in dailyGoals when no StudyTask rows exist.
+async function loadUnfinishedTasks(plan, { StudyPlanVersion, StudyTask }) {
+  const version = await StudyPlanVersion.findOne({
+    where: { planId: plan.id, versionNumber: plan.currentVersionNumber },
+  });
+  if (version) {
+    const rows = await StudyTask.findAll({
+      where: { versionId: version.id, completionStatus: { [Op.in]: ['pending', 'in_progress'] } },
+    });
+    if (rows.length) return rows.map((t) => ({ estimatedHours: t.estimatedHours }));
+  }
+  const tasks = [];
+  (plan.dailyGoals || []).forEach((goal) => {
+    (goal.tasks || []).forEach((t) => {
+      if (!t.completed) tasks.push({ estimatedHours: (t.duration || 60) / 60 });
+    });
+  });
+  return tasks;
+}
+
+// @desc    Study velocity vs. required pace, with a burnout risk score and tips
+// @route   GET /api/study-plans/velocity-metrics
+// @access  Private
+exports.createGetVelocityMetrics = (deps = {}) => async (req, res, next) => {
+  try {
+    const models = deps.models || require('../models');
+    const { StudyPlan: PlanModel, StudySession, QuizAttempt: AttemptModel } = models;
+    const now = deps.now ? deps.now() : new Date();
+    const { buildVelocityMetrics } = require('../services/studyVelocityService');
+
+    const plan = await PlanModel.findOne({ where: { user: req.user.id, status: 'active' } });
+    if (!plan) {
+      return res.status(200).json({ success: true, data: null });
+    }
+
+    const since = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
+    const [tasks, sessionRows, attemptRows] = await Promise.all([
+      loadUnfinishedTasks(plan, models),
+      StudySession.findAll({ where: { userId: req.user.id, createdAt: { [Op.gte]: since } } }),
+      AttemptModel.findAll({
+        where: { user: req.user.id, createdAt: { [Op.gte]: since } },
+        attributes: ['score', 'totalQuestions', 'createdAt'],
+      }),
+    ]);
+
+    // StudySession stores minutes and createdAt; the service works in hours.
+    const sessions = sessionRows.map((s) => ({
+      durationHours: s.durationMinutes / 60,
+      timestamp: s.createdAt,
+    }));
+
+    const data = buildVelocityMetrics({
+      sessions,
+      tasks,
+      quizAttempts: attemptRows,
+      examDate: plan.endDate,
+      now,
+    });
+
+    res.status(200).json({ success: true, data: { ...data, planId: plan.id } });
+  } catch (error) {
+    next(error);
+  }
+};
+
 /**
  * Generate a Google Calendar pre-filled URL for the first upcoming
  * study session in the plan.
@@ -1129,3 +1195,4 @@ exports.getGoogleCalendarUrl = async (req, res, next) => {
 };
 
 
+exports.getVelocityMetrics = exports.createGetVelocityMetrics();

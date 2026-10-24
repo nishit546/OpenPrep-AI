@@ -82,6 +82,7 @@ import ActivityHeatmap from '../components/dashboard/ActivityHeatmap';
 import LeaderboardWidget from '../components/dashboard/LeaderboardWidget';
 import ExamCountdownWidget from '../components/dashboard/ExamCountdownWidget';
 import ExamCountdownCard from '../components/dashboard/ExamCountdownCard';
+import StudyVelocityGauge from '../components/dashboard/StudyVelocityGauge';
 import TargetExamOverviewWidget from '../components/dashboard/TargetExamOverviewWidget';
 import InteractiveDashboard from '../components/dashboard/InteractiveDashboard';
 import CustomizableDashboard from '../components/Dashboard';
@@ -671,6 +672,11 @@ const [isNoteModalOpen, setIsNoteModalOpen] = useState(false);
                   onRefresh={fetchAll}
                 />
               </motion.div>
+
+              {/* --- STUDY VELOCITY & BURNOUT GAUGE --- */}
+              <div className="mt-5 max-w-3xl">
+                <StudyVelocityGauge />
+              </div>
             </div>
           </motion.div>
           <motion.div
