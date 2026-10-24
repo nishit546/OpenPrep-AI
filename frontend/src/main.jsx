@@ -11,6 +11,7 @@ import { SessionTimerProvider } from './context/SessionTimerContext'
 import SentryErrorBoundary from './components/common/SentryErrorBoundary'
 import './index.css'
 import './styles/rtl.css';
+import './styles/print-exam.css';
 import './i18n';
 
 import App from './App.jsx'

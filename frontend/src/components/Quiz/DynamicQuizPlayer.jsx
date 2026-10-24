@@ -2,12 +2,15 @@
  * @fileoverview Interactive quiz player that reveals detailed explanations upon answer submission.
  */
 import React, { useState } from 'react';
+import { Printer } from 'lucide-react';
+import PrintableExamModal from './PrintableExamModal';
 
 const DynamicQuizPlayer = ({ questions, onSubmit }) => {
     const [currentIndex, setCurrentIndex] = useState(0);
     const [selectedAnswer, setSelectedAnswer] = useState(null);
     const [isSubmitted, setIsSubmitted] = useState(false);
     const [userAnswers, setUserAnswers] = useState([]);
+    const [showPrintModal, setShowPrintModal] = useState(false);
 
     const currentQuestion = questions[currentIndex];
     const isLastQuestion = currentIndex === questions.length - 1;
@@ -59,9 +62,20 @@ const DynamicQuizPlayer = ({ questions, onSubmit }) => {
                     <span className="px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 text-xs font-bold rounded-full uppercase tracking-wide">
                         {currentQuestion.topic}
                     </span>
-                    <span className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                        Question {currentIndex + 1} of {questions.length}
-                    </span>
+                    <div className="flex items-center gap-3">
+                        <button
+                            type="button"
+                            onClick={() => setShowPrintModal(true)}
+                            className="text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 flex items-center gap-1.5 transition no-print"
+                            title="Print Offline Question Paper"
+                        >
+                            <Printer className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                            Print Exam
+                        </button>
+                        <span className="text-sm font-medium text-gray-500 dark:text-gray-400">
+                            Question {currentIndex + 1} of {questions.length}
+                        </span>
+                    </div>
                 </div>
 
                 {/* Question Text */}
@@ -154,6 +168,15 @@ const DynamicQuizPlayer = ({ questions, onSubmit }) => {
                     )}
                 </div>
             </div>
+
+            {showPrintModal && (
+                <PrintableExamModal
+                    quizTitle={`${currentQuestion?.topic || 'Practice'} Examination`}
+                    subject={currentQuestion?.topic || 'General Studies'}
+                    questions={questions}
+                    onClose={() => setShowPrintModal(false)}
+                />
+            )}
         </div>
     );
 };

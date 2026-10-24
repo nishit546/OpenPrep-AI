@@ -1,0 +1,261 @@
+/**
+ * Print-Friendly Stylesheet for Mock Exams & Offline Question Papers
+ * Formats browser quiz layouts into standardized, two-column examination papers
+ * with attached OMR bubble answer sheet and separated answer key.
+ */
+
+@media print {
+  /* Strip UI shell, sidebars, headers, navbars, and interactive controls */
+  nav,
+  header,
+  aside,
+  footer,
+  .no-print,
+  button,
+  .btn,
+  .modal-backdrop,
+  .drawer,
+  .sidebar,
+  .navbar,
+  .timer-banner,
+  .pomodoro-bar,
+  #root > *:not(.print-container) {
+    display: none !important;
+  }
+
+  /* Reset body and page styles for high-contrast B&W physical print */
+  html, body {
+    background: #ffffff !important;
+    color: #111111 !important;
+    font-size: 11pt !important;
+    line-height: 1.45 !important;
+    font-family: 'Times New Roman', Times, Georgia, serif !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  @page {
+    size: A4 portrait;
+    margin: 15mm 15mm 15mm 15mm;
+  }
+
+  /* Container isolation during print */
+  .print-container {
+    display: block !important;
+    position: static !important;
+    width: 100% !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+
+  /* Institutional Header */
+  .exam-header {
+    border-bottom: 2px solid #000000;
+    padding-bottom: 10px;
+    margin-bottom: 14px;
+    text-align: center;
+  }
+
+  .exam-header h1 {
+    font-size: 16pt !important;
+    font-weight: bold;
+    margin: 0 0 4px 0;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .exam-header h2 {
+    font-size: 13pt !important;
+    font-weight: 600;
+    margin: 0 0 8px 0;
+  }
+
+  .exam-meta-grid {
+    display: grid !important;
+    grid-template-columns: repeat(3, 1fr) !important;
+    font-size: 9.5pt !important;
+    font-weight: 500;
+    border-top: 1px dashed #666666;
+    border-bottom: 1px dashed #666666;
+    padding: 6px 0;
+    margin: 8px 0;
+  }
+
+  .exam-student-box {
+    display: grid !important;
+    grid-template-columns: 2fr 1fr !important;
+    gap: 12px;
+    font-size: 9.5pt !important;
+    margin: 8px 0 12px 0;
+    padding: 6px 8px;
+    border: 1px solid #333333;
+  }
+
+  .fill-line {
+    border-bottom: 1px dotted #333333;
+    display: inline-block;
+    min-width: 140px;
+    margin-left: 6px;
+  }
+
+  /* General Examination Instructions */
+  .exam-instructions {
+    font-size: 8.5pt !important;
+    line-height: 1.3 !important;
+    background: #f8f8f8 !important;
+    border: 1px solid #cccccc !important;
+    padding: 6px 10px;
+    margin-bottom: 14px;
+  }
+
+  .exam-instructions ol {
+    margin: 2px 0;
+    padding-left: 18px;
+  }
+
+  /* Multi-Column Questions Layout */
+  .exam-questions-container {
+    columns: 2 !important;
+    column-gap: 20mm !important;
+    column-rule: 1px solid #cccccc !important;
+  }
+
+  .exam-questions-container.single-column {
+    columns: 1 !important;
+  }
+
+  /* Prevent question splitting across pages */
+  .exam-question-card {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+    margin-bottom: 14pt;
+    padding-bottom: 10pt;
+    border-bottom: 1px dotted #dddddd;
+  }
+
+  .exam-question-text {
+    font-weight: bold;
+    font-size: 10.5pt !important;
+    margin-bottom: 6pt;
+  }
+
+  .exam-options-list {
+    margin-left: 12pt;
+    list-style-type: none;
+    padding: 0;
+  }
+
+  .exam-option-item {
+    font-size: 10pt !important;
+    margin-bottom: 3.5pt;
+    display: flex;
+    align-items: flex-start;
+  }
+
+  .exam-option-marker {
+    display: inline-block;
+    font-weight: bold;
+    min-width: 22px;
+  }
+
+  /* Attached OMR Answer Sheet Section */
+  .exam-omr-sheet {
+    page-break-before: always !important;
+    break-before: page !important;
+    border: 2px solid #000000;
+    padding: 12mm;
+    margin-top: 10mm;
+  }
+
+  .omr-header {
+    text-align: center;
+    border-bottom: 2px solid #000000;
+    padding-bottom: 8px;
+    margin-bottom: 12px;
+  }
+
+  .omr-grid {
+    display: grid !important;
+    grid-template-columns: repeat(4, 1fr) !important;
+    gap: 8px 16px;
+    margin-top: 12px;
+  }
+
+  .omr-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 9pt !important;
+    border-bottom: 1px dotted #e0e0e0;
+    padding: 2px 0;
+  }
+
+  .omr-bubbles {
+    display: flex;
+    gap: 6px;
+  }
+
+  .omr-bubble {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    border: 1.5px solid #222222;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 7.5pt !important;
+    font-weight: bold;
+    text-transform: uppercase;
+  }
+
+  /* Separated Answer Key & Detailed Solution Page */
+  .exam-answer-key {
+    page-break-before: always !important;
+    break-before: page !important;
+    border-top: 2px solid #000000;
+    padding-top: 10mm;
+  }
+
+  .exam-answer-key h2 {
+    font-size: 14pt !important;
+    font-weight: bold;
+    text-align: center;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+
+  .answer-key-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 16px;
+    font-size: 9pt !important;
+  }
+
+  .answer-key-table th,
+  .answer-key-table td {
+    border: 1px solid #333333;
+    padding: 4px 8px;
+    text-align: left;
+  }
+
+  .answer-key-table th {
+    background-color: #eeeeee !important;
+    font-weight: bold;
+  }
+}
+
+/* Screen preview styling for modal preview */
+.printable-preview-canvas {
+  background: #ffffff;
+  color: #111111;
+  font-family: 'Times New Roman', Times, Georgia, serif;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  line-height: 1.5;
+}
