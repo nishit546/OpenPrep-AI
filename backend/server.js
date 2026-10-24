@@ -600,6 +600,9 @@ app.get(['/api/v1/health', '/api/health'], async (req, res) => {
   }
 });
 
+// Connection pool telemetry (#2363)
+app.get('/api/health/db', require('./controllers/dbHealthController').getDatabaseHealth);
+
 // Secured metrics endpoint exposing Prometheus scrapable formatting
 app.get(['/metrics', '/api/metrics'], async (req, res) => {
   const authHeader = req.headers.authorization;

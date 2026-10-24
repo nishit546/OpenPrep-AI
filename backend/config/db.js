@@ -1,17 +1,26 @@
 const { Sequelize } = require('sequelize');
 const { Pool } = require('pg');
+const os = require('os');
 
 const dbUrl = process.env.DATABASE_URL;
 if (!dbUrl) {
   throw new Error('DATABASE_URL environment variable is required');
 }
 
+// Pool sizing (#2363): explicit env value wins, otherwise scale with the CPU
+// count and never exceed a hard cap so a big host can't exhaust Postgres.
+const POOL_HARD_CAP = 50;
+const clampPool = (n) => Math.max(1, Math.min(n, POOL_HARD_CAP));
+const defaultPoolMax = () => clampPool((os.cpus().length || 1) * 2 + 2);
+const poolMax = clampPool(parseInt(process.env.DB_POOL_MAX, 10) || defaultPoolMax());
+const poolMin = Math.min(parseInt(process.env.DB_POOL_MIN, 10) || 2, poolMax);
+
 // Bounded connection pool configuration for raw queries and migrations
 const pgPool = new Pool({
   connectionString: dbUrl,
-  max: parseInt(process.env.DB_POOL_MAX, 10) || 20,
-  min: parseInt(process.env.DB_POOL_MIN, 10) || 5,
-  idleTimeoutMillis: parseInt(process.env.DB_POOL_IDLE, 10) || 30000,
+  max: poolMax,
+  min: poolMin,
+  idleTimeoutMillis: parseInt(process.env.DB_POOL_IDLE, 10) || 10000,
   connectionTimeoutMillis: parseInt(process.env.DB_POOL_TIMEOUT, 10) || 2000,
 });
 
@@ -33,10 +42,10 @@ const sequelize = new Sequelize(
     dialect: 'postgres',
     logging: process.env.NODE_ENV === 'development' ? console.log : false,
     pool: {
-      max: parseInt(process.env.DB_POOL_MAX, 10) || 20,
-      min: parseInt(process.env.DB_POOL_MIN, 10) || 5,
+      max: poolMax,
+      min: poolMin,
       acquire: parseInt(process.env.DB_POOL_ACQUIRE, 10) || 30000,
-      idle: parseInt(process.env.DB_POOL_IDLE, 10) || 30000,
+      idle: parseInt(process.env.DB_POOL_IDLE, 10) || 10000,
     },
     dialectOptions: {
       ssl: dbUrl.includes('supabase.co') || (process.env.NODE_ENV === 'production' && !dbUrl.includes('localhost'))
@@ -72,6 +81,19 @@ sequelize.addHook('afterQuery', (options) => {
     recordDbQueryDuration(duration);
   }
 });
+
+// Slow query telemetry (#2363): log + record queries over the threshold.
+// Skipped in tests so suites don't write log files.
+if (process.env.NODE_ENV !== 'test') {
+  const { createSlowQueryHooks } = require('../services/dbSlowQueryTelemetry');
+  const { recordSlowQuery } = require('../services/queryProfilerService');
+  const hooks = createSlowQueryHooks({
+    thresholdMs: parseInt(process.env.DB_SLOW_QUERY_MS, 10) || 150,
+    record: recordSlowQuery,
+  });
+  sequelize.addHook('beforeQuery', hooks.beforeQuery);
+  sequelize.addHook('afterQuery', hooks.afterQuery);
+}
 
 const connectDB = async () => {
   try {

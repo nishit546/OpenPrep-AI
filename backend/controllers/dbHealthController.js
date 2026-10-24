@@ -16,6 +16,7 @@ exports.getDatabaseHealth = async (req, res) => {
       status: probe.status,
       timestamp: new Date().toISOString(),
       probeLatencyMs: probe.latencyMs,
+      averageLatencyMs: stats.latency.avg,
       ...stats,
     });
   } catch (error) {

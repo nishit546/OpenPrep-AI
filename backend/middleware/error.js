@@ -59,6 +59,18 @@ const errorHandler = (err, req, res, next) => {
     error.statusCode = 400;
   }
 
+  // Pool exhausted: no connection became free within the acquire timeout
+  if (err.name === 'SequelizeConnectionAcquireTimeoutError') {
+    res.set('Retry-After', '5');
+    return res.status(503).json(
+      withRequestId(req, {
+        success: false,
+        error: 'Service temporarily unavailable. Please retry shortly.',
+        message: 'Service temporarily unavailable. Please retry shortly.',
+      })
+    );
+  }
+
   // Multer file size limit error
   if (err.name === 'MulterError') {
     if (err.code === 'LIMIT_FILE_SIZE') {
