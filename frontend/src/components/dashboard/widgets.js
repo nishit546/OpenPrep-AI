@@ -7,6 +7,7 @@ import ActivityHeatmap from './ActivityHeatmap';
 import ReadinessWidget from './ReadinessWidget';
 import FlashcardWidget from './FlashcardWidget';
 import ActivityFeed from './ActivityFeed';
+import DailyMotivationWidget from './DailyMotivationWidget';
 
 export {
   ProgressChartWidget,
@@ -18,6 +19,7 @@ export {
   ReadinessWidget,
   FlashcardWidget,
   ActivityFeed,
+  DailyMotivationWidget,
 };
 
 export const WIDGET_COMPONENT_MAP = {
@@ -30,4 +32,5 @@ export const WIDGET_COMPONENT_MAP = {
   ReadinessWidget: ReadinessWidget,
   FlashcardWidget: FlashcardWidget,
   ActivityFeed: ActivityFeed,
+  DailyMotivation: DailyMotivationWidget,
 };
