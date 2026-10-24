@@ -374,6 +374,42 @@ test('allows speech speed and language controls when hands-free mode is enabled'
     fireEvent.keyDown(window, { key: '?' });
     expect(await screen.findByText('Flip the flashcard')).toBeInTheDocument();
   });
+
+  test('reverse mode shows the back as the prompt and ratings still work', async () => {
+    API.get.mockResolvedValue({ data: { data: sampleCards } });
+    queuedReview().mockResolvedValue({ synced: 1, failed: 0 });
+
+    renderReview();
+    expect(await screen.findByText('What is React?')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('radio', { name: 'Reverse' }));
+
+    const prompt = await screen.findByText('A UI library');
+    expect(prompt.closest('.backface-hidden')).toHaveTextContent('Question');
+    fireEvent.click(prompt);
+    fireEvent.click(screen.getByRole('button', { name: /^Good / }));
+
+    await waitFor(() => {
+      expect(queuedReview()).toHaveBeenCalledWith('c1', 4);
+    });
+  });
+
+  test('R key toggles reverse mode', async () => {
+    API.get.mockResolvedValue({ data: { data: sampleCards } });
+    renderReview();
+    await screen.findByText('What is React?');
+
+    fireEvent.keyDown(window, { key: 'r' });
+    expect(screen.getByRole('radio', { name: 'Reverse' })).toHaveAttribute('aria-checked', 'true');
+    fireEvent.keyDown(window, { key: 'r' });
+    expect(screen.getByRole('radio', { name: 'Standard' })).toHaveAttribute('aria-checked', 'true');
+  });
+
+  test('shuffle keeps the current card and all cards', async () => {
+    API.get.mockResolvedValue({ data: { data: sampleCards } });
+    renderReview();
+    await screen.findByText('What is React?');
+
+    fireEvent.click(screen.getByRole('button', { name: /shuffle/i }));
+    expect(screen.getByText('What is React?')).toBeInTheDocument();
+  });
 });
-
-

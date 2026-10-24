@@ -23,6 +23,8 @@ export default function KeyboardShortcutsModal({ isOpen, onClose }) {
         { key: '4', label: 'Rate Easy' },
         { key: '← / P', label: 'Previous card' },
         { key: '→ / N', label: 'Next card' },
+        { key: 'R', label: 'Toggle reverse mode' },
+        { key: 'S', label: 'Shuffle remaining cards' },
       ],
     },
     {
