@@ -218,7 +218,12 @@ API.interceptors.response.use(
 
     if (error.response?.status === 429) {
       const data = error.response.data;
-      const retryInSeconds = data?.retryInSeconds || parseInt(error.response.headers['retry-after'], 10) || 900;
+      const retryInSeconds =
+        data?.retryInSeconds ||
+        data?.resetCountdownSeconds ||
+        data?.retryAfter ||
+        parseInt(error.response.headers?.['retry-after'] || error.response.headers?.['Retry-After'], 10) ||
+        900;
       const errorMsg = data?.error || 'AI daily usage quota exceeded.';
 
       const resetTime = Date.now() + retryInSeconds * 1000;

@@ -17,6 +17,7 @@ const { protect, requireAdmin } = require('../middleware/auth');
 const auth = protect;
 const adminAuth = requireAdmin;
 const { aiLimiter } = require('../middleware/rateLimiter');
+const { aiRateLimiter } = require('../middleware/aiRateLimiter');
 const { checkAiQuota } = require('../middleware/aiQuotaMiddleware');
 const { aiSanitizer } = require('../middleware/aiSanitizer');
 const { promptGuardMiddleware, evaluatePromptSafety } = require('../services/promptGuardService');
@@ -144,18 +145,18 @@ const router = express.Router();
 router.post(
   '/explain-question',
   protect,
-  aiLimiter,
+  aiRateLimiter(),
+  promptGuardMiddleware,
   checkAiQuota,
-  aiSanitizer,
   explainQuestion
 );
 
 router.post(
   '/chat',
   protect,
-  aiLimiter,
+  aiRateLimiter(),
+  promptGuardMiddleware,
   checkAiQuota,
-  aiSanitizer,
   chatWithAssistant
 );
 
@@ -198,9 +199,9 @@ router.post(
 router.post(
   '/mind-map/generate',
   protect,
-  aiLimiter,
+  aiRateLimiter(),
+  promptGuardMiddleware,
   checkAiQuota,
-  aiSanitizer,
   validateGenerateMindMap,
   generateMindMap
 );
@@ -211,7 +212,8 @@ router.get('/mind-map/:id', protect, getMindMapById);
 router.post(
   '/solve-image',
   protect,
-  aiLimiter,
+  aiRateLimiter(),
+  promptGuardMiddleware,
   checkAiQuota,
   upload.single('image'),
   solveImageQuestion
@@ -230,7 +232,8 @@ router.post(
 router.post(
   '/solve-diagram',
   protect,
-  aiLimiter,
+  aiRateLimiter(),
+  promptGuardMiddleware,
   checkAiQuota,
   upload.single('image'),
   solveDiagram
@@ -239,9 +242,9 @@ router.post(
 router.post(
   '/generate-questions',
   protect,
-  aiLimiter,
+  aiRateLimiter(),
+  promptGuardMiddleware,
   checkAiQuota,
-  aiSanitizer,
   generateQuestions
 );
 router.get('/cache/stats', auth, aiController.getCacheStats);

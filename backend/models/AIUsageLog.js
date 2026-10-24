@@ -37,6 +37,21 @@ module.exports = (sequelize, DataTypes) => {
       defaultValue: 0,
       comment: 'Estimated token usage',
     },
+    promptTokens: {
+      type: DataTypes.INTEGER,
+      defaultValue: 0,
+      comment: 'Prompt token count',
+    },
+    completionTokens: {
+      type: DataTypes.INTEGER,
+      defaultValue: 0,
+      comment: 'Completion token count',
+    },
+    costEstimated: {
+      type: DataTypes.FLOAT,
+      defaultValue: 0.0,
+      comment: 'Estimated cost in USD',
+    },
     status: {
       type: DataTypes.ENUM('success', 'quota_exceeded', 'timeout', 'provider_error', 'retry_exhausted'),
       allowNull: false,

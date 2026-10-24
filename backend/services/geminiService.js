@@ -115,6 +115,20 @@ const normalizeQuizQuestions = (parsed) => {
  * reject closure in memory until the timeout naturally expired.
  */
 async function callWithTimeout(model, prompt, timeoutMs = 30000) {
+  // Defense-in-depth prompt injection guardrails & input sanitization
+  if (typeof prompt === 'string') {
+    const { evaluatePromptSafety, sanitizeInputText } = require('./promptGuardService');
+    const safety = evaluatePromptSafety(prompt);
+    if (!safety.isSafe) {
+      const err = new Error(`Prompt injection / safety violation detected: ${safety.reason}`);
+      err.status = 400;
+      err.code = safety.code || 'ERR_AI_SAFETY_VIOLATION';
+      err.riskScore = safety.riskScore;
+      throw err;
+    }
+    prompt = sanitizeInputText(prompt);
+  }
+
   let timeoutId;
   const timeoutPromise = new Promise((_, reject) => {
     timeoutId = setTimeout(() => reject(new Error('Gemini request timed out')), timeoutMs);
