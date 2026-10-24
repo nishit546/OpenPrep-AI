@@ -2,6 +2,9 @@
  * Enterprise Multimodal Doubt Solver & AI Prompt Sanitizer Service
  */
 import MultimodalDoubtSolver from '../models/MultimodalDoubtSolverModel.js';
+import piiRedactor from './piiRedactorService.js';
+
+const { redactSensitive } = piiRedactor;
 
 class MultimodalDoubtSolverService {
   /**
@@ -14,11 +17,8 @@ class MultimodalDoubtSolverService {
     sanitized = sanitized.replace(/ignore previous instructions/gi, '[REDACTED_PROMPT_INJECTION]');
     sanitized = sanitized.replace(/you are now in developer mode/gi, '[REDACTED_PROMPT_INJECTION]');
 
-    // Mask emails and SSN patterns
-    sanitized = sanitized.replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, '[REDACTED_EMAIL]');
-    sanitized = sanitized.replace(/\b\d{3}-\d{2}-\d{4}\b/g, '[REDACTED_SSN]');
-
-    return sanitized;
+    // Mask emails, SSNs, phones, cards and API keys with the shared redactor
+    return redactSensitive(sanitized).text;
   }
 
   /**
