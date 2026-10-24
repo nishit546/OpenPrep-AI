@@ -5,6 +5,7 @@ const syllabusTrackerService = require('../services/syllabusTrackerService');
 const { verifyMagicBytes } = require('../middleware/upload');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const prompts = require('../config/prompts');
+const { compareSyllabi: runSyllabusComparison } = require('../services/syllabusOverlapService');
 
 // Initialize Gemini API client
 const apiKey = process.env.GEMINI_API_KEY;
@@ -388,12 +389,59 @@ exports.getSyllabusCatalog = async (req, res, next) => {
   }
 };
 
-module.exports = {
-  uploadSyllabus,
-  createSyllabus,
-  getGapAnalysis,
-  updateMastery,
-  generateNotesForGap,
-  getProgress,
-  getSyllabusCatalog,
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const MAX_COMPARE_SYLLABI = 5;
+
+/**
+ * Builds the POST /compare handler. Loaders and the comparison function can be
+ * swapped in tests so no database is needed.
+ */
+const createCompareHandler = (deps = {}) => {
+  const findSyllabi =
+    deps.findSyllabi || ((ids, userId) => Syllabus.findAll({ where: { id: ids, userId } }));
+  const findTopics =
+    deps.findTopics || ((ids) => SyllabusTopic.findAll({ where: { syllabusId: ids } }));
+  const compare = deps.compare || runSyllabusComparison;
+
+  return async (req, res, next) => {
+    try {
+      const raw = req.body && req.body.syllabusIds;
+      if (!Array.isArray(raw) || raw.some((id) => typeof id !== 'string' || !UUID_RE.test(id))) {
+        return res
+          .status(400)
+          .json({ success: false, error: 'syllabusIds must be an array of syllabus ids.' });
+      }
+      const ids = [...new Set(raw)];
+      if (ids.length < 2 || ids.length > MAX_COMPARE_SYLLABI) {
+        return res.status(400).json({
+          success: false,
+          error: `Pick between 2 and ${MAX_COMPARE_SYLLABI} different syllabi to compare.`,
+        });
+      }
+
+      // Ownership: every id must belong to the logged in user.
+      const owned = await findSyllabi(ids, req.user.id);
+      const ownedIds = new Set(owned.map((s) => s.id));
+      if (ids.some((id) => !ownedIds.has(id))) {
+        return res
+          .status(404)
+          .json({ success: false, error: 'One or more syllabi were not found.' });
+      }
+
+      const topics = await findTopics(ids);
+      const syllabi = ids.map((id) => ({
+        id,
+        name: owned.find((s) => s.id === id).name,
+        topics: topics.filter((t) => t.syllabusId === id),
+      }));
+
+      const data = await compare(syllabi);
+      return res.status(200).json({ success: true, data });
+    } catch (error) {
+      return next(error);
+    }
+  };
 };
+
+exports.createCompareHandler = createCompareHandler;
+exports.compareSyllabi = createCompareHandler();

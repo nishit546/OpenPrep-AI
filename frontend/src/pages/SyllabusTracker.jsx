@@ -4,6 +4,7 @@
 import React, { useState, useEffect } from 'react';
 import ProgressSunburst from '../components/Syllabus/ProgressSunburst';
 import axios from 'axios';
+import SyllabusOverlapMatrix from '../components/Syllabus/SyllabusOverlapMatrix';
 
 const SyllabusTracker = () => {
     const [syllabusText, setSyllabusText] = useState('');
@@ -184,6 +185,8 @@ const SyllabusTracker = () => {
                         </div>
                     </div>
                 )}
+
+                <SyllabusOverlapMatrix />
             </div>
         </div>
     );

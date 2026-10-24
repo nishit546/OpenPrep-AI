@@ -387,6 +387,10 @@ export const evaluateSubjectiveAnswer = (payload) =>
 export const generateDistractors = (payload) =>
   API.post('/quizzes/generate-distractors', payload);
 
+// Syllabus overlap: list the user's syllabi, then compare 2+ of them
+export const getSyllabusCatalog = () => API.get('/syllabus');
+export const compareSyllabi = (syllabusIds) => API.post('/syllabus/compare', { syllabusIds });
+
 export const getQuizRecommendations = (userId, params) =>
   API.get(`/recommendations/${userId}`, { params });
 

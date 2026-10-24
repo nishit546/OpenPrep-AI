@@ -7,6 +7,7 @@ const {
   getGapAnalysis,
   generateNotesForGap,
   getSyllabusCatalog,
+  compareSyllabi,
   updateMastery,
   getProgress,
 } = require('../controllers/syllabusController');
@@ -84,6 +85,13 @@ router.post('/', protect, createSyllabus);
  * @access  Private
  */
 router.get('/', protect, getSyllabusCatalog);
+
+/**
+ * @route   POST /api/syllabus/compare
+ * @desc    Compare 2+ of the user's syllabi: shared core topics, exclusive topics, overlap %
+ * @access  Private
+ */
+router.post('/compare', protect, compareSyllabi);
 
 /**
  * @route   GET /api/syllabus/:id/gap-analysis
