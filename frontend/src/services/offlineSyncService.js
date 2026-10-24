@@ -39,7 +39,14 @@ class OfflineSyncService {
     }
   }
 
-  async queueReview(cardId, score) {
+  async queueReview(cardId, score, rating, requestedRetention) {
+    try {
+      const { enqueueCardGrading } = await import('./offlineStorageService');
+      await enqueueCardGrading(cardId, rating || score, score, requestedRetention);
+    } catch (_) {
+      // Fallback gracefully
+    }
+
     await db.offlineReviews.add({
       cardId,
       score,

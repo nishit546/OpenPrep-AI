@@ -90,7 +90,7 @@ exports.processBatchSync = async (req, res) => {
             continue;
           }
 
-          // Apply SM-2 update
+          // Apply SM-2 and FSRS updates
           const { interval, repetitions, efactor } = calculateSM2({
             interval: card.interval ?? 0,
             repetitions: card.repetitions ?? 0,
@@ -98,9 +98,21 @@ exports.processBatchSync = async (req, res) => {
             quality: score,
           });
 
+          const fsrsScheduler = require('../services/fsrsScheduler');
+          const fsrsRating = payload.rating ? Number(payload.rating) : fsrsScheduler.mapQualityToRating(score);
+          const targetRetention = payload.requestedRetention || 0.90;
+          const fsrsState = fsrsScheduler.calculateFSRS(card, fsrsRating, targetRetention);
+
           card.interval = interval;
           card.repetitions = repetitions;
           card.efactor = efactor;
+          card.stability = fsrsState.stability;
+          card.fsrsDifficulty = fsrsState.difficulty;
+          card.elapsedDays = fsrsState.elapsedDays;
+          card.scheduledDays = fsrsState.scheduledDays;
+          card.reps = fsrsState.reps;
+          card.lapses = fsrsState.lapses;
+          card.state = fsrsState.state;
           card.lastReviewedAt = new Date(clientTimestamp);
           await card.save();
 
@@ -109,7 +121,14 @@ exports.processBatchSync = async (req, res) => {
             status: 'applied',
             entityType: 'Flashcard',
             entityId: card.id,
-            data: { interval, repetitions, efactor },
+            data: {
+              interval,
+              repetitions,
+              efactor,
+              stability: card.stability,
+              difficulty: card.fsrsDifficulty,
+              state: card.state,
+            },
           });
           processed++;
         } else if (type === 'NOTE_UPDATE' || type === 'UPDATE_NOTE') {
