@@ -811,7 +811,26 @@ exports.reviewFlashcard = async (req, res, next) => {
     const newBadges = await gamificationService.checkAndUnlockBadges(user, 'flashcard_review', badgeDetails);
     progression.newBadges = newBadges;
 
-    res.status(200).json({ success: true, data: card, progression });
+    res.status(200).json({ success: true, data: card, fsrsState, progression });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc Get real-time FSRS v4 predicted upcoming review intervals for a card
+ * @route GET /api/flashcards/:id/intervals
+ * @access Private
+ */
+exports.getFlashcardUpcomingIntervals = async (req, res, next) => {
+  try {
+    const card = await Flashcard.findOne({ where: { id: req.params.id, user: req.user.id } });
+    if (!card) {
+      return res.status(404).json({ success: false, error: 'Flashcard not found' });
+    }
+    const requestedRetention = parseFloat(req.query.retention) || req.user.fsrsTargetRetention || 0.90;
+    const intervals = fsrsScheduler.calculateUpcomingIntervals(card, requestedRetention);
+    return res.status(200).json({ success: true, intervals, retention: requestedRetention });
   } catch (error) {
     next(error);
   }

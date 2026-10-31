@@ -29,6 +29,41 @@ const FlashcardSchedulingState = sequelize.define(
       type: DataTypes.FLOAT,
       defaultValue: 2.5,
     },
+    stability: {
+      type: DataTypes.FLOAT,
+      defaultValue: 2.4,
+      allowNull: true,
+    },
+    difficulty: {
+      type: DataTypes.FLOAT,
+      defaultValue: 4.93,
+      allowNull: true,
+    },
+    elapsedDays: {
+      type: DataTypes.INTEGER,
+      defaultValue: 0,
+      allowNull: true,
+    },
+    scheduledDays: {
+      type: DataTypes.INTEGER,
+      defaultValue: 0,
+      allowNull: true,
+    },
+    reps: {
+      type: DataTypes.INTEGER,
+      defaultValue: 0,
+      allowNull: true,
+    },
+    lapses: {
+      type: DataTypes.INTEGER,
+      defaultValue: 0,
+      allowNull: true,
+    },
+    retrievability: {
+      type: DataTypes.FLOAT,
+      defaultValue: 1.0,
+      allowNull: true,
+    },
     nextReviewDate: {
       type: DataTypes.DATE,
       allowNull: true,
