@@ -12,6 +12,7 @@ export default function SubjectiveQuestionView({
   questionIndex = 0,
   totalQuestions = 1,
   onEvaluateAnswer,
+  onAnswerChange,
   existingAnswer = '',
   existingEvaluation = null,
 }) {
@@ -132,7 +133,11 @@ export default function SubjectiveQuestionView({
             className="w-full bg-slate-950 border border-slate-700/80 rounded-xl p-4 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all font-sans text-sm leading-relaxed"
             placeholder="Type your detailed written answer here. Explain core principles, formulas, or architecture with relevant domain terminology..."
             value={answerText}
-            onChange={(e) => setAnswerText(e.target.value)}
+            onChange={(e) => {
+              setAnswerText(e.target.value);
+              setEvaluation(null);
+              onAnswerChange?.(question._id || question.id, e.target.value);
+            }}
             disabled={isEvaluating}
           />
         </div>
