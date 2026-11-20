@@ -16,12 +16,13 @@ const QuizBookmark = require('../models/QuizBookmark');
 
 // Refactored Services
 const quizGenerationService = require('../services/quizGenerationService');
+const { validateGeneratedQuiz, QUIZ_CONTRACT_VERSION } = require('../services/generatedQuizContract');
 const quizEvaluationService = require('../services/quizEvaluationService');
 const quizAnalyticsService = require('../services/quizAnalyticsService');
 const analyticsAggregationService = require('../services/analyticsAggregationService');
 const geminiService = require('../services/geminiService');
 const cacheService = require('../services/cacheService');
-const { GeminiRateLimitError, GeminiServerError } = require('../services/geminiService');
+const { GeminiRateLimitError, GeminiServerError, normalizeQuizLanguage } = require('../services/geminiService');
 const { runCalibration } = require('../services/difficultyCalibrator');
 const { calculateTopicProficiency, getDifficultyLevel } = require('../services/proficiencyService');
 const Flashcard = require('../models/Flashcard');
@@ -73,10 +74,13 @@ exports.generateAIQuiz = async (req, res, next) => {
   try {
     const { subjectId, topicId, count, language, questionType = 'MCQ' } = req.body;
     const normalizedLanguage = normalizeQuizLanguage(language);
+    if (!['MCQ', 'SUBJECTIVE'].includes(questionType)) {
+      return res.status(400).json({ success: false, error: 'questionType must be MCQ or SUBJECTIVE' });
+    }
 
     const MAX_QUIZ_COUNT = 50;
-    const requestedCount = parseInt(count, 10) || 5;
-    if (requestedCount < 1 || requestedCount > MAX_QUIZ_COUNT) {
+    const requestedCount = count === undefined ? 5 : Number(count);
+    if (!Number.isInteger(requestedCount) || requestedCount < 1 || requestedCount > MAX_QUIZ_COUNT) {
       return res.status(400).json({
         success: false,
         error: `Invalid count parameter. Must be between 1 and ${MAX_QUIZ_COUNT}.`,
@@ -117,6 +121,7 @@ exports.generateAIQuiz = async (req, res, next) => {
       language: normalizedLanguage,
       difficulty: difficultyLevel,
       questionType,
+      notesText,
     });
 
     let aiQuiz = null;
@@ -124,9 +129,13 @@ exports.generateAIQuiz = async (req, res, next) => {
 
     if (!isRefresh) {
       const cached = await cacheService.getWithMetadata(cacheKey);
-      if (cached.isHit && cached.data) {
+      if (cached.isHit && cached.data?._validation?.version === QUIZ_CONTRACT_VERSION &&
+          cached.data._validation.source === 'gemini' &&
+          validateGeneratedQuiz(cached.data, requestedCount, questionType).valid) {
         aiQuiz = cached.data;
         cacheStatus = 'HIT';
+      } else if (cached.isHit) {
+        await cacheService.del(cacheKey);
       }
     }
 
@@ -141,9 +150,18 @@ exports.generateAIQuiz = async (req, res, next) => {
         difficultyLevel,
         questionType
       );
-      if (aiQuiz && !aiQuiz._mock) {
-        await cacheService.set(cacheKey, aiQuiz, cacheService.QUIZ_TTL);
-      }
+    }
+
+    if (!aiQuiz || aiQuiz._mock) {
+      return res.status(503).json({ success: false, error: 'AI quiz generation is unavailable. Please try again later.' });
+    }
+    const validation = validateGeneratedQuiz(aiQuiz, requestedCount, questionType);
+    if (!validation.valid || aiQuiz._validation?.source !== 'gemini' ||
+        aiQuiz._validation.version !== QUIZ_CONTRACT_VERSION) {
+      return res.status(502).json({ success: false, error: `AI quiz failed validation: ${validation.reason || 'missing provenance'}` });
+    }
+    if (cacheStatus === 'MISS') {
+      await cacheService.set(cacheKey, aiQuiz, cacheService.QUIZ_TTL);
     }
 
     res.setHeader('X-Cache-Status', cacheStatus);
@@ -168,6 +186,8 @@ exports.generateAIQuiz = async (req, res, next) => {
         rubricCriteria: q.rubricCriteria || [],
         maxScore: q.maxScore || 10,
         explanation: q.explanation || '',
+        generationSource: 'gemini',
+        validationVersion: QUIZ_CONTRACT_VERSION,
       };
     });
 
@@ -213,6 +233,9 @@ exports.generateAIQuiz = async (req, res, next) => {
         success: false,
         error: error.message,
       });
+    }
+    if (error.code === 'AI_QUIZ_INVALID') {
+      return res.status(502).json({ success: false, error: error.message });
     }
     next(error);
   }
