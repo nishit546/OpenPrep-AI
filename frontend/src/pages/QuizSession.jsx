@@ -445,6 +445,14 @@ const submitQuiz = useCallback(async () => {
     setSubmitting(true);
     setSubmitError(null);
     try {
+      const unevaluatedQuestion = quiz?.questions?.find((question) => {
+        const isSubjective = question.questionType === 'SUBJECTIVE' || (!question.options && question.idealAnswer);
+        return isSubjective && !answers[question._id || question.id]?.evaluationReceipt;
+      });
+      if (unevaluatedQuestion && !timeElapsed) {
+        setSubmitError('Evaluate every subjective answer before submitting the quiz.');
+        return;
+      }
       // Format answers for API
       const formattedAnswers = Object.entries(answers).map(([qId, selected]) => ({
         questionId: qId,
@@ -484,12 +492,12 @@ const submitQuiz = useCallback(async () => {
       }
     } catch (err) {
       console.error(err);
-      setSubmitError('Failed to submit quiz attempt. Check your connection and retry.');
+      setSubmitError(err.response?.data?.error || 'Failed to submit quiz attempt. Check your connection and retry.');
     } finally {
       submittingRef.current = false;
       setSubmitting(false);
     }
-  }, [answers, id, currentQuestionIndex]);
+  }, [answers, id, currentQuestionIndex, quiz, timeElapsed]);
   // Countdown using absolute timestamps and visibilitychange recalibration to fix tab-switching throttling (#518)
   useEffect(() => {
     if (!quiz || submitted || !endTimeRef.current) return;
@@ -778,11 +786,18 @@ const currentQuestion = quiz.questions[currentQuestionIndex];
           <>
           {currentQuestion.questionType === 'SUBJECTIVE' || (!currentQuestion.options && currentQuestion.idealAnswer) ? (
             <SubjectiveQuestionView
+              key={currentQuestion._id || currentQuestion.id}
               question={currentQuestion}
               questionIndex={currentQuestionIndex}
               totalQuestions={quiz.questions.length}
               existingAnswer={typeof answers[currentQuestion._id || currentQuestion.id] === 'object' ? answers[currentQuestion._id || currentQuestion.id]?.userAnswerText || '' : (answers[currentQuestion._id || currentQuestion.id] || '')}
               existingEvaluation={typeof answers[currentQuestion._id || currentQuestion.id] === 'object' ? answers[currentQuestion._id || currentQuestion.id]?.evaluation || null : null}
+              onAnswerChange={(qId, userAnswerText) => {
+                setAnswers((prev) => ({
+                  ...prev,
+                  [qId]: { questionType: 'SUBJECTIVE', userAnswerText },
+                }));
+              }}
               onEvaluateAnswer={async (qId, userAnswerText) => {
                 const response = await evaluateSubjectiveAnswer({
                   questionId: qId,
@@ -797,6 +812,7 @@ const currentQuestion = quiz.questions[currentQuestionIndex];
                     questionType: 'SUBJECTIVE',
                     userAnswerText,
                     evaluation: evalData,
+                    evaluationReceipt: evalData.receipt,
                   },
                 }));
                 return evalData;
