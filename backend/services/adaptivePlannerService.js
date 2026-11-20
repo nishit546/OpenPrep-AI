@@ -1,9 +1,8 @@
 const { Op } = require('sequelize');
+const { sequelize } = require('../config/db');
 const StudyPlan = require('../models/StudyPlan');
 const Topic = require('../models/Topic');
 const Subject = require('../models/Subject');
-const QuizAttempt = require('../models/QuizAttempt');
-const Progress = require('../models/Progress');
 const geminiService = require('./geminiService');
 
 /**
@@ -15,25 +14,15 @@ const geminiService = require('./geminiService');
 /**
  * Analyze the current plan and weakness data to compute adaptive adjustments.
  */
-exports.computeAdaptiveAdjustments = async (userId, planId) => {
-  const plan = planId
+exports.computeAdaptiveAdjustments = async (userId, planId, lockedPlan = null) => {
+  const plan = lockedPlan || (planId
     ? await StudyPlan.findOne({ where: { id: planId, user: userId, status: 'active' } })
-    : await StudyPlan.findOne({ where: { user: userId, status: 'active' } });
+    : await StudyPlan.findOne({ where: { user: userId, status: 'active' } }));
 
   if (!plan) return { plan: null, adjustments: [], summary: null };
 
   // Get weakness profile for the user
   const topics = await Topic.findAll({ where: { user: userId }, attributes: ['id', 'name', 'subject', 'status', 'weightage'] });
-  const subjects = await Subject.findAll({ where: { user: userId }, attributes: ['id', 'name'] });
-
-  // Get quiz attempts
-  const attempts = await QuizAttempt.findAll({
-    where: { user: userId },
-    attributes: ['quiz', 'score', 'totalQuestions', 'createdAt'],
-    order: [['createdAt', 'DESC']],
-    limit: 200,
-  });
-
   // Compute topic scores
   const topicScores = {};
   for (const topic of topics) {
@@ -46,11 +35,22 @@ exports.computeAdaptiveAdjustments = async (userId, planId) => {
   const adjustments = [];
   let totalBoosted = 0;
   let totalReduced = 0;
+  const infeasibleDays = [];
+  const today = now.toISOString().slice(0, 10);
 
   for (const goal of dailyGoals) {
     if (!Array.isArray(goal.tasks)) continue;
 
-    for (const task of goal.tasks) {
+    const baseline = goal.tasks.map((task) => {
+      const previousMultiplier = Number(task.adaptiveMultiplier);
+      const inferred = previousMultiplier > 0 ? Math.round(Number(task.duration) / previousMultiplier) : Number(task.duration);
+      return Math.max(1, Number(task.baseDuration) || inferred || 60);
+    });
+    const capacity = Number(goal.dailyCapacityMinutes) > 0
+      ? Number(goal.dailyCapacityMinutes) : baseline.reduce((sum, minutes) => sum + minutes, 0);
+
+    for (const [index, task] of goal.tasks.entries()) {
+      if (task.completed || goal.date < today) continue;
       const topicId = task.topic;
       const topicData = topicScores[topicId];
 
@@ -93,9 +93,10 @@ exports.computeAdaptiveAdjustments = async (userId, planId) => {
       }
 
       if (multiplier !== 1) {
-        const originalDuration = task.duration || 60;
+        const originalDuration = baseline[index];
         const newDuration = Math.round(originalDuration * multiplier);
 
+        task.baseDuration = originalDuration;
         task.duration = newDuration;
         task.adaptiveMultiplier = multiplier;
         task.adaptiveReason = reason;
@@ -110,15 +111,45 @@ exports.computeAdaptiveAdjustments = async (userId, planId) => {
           status: topicData.status,
           weightage: topicData.weightage,
           daysUntilTask,
+          date: goal.date,
+          taskIndex: index,
         });
+      } else if (task.adaptiveMultiplier) {
+        task.baseDuration = baseline[index];
+        task.duration = baseline[index];
+        delete task.adaptiveMultiplier;
+        delete task.adaptiveReason;
+        task.isWeaknessBoosted = false;
+      }
+    }
+    if (goal.date >= today) {
+      const fixed = goal.tasks.reduce((sum, task) => sum + (task.completed ? Number(task.duration) || 0 : 0), 0);
+      const mutable = goal.tasks.filter((task) => !task.completed);
+      if (fixed + mutable.length > capacity) {
+        infeasibleDays.push({ date: goal.date, capacity, requiredMinimum: fixed + mutable.length });
+      } else {
+        const desired = mutable.reduce((sum, task) => sum + (Number(task.duration) || 0), 0);
+        if (desired + fixed > capacity) {
+          const budget = capacity - fixed;
+          let remaining = budget;
+          mutable.forEach((task, index) => {
+            const allocated = index === mutable.length - 1
+              ? remaining : Math.max(1, Math.floor((Number(task.duration) || 0) * budget / desired));
+            task.duration = allocated;
+            remaining -= allocated;
+          });
+        }
       }
     }
   }
 
-  // Save updated plan
-  if (adjustments.length > 0) {
-    plan.dailyGoals = dailyGoals;
-    await plan.save();
+  for (const adjustment of adjustments) {
+    const task = dailyGoals.find((goal) => goal.date === adjustment.date)
+      .tasks[adjustment.taskIndex];
+    adjustment.newDuration = task.duration;
+    adjustment.multiplier = task.duration / adjustment.originalDuration;
+    task.adaptiveMultiplier = adjustment.multiplier;
+    task.isWeaknessBoosted = adjustment.multiplier > 1;
   }
 
   // Compute plan summary
@@ -151,7 +182,37 @@ exports.computeAdaptiveAdjustments = async (userId, planId) => {
     endDate: plan.endDate,
   };
 
-  return { plan, adjustments, summary };
+  return { plan: { ...(plan.toJSON ? plan.toJSON() : plan), dailyGoals }, adjustments, summary, infeasibleDays };
+};
+
+exports.applyAdaptiveAdjustments = async (userId, planId, expectedUpdatedAt) => {
+  if (!expectedUpdatedAt || !Number.isFinite(Date.parse(expectedUpdatedAt))) {
+    const error = new Error('Refresh the adjustment preview before applying it');
+    error.code = 'STALE_PLAN';
+    throw error;
+  }
+  return sequelize.transaction(async (transaction) => {
+    const plan = await StudyPlan.findOne({
+      where: { id: planId, user: userId, status: 'active' }, transaction, lock: transaction.LOCK.UPDATE,
+    });
+    if (!plan) return { plan: null };
+    if (new Date(plan.updatedAt).toISOString() !== new Date(expectedUpdatedAt).toISOString()) {
+      const error = new Error('The study plan changed. Refresh the preview and try again');
+      error.code = 'STALE_PLAN';
+      throw error;
+    }
+    const preview = await exports.computeAdaptiveAdjustments(userId, planId, plan);
+    if (preview.infeasibleDays.length) {
+      const error = new Error('The adjusted schedule exceeds available study time');
+      error.code = 'CAPACITY_EXCEEDED';
+      error.details = preview.infeasibleDays;
+      throw error;
+    }
+    plan.dailyGoals = preview.plan.dailyGoals;
+    plan.currentVersionNumber = (plan.currentVersionNumber || 1) + 1;
+    await plan.save({ transaction });
+    return { ...preview, plan };
+  });
 };
 
 /**

@@ -28,6 +28,17 @@ export const fetchAdaptiveAdjustments = createAsyncThunk(
   }
 );
 
+export const applyAdaptiveAdjustments = createAsyncThunk(
+  'adaptivePlanner/applyAdjustments',
+  async ({ planId, expectedUpdatedAt }, { rejectWithValue }) => {
+    try {
+      const res = await axios.post(`${API_URL}/adaptive-planner/adjustments/${planId}/apply`,
+        { expectedUpdatedAt }, { headers: authHeaders() });
+      return res.data.data;
+    } catch (e) { return rejectWithValue(e.response?.data?.message || 'Failed to apply adjustments'); }
+  }
+);
+
 export const fetchTodayTasks = createAsyncThunk(
   'adaptivePlanner/fetchToday',
   async (_, { rejectWithValue }) => {
@@ -61,6 +72,8 @@ const adaptivePlannerSlice = createSlice({
     loading: false,
     error: null,
     generatedPlan: null,
+    applying: false,
+    infeasibleDays: [],
   },
   reducers: {
     clearAdaptiveError: (state) => { state.error = null; },
@@ -73,9 +86,16 @@ const adaptivePlannerSlice = createSlice({
       .addCase(generateAdaptivePlan.rejected, (s, a) => { s.generating = false; s.error = a.payload; })
       .addCase(fetchAdaptiveAdjustments.pending, (s) => { s.loading = true; s.error = null; })
       .addCase(fetchAdaptiveAdjustments.fulfilled, (s, a) => {
-        s.loading = false; s.plan = a.payload.plan; s.adjustments = a.payload.adjustments; s.summary = a.payload.summary;
+        s.loading = false; s.plan = a.payload.plan; s.adjustments = a.payload.adjustments;
+        s.summary = a.payload.summary; s.infeasibleDays = a.payload.infeasibleDays || [];
       })
       .addCase(fetchAdaptiveAdjustments.rejected, (s, a) => { s.loading = false; s.error = a.payload; })
+      .addCase(applyAdaptiveAdjustments.pending, (s) => { s.applying = true; s.error = null; })
+      .addCase(applyAdaptiveAdjustments.fulfilled, (s, a) => {
+        s.applying = false; s.plan = a.payload.plan; s.adjustments = a.payload.adjustments;
+        s.summary = a.payload.summary; s.infeasibleDays = [];
+      })
+      .addCase(applyAdaptiveAdjustments.rejected, (s, a) => { s.applying = false; s.error = a.payload; })
       .addCase(fetchTodayTasks.pending, (s) => { s.loading = true; })
       .addCase(fetchTodayTasks.fulfilled, (s, a) => { s.loading = false; s.todayTasks = a.payload.tasks; s.todaySummary = a.payload.summary; })
       .addCase(fetchTodayTasks.rejected, (s, a) => { s.loading = false; s.error = a.payload; })

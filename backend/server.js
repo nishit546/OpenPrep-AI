@@ -459,6 +459,7 @@ app.use('/api/sync', syncRoutes);
 app.use('/api/subjective-grader', require('./routes/subjectiveGraderRoutes'));
 app.use('/api/evaluator', require('./routes/evaluatorRoutes'));
 app.use('/api/study-plans', studyPlanRoutes);
+app.use('/api/adaptive-planner', adaptivePlannerRoutes);
 app.use('/api/study-schedule', adaptiveScheduleRoutes);
 app.use('/api/milestones', milestoneRoutes);
 app.use('/api/streaks', streakRoutes);
