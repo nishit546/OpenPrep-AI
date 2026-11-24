@@ -199,4 +199,27 @@ describe('geminiService.generateQuiz distractor refinement', () => {
     expect(model.generateContent).toHaveBeenCalledTimes(2);
     expect(quiz.questions[0].options).toEqual(WEAK.options);
   });
+
+  it('retries an incomplete response and caches only the validated quiz', async () => {
+    model = fakeModel([
+      { title: 'Incomplete', questions: [] },
+      { title: 'Valid', questions: [GOOD] },
+    ]);
+    const first = await geminiService.generateQuiz('Biology', 'Contract retry', '', 1, false);
+    const cached = await geminiService.generateQuiz('Biology', 'Contract retry', '', 1, false);
+    expect(first.questions).toHaveLength(1);
+    expect(first._validation).toEqual({ version: 1, source: 'gemini' });
+    expect(cached).toEqual(first);
+    expect(model.generateContent).toHaveBeenCalledTimes(2);
+  });
+
+  it('reports a typed failure after two invalid responses', async () => {
+    model = fakeModel([
+      'not-json',
+      { title: 'Duplicate', questions: [GOOD, GOOD] },
+    ]);
+    await expect(geminiService.generateQuiz('Biology', 'Contract failure', '', 2, true))
+      .rejects.toMatchObject({ code: 'AI_QUIZ_INVALID', status: 502 });
+    expect(model.generateContent).toHaveBeenCalledTimes(2);
+  });
 });

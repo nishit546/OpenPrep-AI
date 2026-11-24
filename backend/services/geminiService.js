@@ -5,6 +5,7 @@ const { splitIntoChunks } = require('../utils/textChunking');
 const { toLocalDateString } = require('../utils/dateUtils');
 const CircuitBreaker = require('./circuitBreaker');
 const distractorQualityService = require('./distractorQualityService');
+const { validateGeneratedQuiz, QUIZ_CONTRACT_VERSION } = require('./generatedQuizContract');
 const AIContractVersioningService = require('./aiContractVersioningService');
 const AIGenerationCacheService = require('./aiGenerationCacheService');// Notes larger than this are split into semantic chunks and summarized
 // across multiple Gemini passes so no content is silently dropped.
@@ -854,7 +855,8 @@ exports.generateQuiz = async (
   // Check cache (skip if forceRefresh)
   if (!forceRefresh) {
     const cached = responseCache.get(cacheKey);
-    if (cached) return cached;
+    if (cached && cached._validation?.version === QUIZ_CONTRACT_VERSION &&
+        validateGeneratedQuiz(cached, count, questionType).valid) return cached;
   }
 
   try {
@@ -945,39 +947,50 @@ exports.generateQuiz = async (
       }
     `;
 
-    const result = await generateWithRetry(model, prompt);
-    const parsed = cleanJSON(result.response.text());
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const result = await generateWithRetry(model, prompt);
+      const parsed = cleanJSON(result.response.text());
+      const multipleAnswers = parsed?.questions?.some((question) =>
+        Array.isArray(question.correctAnswer) && question.correctAnswer.length !== 1);
+      const validAnswerEncoding = (value) => Number.isInteger(value) ||
+        (typeof value === 'string' && /^\d+$/.test(value.trim()));
+      const invalidAnswerEncoding = !isSubjective && parsed?.questions?.some((question) => {
+        const answer = Array.isArray(question.correctAnswer) ? question.correctAnswer[0] : question.correctAnswer;
+        return !validAnswerEncoding(answer);
+      });
+      if (parsed && !multipleAnswers && !invalidAnswerEncoding) normalizeQuizQuestions(parsed);
 
-    // Validate response structure
-    if (!validateResponse(parsed, RESPONSE_SCHEMAS.quiz)) {
-      console.error('Quiz response validation failed');
-      return getMockQuiz(subjectName, topicName, count, normalizedLanguage, questionType);
-    }
-
-    normalizeQuizQuestions(parsed);
-
-    if (!isSubjective) {
-      parsed.questions = await distractorQualityService.refineWeakQuestions(
-        parsed.questions,
-        (weak) =>
-          regenerateWeakQuizQuestions(model, weak, {
-            subjectName,
-            topicName,
-            language: normalizedLanguage,
-            difficultyLevel,
+      let validation = multipleAnswers || invalidAnswerEncoding
+        ? { valid: false, reason: 'Correct answers must be one integer option index' }
+        : validateGeneratedQuiz(parsed, count, questionType);
+      if (validation.valid && !isSubjective) {
+        parsed.questions = await distractorQualityService.refineWeakQuestions(
+          parsed.questions,
+          (weak) => regenerateWeakQuizQuestions(model, weak, {
+            subjectName, topicName, language: normalizedLanguage, difficultyLevel,
           })
-      );
+        );
+        validation = validateGeneratedQuiz(parsed, count, questionType);
+      }
+      if (validation.valid) {
+        parsed._validation = { version: QUIZ_CONTRACT_VERSION, source: 'gemini' };
+        responseCache.set(cacheKey, parsed);
+        return parsed;
+      }
+      console.warn(`Quiz generation attempt ${attempt + 1} failed validation: ${validation.reason}`);
     }
-
-    responseCache.set(cacheKey, parsed);
-    return parsed;
+    const error = new Error('AI returned an invalid quiz after two attempts. Please try again.');
+    error.status = 502;
+    error.code = 'AI_QUIZ_INVALID';
+    throw error;
   } catch (error) {
     // Re-throw rate limit and server errors for proper HTTP handling
     if (error instanceof GeminiRateLimitError || error instanceof GeminiServerError) {
       throw error;
     }
     console.error('Gemini Quiz generation failed:', error);
-    return getMockQuiz(subjectName, topicName, count, normalizedLanguage, questionType);
+    if (error.code === 'AI_QUIZ_INVALID' || error.status === 400) throw error;
+    throw new GeminiServerError('AI quiz generation failed. Please try again later.', 503);
   }
 };
 
