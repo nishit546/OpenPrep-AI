@@ -31,6 +31,7 @@ import KeyboardShortcutsModal from '../components/flashcards/KeyboardShortcutsMo
 import ReviewRatingBar from '../components/flashcards/ReviewRatingBar';
 import PomodoroTimer from '../components/dashboard/PomodoroTimer';
 import MobileBottomSheet from '../components/common/MobileBottomSheet';
+import ReviewRatingBar from '../components/flashcards/ReviewRatingBar';
 import offlineSyncService from '../services/offlineSyncService';
 import soundService from '../services/soundService';
 const STORAGE_KEY = 'flashcardReviewSession';
