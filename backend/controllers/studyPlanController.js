@@ -269,6 +269,10 @@ exports.toggleTaskCompletion = async (req, res, next) => {
         }
         if (duration !== undefined && typeof duration === 'number' && duration >= 0) {
           task.duration = duration;
+          task.baseDuration = duration;
+          delete task.adaptiveMultiplier;
+          delete task.adaptiveReason;
+          task.isWeaknessBoosted = false;
         }
         taskFound = true;
         break;

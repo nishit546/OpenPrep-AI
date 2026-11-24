@@ -2,11 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import {
   Calendar, Zap, BarChart3, Clock, Loader2, AlertCircle, CheckCircle,
-  ChevronDown, Play, Settings, TrendingUp, BookOpen, Target,
+  Play, Settings, Target,
 } from 'lucide-react';
 import {
-  generateAdaptivePlan, fetchAdaptiveAdjustments, fetchTodayTasks,
-  fetchPlanStats, clearAdaptiveError, clearGeneratedPlan,
+  generateAdaptivePlan, fetchAdaptiveAdjustments, applyAdaptiveAdjustments, fetchTodayTasks,
+  fetchPlanStats, clearAdaptiveError,
 } from '../store/slices/adaptivePlannerSlice';
 import axios from 'axios';
 
@@ -17,8 +17,8 @@ const API_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api'
 const AdaptiveStudyPlanner = () => {
   const dispatch = useDispatch();
   const {
-    plan, adjustments, summary, todayTasks, todaySummary,
-    planStats, generating, loading, error, generatedPlan,
+    plan, adjustments, todayTasks, todaySummary,
+    planStats, generating, loading, applying, infeasibleDays, error, generatedPlan,
   } = useSelector((s) => s.adaptivePlanner);
 
   const [subjects, setSubjects] = useState([]);
@@ -48,9 +48,14 @@ const AdaptiveStudyPlanner = () => {
     if (error) { const t = setTimeout(() => dispatch(clearAdaptiveError()), 5000); return () => clearTimeout(t); }
   }, [error, dispatch]);
 
-  const handleGenerate = () => {
+  const handleGenerate = async () => {
     if (!examDate || !dailyHours) return;
-    dispatch(generateAdaptivePlan({ examDate, dailyHours: Number(dailyHours), subjectIds: selectedSubjects }));
+    const result = await dispatch(generateAdaptivePlan({ examDate, dailyHours: Number(dailyHours), subjectIds: selectedSubjects }));
+    if (generateAdaptivePlan.fulfilled.match(result)) {
+      dispatch(fetchAdaptiveAdjustments());
+      dispatch(fetchTodayTasks());
+      dispatch(fetchPlanStats());
+    }
   };
 
   const toggleSubject = (id) => {
@@ -191,7 +196,25 @@ const AdaptiveStudyPlanner = () => {
 
         {/* Adjustments */}
         {activeTab === 'adjustments' && !loading && (
-          <PlanAdjustmentList adjustments={adjustments} />
+          <div className="space-y-3">
+            <PlanAdjustmentList adjustments={adjustments} />
+            {infeasibleDays.length > 0 && (
+              <p role="alert" className="text-sm text-red-600">Some days cannot fit within the available study time: {infeasibleDays.map((day) => day.date).join(', ')}.</p>
+            )}
+            {plan && adjustments.length > 0 && (
+              <button type="button" disabled={applying || infeasibleDays.length > 0}
+                onClick={async () => {
+                  const result = await dispatch(applyAdaptiveAdjustments({ planId: plan.id, expectedUpdatedAt: plan.updatedAt }));
+                  if (applyAdaptiveAdjustments.fulfilled.match(result)) {
+                    dispatch(fetchTodayTasks());
+                    dispatch(fetchPlanStats());
+                  }
+                }}
+                className="px-4 py-2 rounded-lg bg-emerald-600 text-white disabled:opacity-50">
+                {applying ? 'Applying...' : 'Apply adjustments'}
+              </button>
+            )}
+          </div>
         )}
 
         {/* Full Calendar */}
