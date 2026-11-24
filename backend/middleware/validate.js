@@ -163,7 +163,11 @@ const submitQuizSchema = z.object({
       }).uuid('Each questionId must be a valid UUID'),
       selectedAnswer: z.union([
         z.string(),
-        z.number()
+        z.number(),
+        z.object({
+          userAnswerText: z.string(),
+          evaluationReceipt: z.string().min(1).optional(),
+        }),
       ], {
         required_error: 'Each answer must have a valid selectedAnswer',
       }),

@@ -36,6 +36,7 @@ try {
 }
 const { checkAndAwardBadges } = require('../services/achievementService');
 const { createNotification } = require('../services/notificationService');
+const subjectiveEvaluationReceipt = require('../services/subjectiveEvaluationReceipt');
 
 // Window (ms) during which duplicate quiz submissions for the same quiz are ignored.
 // Prevents double-click on "Submit Quiz" from creating duplicate attempt records.
@@ -431,6 +432,39 @@ exports.submitQuizAttempt = async (req, res, next) => {
       });
     }
 
+    if (new Set(answers.map((answer) => String(answer.questionId))).size !== answers.length) {
+      return res.status(400).json({ success: false, error: 'Each quiz question must be answered exactly once' });
+    }
+
+    const verifiedSubjectiveEvaluations = new Map();
+    for (const question of questionsList) {
+      const isSubjective = question.questionType === 'SUBJECTIVE' || (!question.options && question.idealAnswer);
+      if (!isSubjective) continue;
+
+      const questionId = String(question._id || question.id);
+      const submitted = answers.find((answer) => String(answer.questionId) === questionId);
+      const selected = submitted?.selectedAnswer;
+      const maxScore = Number.isFinite(Number(question.maxScore)) && Number(question.maxScore) > 0
+        ? Number(question.maxScore) : 10;
+      if (!selected || typeof selected !== 'object') {
+        return res.status(400).json({ success: false, error: 'A subjective answer requires answer text' });
+      }
+      if (!selected.evaluationReceipt) continue;
+      try {
+        const evaluation = subjectiveEvaluationReceipt.verifyReceipt({
+          token: selected.evaluationReceipt,
+          userId: req.user.id,
+          quizId: quiz.id,
+          questionId,
+          answerText: selected.userAnswerText,
+          maxScore,
+        });
+        verifiedSubjectiveEvaluations.set(questionId, evaluation);
+      } catch (error) {
+        return res.status(400).json({ success: false, error: 'Subjective evaluation is missing, expired, or does not match the answer' });
+      }
+    }
+
     // Atomically check for duplicate submissions and persist the attempt.
     // READ COMMITTED is required so that, after waiting for the row lock, the
     // duplicate check sees the committed attempt of a concurrent request.
@@ -469,7 +503,7 @@ exports.submitQuizAttempt = async (req, res, next) => {
         const isSubjective = q.questionType === 'SUBJECTIVE' || (!q.options && q.idealAnswer);
 
         if (isSubjective) {
-          const evalObj = userAns ? (userAns.evaluation || (userAns.selectedAnswer && userAns.selectedAnswer.evaluation) || null) : null;
+          const evalObj = verifiedSubjectiveEvaluations.get(String(q._id || q.id)) || null;
           const earned = evalObj ? (evalObj.score || 0) : 0;
           const maxSc = (evalObj && evalObj.maxScore) ? evalObj.maxScore : (q.maxScore || 10);
           totalEarnedPoints += earned;
@@ -1264,16 +1298,23 @@ exports.evaluateSubjectiveAnswer = async (req, res, next) => {
     let targetQuestion = null;
 
     if (quizId) {
-      const quiz = await Quiz.findByPk(quizId);
-      if (quiz && Array.isArray(quiz.questions)) {
-        targetQuestion = quiz.questions.find((q) => String(q._id || q.id) === String(questionId));
+      const quiz = await Quiz.findOne({ where: { id: quizId, createdBy: req.user.id } });
+      if (!quiz || !Array.isArray(quiz.questions)) {
+        return res.status(404).json({ success: false, error: 'Quiz not found' });
+      }
+      targetQuestion = quiz.questions.find((q) => String(q._id || q.id) === String(questionId));
+      if (!targetQuestion) {
+        return res.status(404).json({ success: false, error: 'Question not found in quiz' });
+      }
+      if (targetQuestion.questionType !== 'SUBJECTIVE' && (targetQuestion.options || !targetQuestion.idealAnswer)) {
+        return res.status(400).json({ success: false, error: 'Question is not subjective' });
       }
     }
 
     const questionText = targetQuestion ? targetQuestion.questionText : (req.body.questionText || '');
     const idealAnswer = targetQuestion ? targetQuestion.idealAnswer : (req.body.idealAnswer || '');
     const rubricCriteria = targetQuestion ? targetQuestion.rubricCriteria : (req.body.rubricCriteria || []);
-    const maxScore = targetQuestion ? (targetQuestion.maxScore || 10) : (req.body.maxScore || 10);
+    const maxScore = targetQuestion ? (Number.isFinite(Number(targetQuestion.maxScore)) && Number(targetQuestion.maxScore) > 0 ? Number(targetQuestion.maxScore) : 10) : (req.body.maxScore || 10);
 
     const evaluation = await geminiService.evaluateSubjectiveAnswer(
       questionText,
@@ -1284,9 +1325,26 @@ exports.evaluateSubjectiveAnswer = async (req, res, next) => {
       req.query.refresh === 'true'
     );
 
+    let responseEvaluation = evaluation;
+    if (targetQuestion) {
+      try {
+        const receipt = subjectiveEvaluationReceipt.issueReceipt({
+          userId: req.user.id,
+          quizId,
+          questionId: String(questionId),
+          answerText: userAnswerText || '',
+          evaluation,
+          maxScore,
+        });
+        responseEvaluation = { ...evaluation, receipt };
+      } catch (error) {
+        return res.status(502).json({ success: false, error: 'Subjective evaluation returned an invalid score' });
+      }
+    }
+
     res.status(200).json({
       success: true,
-      data: evaluation,
+      data: responseEvaluation,
     });
   } catch (error) {
     if (error instanceof GeminiRateLimitError) {
