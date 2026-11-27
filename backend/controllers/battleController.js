@@ -3,6 +3,9 @@ const BattleSession = require('../models/BattleSession');
 const Subject = require('../models/Subject');
 const Topic = require('../models/Topic');
 const Quiz = require('../models/Quiz');
+const BattleParticipant = require('../models/BattleParticipant');
+const roomManager = require('../utils/roomManager');
+const { publicQuiz } = require('../services/battleLobbyProjection');
 const geminiService = require('../services/geminiService');
 const { generateRoomCode } = require('../sockets/battleRoomAccess');
 
@@ -21,15 +24,18 @@ exports.createBattleSession = async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'subjectId is required.' });
     }
 
-    const subject = await Subject.findByPk(subjectId);
+    const subject = await Subject.findOne({ where: { id: subjectId, user: req.user.id } });
     if (!subject) {
       return res.status(404).json({ success: false, error: 'Subject not found.' });
     }
 
     let topicName = '';
     if (topicId) {
-      const topic = await Topic.findByPk(topicId);
-      if (topic) topicName = topic.name;
+      const topic = await Topic.findOne({ where: { id: topicId, subject: subjectId, user: req.user.id } });
+      if (!topic) {
+        return res.status(404).json({ success: false, error: 'Topic not found.' });
+      }
+      topicName = topic.name;
     }
 
     // Generate unique room code
@@ -45,6 +51,7 @@ exports.createBattleSession = async (req, res, next) => {
     let quiz = await Quiz.findOne({
       where: {
         subject: subjectId,
+        createdBy: req.user.id,
         ...(topicId ? { topic: topicId } : {}),
       },
       order: [['createdAt', 'DESC']],
@@ -123,7 +130,7 @@ exports.createBattleSession = async (req, res, next) => {
         hostUserId: battle.hostUserId,
         questionCount: battle.questionCount,
         timePerQuestion: battle.timePerQuestion,
-        quiz,
+        quiz: publicQuiz(quiz),
       },
     });
   } catch (error) {
@@ -135,15 +142,27 @@ exports.getBattleSession = async (req, res, next) => {
   try {
     const { roomCode } = req.params;
     const battle = await BattleSession.findOne({
-      where: { roomCode: roomCode.toUpperCase() },
-      include: [
-        { model: Quiz, as: 'quizRef' },
-      ],
+      where: { roomCode: roomCode.trim().toUpperCase() },
     });
 
     if (!battle) {
       return res.status(404).json({ success: false, error: 'Battle lobby not found.' });
     }
+
+    const userId = String(req.user.id);
+    const room = roomManager.getRoom(battle.roomCode);
+    const isHost = String(battle.hostUserId) === userId;
+    const isLiveParticipant = room && Object.values(room.players).some(
+      (player) => String(player.userId) === userId
+    );
+    const isPastParticipant = !isHost && !isLiveParticipant && battle.status === 'finished' &&
+      await BattleParticipant.findOne({ where: { battleId: battle.id, userId: req.user.id } });
+    if (!isHost && !isLiveParticipant && !isPastParticipant) {
+      // Match the missing-room response so private lobby membership is not disclosed.
+      return res.status(404).json({ success: false, error: 'Battle lobby not found.' });
+    }
+
+    const quiz = battle.quizId ? await Quiz.findByPk(battle.quizId) : null;
 
     res.status(200).json({
       success: true,
@@ -157,7 +176,7 @@ exports.getBattleSession = async (req, res, next) => {
         timePerQuestion: battle.timePerQuestion,
         status: battle.status,
         scores: battle.scores,
-        quiz: battle.quizRef,
+        quiz: publicQuiz(quiz),
       },
     });
   } catch (error) {

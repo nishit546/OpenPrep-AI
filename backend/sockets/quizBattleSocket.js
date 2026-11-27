@@ -1,9 +1,11 @@
 const crypto = require('crypto');
 const quizBattleService = require('../services/quizBattleService');
+const Quiz = require('../models/Quiz');
 const logger = require('../utils/logger');
 
 // In-memory room storage for custom room code battles (legacy / friend match support)
 const customRooms = new Map();
+const customRoomQuestions = new Map();
 
 function setupQuizBattleSocket(io) {
   io.on('connection', (socket) => {
@@ -105,21 +107,13 @@ function setupQuizBattleSocket(io) {
         }
 
         // Send submission acknowledgement to answering player
-        socket.emit('battle:answer_ack', {
-          isCorrect: result.isCorrect,
-          pointsEarned: result.pointsEarned,
-          score: result.player.score,
-          correctAnswerIndex: result.correctAnswerIndex,
-          explanation: result.explanation,
-        });
+        // Do not reveal correctness or score while an opponent can still answer.
+        socket.emit('battle:answer_ack', { accepted: true, questionIndex });
 
         // Broadcast real-time progress update to opponent
         if (result.opponent) {
           io.to(result.opponent.socketId).emit('battle:opponent_progress', {
             opponentLockedIn: true,
-            opponentScore: result.player.score,
-            opponentHp: result.player.hp,
-            selfHp: result.opponent.hp,
             questionIndex,
           });
         }
@@ -151,7 +145,11 @@ function setupQuizBattleSocket(io) {
     // LEGACY CUSTOM ROOM CODE SUPPORT (Friend lobbies)
     // ==========================================
 
-    socket.on('create-room', ({ hostName, quizId }) => {
+    socket.on('create-room', async ({ hostName, quizId }) => {
+      const quiz = await Quiz.findByPk(quizId).catch(() => null);
+      if (!quiz || !Array.isArray(quiz.questions) || quiz.questions.length === 0) {
+        return socket.emit('error-message', { message: 'Battle quiz not found.' });
+      }
       const roomCode = crypto.randomBytes(3).toString('hex').toUpperCase();
       const room = {
         roomCode,
@@ -164,6 +162,8 @@ function setupQuizBattleSocket(io) {
       };
 
       customRooms.set(roomCode, room);
+      // Keep the key outside the serialized room sent to clients.
+      customRoomQuestions.set(roomCode, quiz.questions);
       socket.join(roomCode);
       socket.emit('room-created', { roomCode, room });
     });
@@ -195,18 +195,23 @@ function setupQuizBattleSocket(io) {
         if (countdown < 0) {
           clearInterval(countdownInterval);
           room.status = 'active';
+          room.roundStartedAt = Date.now();
           io.to(roomCode).emit('start-questions', { questionIndex: room.currentQuestionIndex });
         }
       }, 1000);
     });
 
-    socket.on('submit-answer', ({ roomCode, isCorrect, timeRemaining }) => {
+    socket.on('submit-answer', ({ roomCode, selectedOption }) => {
       const room = customRooms.get(roomCode);
-      if (!room) return;
+      if (!room || room.status !== 'active') return;
 
       const player = room.players.find((p) => p.id === socket.id);
-      if (player && isCorrect) {
-        player.score += 100 + (timeRemaining * 5);
+      const question = customRoomQuestions.get(roomCode)?.[room.currentQuestionIndex];
+      if (!player || !question || player.answeredQuestionIndex === room.currentQuestionIndex) return;
+      player.answeredQuestionIndex = room.currentQuestionIndex;
+      const elapsedSeconds = Math.floor((Date.now() - room.roundStartedAt) / 1000);
+      if (elapsedSeconds <= room.timer && Number(selectedOption) === Number(question.correctAnswer)) {
+        player.score += 100 + Math.max(0, room.timer - elapsedSeconds) * 5;
       }
 
       const sortedLeaderboard = [...room.players].sort((a, b) => b.score - a.score);
@@ -256,8 +261,10 @@ function setupQuizBattleSocket(io) {
           setTimeout(() => {
             if (!player.connected) {
               room.players = room.players.filter((p) => p.id !== socket.id);
-              if (room.players.length === 0) customRooms.delete(roomCode);
-              else io.to(roomCode).emit('update-lobby', room);
+              if (room.players.length === 0) {
+                customRooms.delete(roomCode);
+                customRoomQuestions.delete(roomCode);
+              } else io.to(roomCode).emit('update-lobby', room);
             }
           }, 15000);
         }
@@ -300,12 +307,36 @@ function startSynchronizedClock(io, roomId, session) {
  */
 async function handleRoundTransition(io, roomId) {
   const session = quizBattleService.getBattleSession(roomId);
-  if (!session || session.status === 'finished') return;
+  if (!session || session.status === 'finished' || session.roundResolving) return;
+  session.roundResolving = true;
 
   if (session.activeClockInterval) {
     clearInterval(session.activeClockInterval);
     session.activeClockInterval = null;
   }
+
+  const completedQuestion = session.questions[session.currentQuestionIndex];
+  if (completedQuestion) {
+    for (const [socketId, player] of Object.entries(session.players)) {
+      const opponent = Object.values(session.players).find((candidate) => candidate !== player);
+      io.to(socketId).emit('battle:question_result', {
+        questionIndex: session.currentQuestionIndex,
+        correctAnswerIndex: completedQuestion.correctAnswerIndex,
+        explanation: completedQuestion.explanation || '',
+        isCorrect: player.currentAnswer === completedQuestion.correctAnswerIndex,
+        pointsEarned: player.lastPointsEarned || 0,
+        score: player.score,
+        selfHp: player.hp,
+        opponentScore: opponent?.score,
+        opponentHp: opponent?.hp,
+      });
+    }
+  }
+
+  // Give both clients time to see the completed round before changing questions.
+  await new Promise((resolve) => setTimeout(resolve, 1500));
+  if (session.status === 'finished') return;
+  session.roundResolving = false;
 
   // Advance round
   const transition = quizBattleService.advanceRound(roomId);
