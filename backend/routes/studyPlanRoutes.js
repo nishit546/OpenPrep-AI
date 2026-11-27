@@ -38,14 +38,17 @@ const router = express.Router();
 
 /**
  * @route   POST /api/study-plans
- * @desc    Generate a new AI-powered study plan (Service-based)
+ * @desc    Generate and persist a plan for an owned exam. Body: examId,
+ *          examDate (matching the exam), topics[], dailyHours. A successful
+ *          response contains the saved plan's id, examId and schedule.
  * @access  Private
  */
 router.post('/', protect, createStudyPlan);
 
 /**
  * @route   GET /api/study-plans
- * @desc    Retrieve the user's current study plan (Service-based)
+ * @desc    Retrieve the signed-in user's latest active plan, or null. Pass
+ *          examId to restrict the lookup to one exam.
  * @access  Private
  */
 router.get('/', protect, getStudyPlan);
