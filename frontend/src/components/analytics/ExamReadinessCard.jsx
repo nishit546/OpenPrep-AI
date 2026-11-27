@@ -8,21 +8,19 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts';
-import { FaSync, FaChartLine, FaHourglassHalf } from 'react-icons/fa';
+import { FaSync, FaChartLine } from 'react-icons/fa';
 
 const ExamReadinessCard = ({ data, onRecalculate, loading }) => {
   const score = data?.overallReadiness ?? 0;
   const trajectory = data?.trajectory ?? [];
+  const forecast = data?.forecast;
 
   // Determine progress color
   let scoreColor = 'text-rose-500';
-  let barColor = 'bg-rose-500';
   if (score >= 80) {
     scoreColor = 'text-emerald-500';
-    barColor = 'bg-emerald-500';
   } else if (score >= 50) {
     scoreColor = 'text-amber-500';
-    barColor = 'bg-amber-500';
   }
 
   return (
@@ -96,8 +94,11 @@ const ExamReadinessCard = ({ data, onRecalculate, loading }) => {
       {trajectory.length > 0 && (
         <div className="pt-4 border-t border-neutral-800">
           <h4 className="text-xs font-bold text-stone-300 uppercase tracking-wider mb-4 flex items-center gap-1.5">
-            <FaChartLine className="text-indigo-400" /> Projected Readiness Trajectory
+            <FaChartLine className="text-indigo-400" /> Estimated Readiness Trajectory
           </h4>
+          <p className="text-xs text-stone-400 mb-3">
+            {forecast?.basis} Confidence: {forecast?.confidence}. This is an estimate, not a guaranteed exam score.
+          </p>
           <div className="w-full h-40">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={trajectory} margin={{ top: 5, right: 10, left: -25, bottom: 5 }}>
@@ -111,7 +112,7 @@ const ExamReadinessCard = ({ data, onRecalculate, loading }) => {
                       return (
                         <div className="bg-neutral-900 border border-neutral-800 p-2.5 rounded-lg shadow-xl text-[10px] space-y-1">
                           <p className="font-bold text-stone-100">{dayData.date}</p>
-                          <p className="text-indigo-400 font-semibold">Forecasted Score: {dayData.score}%</p>
+                          <p className="text-indigo-400 font-semibold">Estimated readiness: {dayData.score}%</p>
                         </div>
                       );
                     }
@@ -123,6 +124,11 @@ const ExamReadinessCard = ({ data, onRecalculate, loading }) => {
             </ResponsiveContainer>
           </div>
         </div>
+      )}
+      {forecast?.mode === 'insufficient-data' && (
+        <p className="text-xs text-stone-400 border-t border-neutral-800 pt-4" role="status">
+          Readiness forecast unavailable: {forecast.reason}
+        </p>
       )}
     </div>
   );
