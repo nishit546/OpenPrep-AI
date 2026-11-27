@@ -20,6 +20,8 @@ const {
 
 const schedulePredictorService = require('../services/schedulePredictorService');
 const studyPlanService = require('../services/studyPlanService');
+const { sequelize } = require('../config/db');
+const { normalizeGeneratedPlan, serializeRootPlan } = require('../services/rootStudyPlanService');
 
 const triggerBackgroundCalendarSync = (plan, user) => {
   if (user && user.syncGoogleCalendar && user.googleCalendarRefreshToken) {
@@ -935,33 +937,80 @@ exports.exportStudyPlanPdf = async (req, res, next) => {
  */
 exports.createStudyPlan = async (req, res, next) => {
   try {
-    const { examDate, topics, dailyHours } = req.body;
+    const { examId, examDate, topics, dailyHours } = req.body;
+    const hours = Number(dailyHours);
+    const deadline = new Date(examDate);
 
-    if (!examDate || !Array.isArray(topics) || topics.length === 0 || !dailyHours) {
+    if (typeof examId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(examId) ||
+        !Array.isArray(topics) || topics.length === 0 ||
+        topics.some((topic) => typeof topic !== 'string' || !topic.trim() || topic.length > 200) ||
+        !Number.isFinite(hours) || hours < 0.5 || hours > 24 ||
+        !Number.isFinite(deadline.getTime())) {
       return res.status(400).json({
         success: false,
-        message: 'examDate, topics (array), and dailyHours are required.'
+        message: 'A valid examId, examDate, nonempty topics, and dailyHours between 0.5 and 24 are required.',
       });
     }
 
-    if (new Date(examDate) <= new Date()) {
+    if (deadline <= new Date()) {
       return res.status(400).json({
         success: false,
-        message: 'Exam date must be in the future.'
+        message: 'Exam date must be in the future.',
       });
     }
 
-    const plan = await studyPlanService.generateStudyPlan(examDate, topics, dailyHours);
+    const exam = await Exam.findOne({ where: { id: examId, user: req.user.id } });
+    if (!exam) return res.status(404).json({ success: false, message: 'Exam not found.' });
+    if (new Date(exam.date).toISOString().slice(0, 10) !== deadline.toISOString().slice(0, 10)) {
+      return res.status(400).json({ success: false, message: 'examDate must match the selected exam.' });
+    }
 
-    // Save plan to database associated with req.user.id
-    // TODO: Implement actual save logic when StudyPlan model integration is ready
+    let dailyGoals;
+    let generated;
+    try {
+      generated = await studyPlanService.generateStudyPlan(examDate, topics.map((topic) => topic.trim()), hours);
+      dailyGoals = normalizeGeneratedPlan(generated, { examDate, dailyHours: hours });
+    } catch (generationError) {
+      return res.status(502).json({
+        success: false,
+        message: 'The planner could not produce a valid schedule. No plan was saved.',
+      });
+    }
+
+    const plan = await sequelize.transaction(async (transaction) => {
+      // A user-row lock serializes root-route creations even when two requests
+      // generate their schedules concurrently.
+      const owner = await User.findByPk(req.user.id, { transaction, lock: transaction.LOCK.UPDATE });
+      if (!owner) throw new Error('User no longer available.');
+      const ownedExam = await Exam.findOne({ where: { id: examId, user: req.user.id }, transaction });
+      if (!ownedExam) throw new Error('Exam no longer available.');
+      await StudyPlan.update(
+        { status: 'archived' },
+        { where: { user: req.user.id, exam: examId, status: 'active' }, transaction }
+      );
+      return StudyPlan.create({
+        user: req.user.id,
+        exam: examId,
+        startDate: new Date(`${dailyGoals[0].date}T00:00:00Z`),
+        endDate: deadline,
+        dailyGoals,
+        overallStrategy: typeof generated.overallStrategy === 'string' ? generated.overallStrategy.slice(0, 2000) : '',
+        status: 'active',
+      }, { transaction });
+    });
+
+    try {
+      await cacheService.del(`study_plan:active:${req.user.id}`);
+    } catch (cacheError) {
+      // Persistence succeeded; a cache outage must not turn this into a false failure.
+      console.error('Failed to invalidate active study-plan cache:', cacheError);
+    }
 
     res.status(201).json({
       success: true,
-      data: plan,
+      data: serializeRootPlan(plan),
     });
   } catch (error) {
-    console.error('Error creating study plan:', error);
     next(error);
   }
 };
@@ -975,18 +1024,18 @@ exports.createStudyPlan = async (req, res, next) => {
  */
 exports.getStudyPlan = async (req, res, next) => {
   try {
-    // TODO: Implement actual retrieval logic when StudyPlan model integration is ready
-    // For now, return mock response for demonstration
+    const { examId } = req.query;
+    if (examId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(examId)) {
+      return res.status(400).json({ success: false, message: 'A valid examId is required.' });
+    }
+    const where = { user: req.user.id, status: 'active' };
+    if (examId) where.exam = examId;
+    const plan = await StudyPlan.findOne({ where, order: [['createdAt', 'DESC']] });
     res.status(200).json({
       success: true,
-      data: {
-        totalDays: 0,
-        schedule: [],
-        overallStrategy: "No plan found. Please generate a new one."
-      }
+      data: serializeRootPlan(plan),
     });
   } catch (error) {
-    console.error('Error fetching study plan:', error);
     next(error);
   }
 };
