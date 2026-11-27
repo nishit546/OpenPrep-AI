@@ -3,10 +3,12 @@
  */
 
 const { Subject, QuizAttempt, ReadinessSnapshot, StudyPlan } = require('../models');
+const { Op } = require('sequelize');
 const { calculateSubjectReadiness } = require('../services/readinessCalculator');
 const readinessPredictorService = require('../services/readinessPredictorService');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const prompts = require('../config/prompts');
+const { buildReadinessForecast } = require('../services/readinessForecastService');
 
 // Initialize Gemini API client
 const apiKey = process.env.GEMINI_API_KEY;
@@ -86,29 +88,35 @@ const compileReadinessSummary = async (userId) => {
     }
   }
 
-  // Trajectory forecast (plot points up to exam date)
+  // Forecast from observed quiz trend; never assume readiness reaches 100% on exam day.
   const activePlan = await StudyPlan.findOne({ where: { user: userId, status: 'active' } });
-  const daysToExam = activePlan ? Math.max(1, Math.ceil((new Date(activePlan.endDate) - new Date()) / (1000 * 60 * 60 * 24))) : 14;
-  const trajectory = [];
-
-  for (let i = 0; i <= daysToExam; i += Math.max(1, Math.ceil(daysToExam / 6))) {
-    const dayOffset = i;
-    const projected = Math.min(100, Math.round(overallReadiness + ((100 - overallReadiness) * (dayOffset / daysToExam))));
-    const date = new Date();
-    date.setDate(date.getDate() + dayOffset);
-    trajectory.push({
-      day: `Day ${dayOffset}`,
-      date: date.toLocaleDateString(),
-      score: projected,
-    });
-  }
+  const attempts = activePlan ? await QuizAttempt.findAll({
+    where: {
+      user: userId,
+      createdAt: { [Op.gte]: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
+    },
+    order: [['createdAt', 'DESC']],
+    limit: 200,
+  }) : [];
+  const forecast = buildReadinessForecast({
+    currentReadiness: overallReadiness,
+    attempts,
+    examDate: activePlan?.endDate,
+  });
 
   return {
     insufficientData: false,
     overallReadiness,
     subjects: readinessData,
     aiRecommendation,
-    trajectory,
+    trajectory: forecast.trajectory,
+    forecast: {
+      mode: forecast.mode,
+      reason: forecast.reason,
+      confidence: forecast.confidence,
+      basis: forecast.basis,
+      observationCount: forecast.observationCount,
+    },
   };
 };
 
