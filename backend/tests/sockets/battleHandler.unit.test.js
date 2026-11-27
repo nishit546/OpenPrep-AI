@@ -87,11 +87,16 @@ const setup = () => {
 describe('Real-Time Quiz Battle Sockets', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // The production socket handler uses CommonJS require; vi.mock does not
+    // replace Sequelize model methods there. Spy on the shared model instead.
+    vi.spyOn(BattleSession, 'findOne').mockResolvedValue(null);
     // Reset roomManager rooms
     for (const key in roomManager.rooms) {
       delete roomManager.rooms[key];
     }
   });
+
+  afterEach(() => vi.restoreAllMocks());
 
   describe('Connection & Lobby Join Flow', () => {
     it('fails to join if the room does not exist in roomManager and database find returns null', async () => {

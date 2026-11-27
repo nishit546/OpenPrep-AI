@@ -324,6 +324,7 @@ function submitAnswer({ roomId, socketId, questionIndex, selectedOption, clientT
     pointsEarned = 100 + Math.round(remainingRatio * 100);
     player.score += pointsEarned;
   }
+  player.lastPointsEarned = pointsEarned;
 
   // Find opponent
   const opponentSocketId = Object.keys(session.players).find(id => id !== socketId);
@@ -346,8 +347,6 @@ function submitAnswer({ roomId, socketId, questionIndex, selectedOption, clientT
     opponent,
     bothAnswered,
     session,
-    correctAnswerIndex: currentQ.correctAnswerIndex,
-    explanation: currentQ.explanation
   };
 }
 
@@ -365,6 +364,7 @@ function advanceRound(roomId) {
   for (const socketId in session.players) {
     session.players[socketId].answeredCurrentQuestion = false;
     session.players[socketId].currentAnswer = null;
+    session.players[socketId].lastPointsEarned = 0;
     session.players[socketId].timeSpentMs = 0;
   }
 

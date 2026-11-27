@@ -319,6 +319,37 @@ describe('BattleArena Component', () => {
     );
   });
 
+  it('waits for round resolution before showing the ranked answer key', async () => {
+    captureSocketHandlers();
+    render(<BattleArena />);
+    emitHandlers['battle:matched']({
+      roomId: 'BATTLE_ROOM_1',
+      self: { userId: 'user-1', username: 'TestPlayer', hp: 100, score: 0 },
+      opponent: { userId: 'user-2', username: 'RivalPlayer', hp: 100, score: 0 },
+      questions: [{ questionText: 'What is 2 + 2?', options: ['3', '4'] }],
+      totalQuestions: 1,
+      timeLimit: 15,
+      currentQuestionIndex: 0,
+    });
+    await screen.findByText('What is 2 + 2?');
+
+    emitHandlers['battle:answer_ack']({ accepted: true, questionIndex: 0 });
+    expect(screen.queryByText(/Correct! \+/)).not.toBeInTheDocument();
+
+    emitHandlers['battle:question_result']({
+      questionIndex: 0,
+      correctAnswerIndex: 1,
+      explanation: 'Two plus two is four.',
+      isCorrect: true,
+      pointsEarned: 100,
+      score: 100,
+      selfHp: 100,
+      opponentScore: 0,
+      opponentHp: 80,
+    });
+    expect(await screen.findByText(/Correct! \+100 pts/)).toBeInTheDocument();
+  });
+
   it('displays ELO gain and question review on battle:round_ended', async () => {
     captureSocketHandlers();
     render(<BattleArena />);

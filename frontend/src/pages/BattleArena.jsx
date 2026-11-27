@@ -284,6 +284,10 @@ const BattleArena = () => {
     });
 
     socket.on('battle:answer_ack', (data) => {
+      if (data.accepted) setRankedAnswerSubmitted(true);
+    });
+
+    socket.on('battle:question_result', (data) => {
       setRankedFeedback({
         isCorrect: data.isCorrect,
         pointsEarned: data.pointsEarned,
@@ -291,6 +295,8 @@ const BattleArena = () => {
         explanation: data.explanation,
       });
       setSelfPlayer((prev) => (prev ? { ...prev, score: data.score } : prev));
+      setSelfPlayer((prev) => (prev ? { ...prev, hp: data.selfHp } : prev));
+      setOpponentPlayer((prev) => (prev ? { ...prev, score: data.opponentScore, hp: data.opponentHp } : prev));
     });
 
     socket.on('battle:round_ended', (data) => {
@@ -360,6 +366,7 @@ const BattleArena = () => {
       socket.off('battle:new_question');
       socket.off('battle:opponent_progress');
       socket.off('battle:answer_ack');
+      socket.off('battle:question_result');
       socket.off('battle:round_ended');
       socket.off('battle:disconnect');
       socket.off('battle:rematch_offered');
